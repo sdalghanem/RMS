@@ -1,0 +1,91 @@
+{% extends "Management/base.html" %}
+{% load static %}
+{% block title %}إضافة برنامج فرعي - RMS{% endblock %}
+{% block content %}
+<!--  -->
+
+{% if form.errors %}
+  <div class="alert alert-danger">
+    <strong>تعذر الحفظ:</strong>
+    <ul class="mb-0">
+      {# أخطاء عامة على النموذج كله #}
+      {% for e in form.non_field_errors %}
+        <li>{{ e }}</li>
+      {% endfor %}
+
+      {# أخطاء الحقول #}
+      {% for field in form %}
+        {% for e in field.errors %}
+          <li>{{ field.label }}: {{ e }}</li>
+        {% endfor %}
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
+
+
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <h5 class="m-0">إضافة برنامج فرعي</h5>
+
+  {% if main_program_id %}
+    <a class="btn btn-outline-secondary btn-rms"
+       href="{% url 'Management:program_detail' pk=main_program_id %}">
+      <i class="bi bi-arrow-left"></i> رجوع
+    </a>
+  {% else %}
+    <a class="btn btn-outline-secondary btn-rms"
+       href="{% url 'Management:program_list' %}">
+      <i class="bi bi-arrow-left"></i> رجوع
+    </a>
+  {% endif %}
+</div>
+<div class="row justify-content-center">
+  <div class="col-lg-7 col-md-9">
+    <div class="card rms">
+      <div class="card-body p-4">
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+          <div class="mb-3">
+            <label class="form-label">{{ form.fields.main_program.label }}</label>
+            {{ form.main_program }}
+            {% for e in form.main_program.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">{{ form.fields.name.label }}</label>
+            {{ form.name }}
+            {% for e in form.name.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">{{ form.fields.description.label }}</label>
+            {{ form.description }}
+            {% for e in form.description.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+
+          {% if form.fields.allocated_amount %}
+          <div class="mb-3">
+            <label class="form-label">{{ form.fields.allocated_amount.label }}</label>
+            {{ form.allocated_amount }}
+            {% for e in form.allocated_amount.errors %}<div class="text-danger small">{{ e }}</div>{% endfor %}
+          </div>
+          {% endif %}
+
+          <div class="d-flex justify-content-end gap-2">
+            <a href="{% url 'Management:program_list' %}" class="btn btn-outline-secondary btn-rms">إلغاء</a>
+            <button class="btn btn-primary btn-rms" type="submit">
+              <i class="bi bi-check2-circle"></i> حفظ
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,1165 @@
+from functools import wraps
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import PermissionDenied
+from django.shortcuts import render, redirect, get_object_or_404
+from django.db import transaction, IntegrityError
+from django.contrib.auth import get_user_model, login, logout
+from django.core.paginator import Paginator
+from django.db.models import Q
+from django.http import HttpResponseForbidden
+from django.urls import resolve
+from django.utils.http import url_has_allowed_host_and_scheme
+
+from .forms import LoginForm, UserWithProfileCreateForm, UserContactEditForm
+from .models import Profile , Beneficiary
+
+# أعلى الملف:
+from .forms import BeneficiaryForm, BeneficiaryFilterForm, BeneficiaryImportForm, BeneficiariesBulkAssignForm , BeneficiariesBulkEducationForm
+from django.views.decorators.http import require_http_methods
+from django.db.models import Q
+import json
+
+
+User = get_user_model()
+
+# -------------------------------------------------------------------
+# 🔹 ديكوريتر لتقييد الوصول بالأدوار
+# -------------------------------------------------------------------
+def role_required(allowed_roles):
+    def decorator(view_func):
+        @wraps(view_func)
+        @login_required
+        def _wrapped(request, *args, **kwargs):
+            user = request.user
+            if user.is_superuser:
+                return view_func(request, *args, **kwargs)
+            prof = getattr(user, "profile", None)
+            if prof and prof.role in allowed_roles:
+                return view_func(request, *args, **kwargs)
+            return HttpResponseForbidden("ليست لديك صلاحية الوصول إلى هذه الصفحة.")
+        return _wrapped
+    return decorator
+
+# -------------------------------------------------------------------
+# 🔹 أدوات التوجيه والصلاحيات
+# -------------------------------------------------------------------
+def _is_system_admin(user):
+    prof = getattr(user, "profile", None)
+    in_group = user.groups.filter(name="system_admin").exists()
+    return user.is_superuser or in_group or (prof and prof.role == Profile.Roles.SYSTEM_ADMIN)
+
+def _redirect_by_role(user):
+    # بعد تسجيل الدخول، الكل يروح إلى الصفحة الرئيسية
+    return redirect("Management:home")
+
+# def _redirect_by_role(user):
+#     prof = getattr(user, "profile", None)
+#     if _is_system_admin(user):
+#         return redirect("Management:users_list")
+#     if prof:
+#         if prof.role == Profile.Roles.ACCOUNTANT:
+#             return redirect("Management:accountant_home")
+#         if prof.role == Profile.Roles.DONOR:
+#             return redirect("Management:donor_home")
+#         if prof.role == Profile.Roles.CASHIER:
+#             return redirect("Management:cashier_home")
+#     return redirect("Management:home")
+
+def _user_allowed_for_url(user, path: str) -> bool:
+    """يتأكد أن المستخدم مخوّل للـ next URL"""
+    try:
+        match = resolve(path)
+        view_name = f"{match.namespace}:{match.url_name}" if match.namespace else match.url_name
+    except Exception:
+        return False
+
+    admin_only = {
+        "Management:users_list",
+        "Management:create_user_with_profile",
+        "Management:update_user_role",
+        "Management:delete_user",
+        "Management:edit_user_contact",
+    }
+    if view_name in admin_only:
+        return _is_system_admin(user)
+    return True
+
+# -------------------------------------------------------------------
+# 🔹 صفحة تسجيل الدخول 	hmad@gmail.com
+# -------------------------------------------------------------------
+def login_view(request):
+    if request.user.is_authenticated:
+        return _redirect_by_role(request.user)
+
+    form = LoginForm(request, data=request.POST or None)
+
+    if request.method == "POST":
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+
+            # خيار "تذكرني"
+            remember = form.cleaned_data.get("remember_me")
+            if not remember:
+                request.session.set_expiry(0)
+
+            messages.success(request, "تم تسجيل الدخول بنجاح.")
+
+            # احترام next إن كان مسموحًا
+            next_url = request.GET.get("next") or request.POST.get("next")
+            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
+                if _user_allowed_for_url(user, next_url):
+                    return redirect(next_url)
+            # توجيه حسب الدور
+            return _redirect_by_role(user)
+        else:
+            messages.error(request, "بيانات الدخول غير صحيحة. تأكد من الإيميل وكلمة المرور.")
+
+    return render(request, "Management/login.html", {"form": form, "title": "تسجيل الدخول"})
+
+# -------------------------------------------------------------------
+# 🔹 تسجيل الخروج
+# -------------------------------------------------------------------
+@login_required
+def logout_view(request):
+    logout(request)
+    messages.success(request, "تم تسجيل الخروج بنجاح.")
+    return redirect("Management:login")
+
+# -------------------------------------------------------------------
+# 🔹 الصفحة الرئيسية
+# -------------------------------------------------------------------
+def home(request):
+    return render(request, "Management/home.html")
+
+from django.contrib.auth.decorators import login_required
+from django.utils.decorators import method_decorator
+from django.views.generic import TemplateView
+from .models import MainProgram  # و Beneficiary إن وجد
+
+@method_decorator(login_required, name="dispatch")
+class HomeView(TemplateView):
+    template_name = "Management/home.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["programs_count"] = MainProgram.objects.count()
+        # ctx["beneficiaries_count"] = Beneficiary.objects.count()
+        return ctx
+
+# -------------------------------------------------------------------
+# 🔹 إنشاء المستخدمين وإدارة الأدوار
+# -------------------------------------------------------------------
+def _user_in_group(user, name: str) -> bool:
+    return user.groups.filter(name=name).exists()
+
+def _allowed_creation_roles(for_user):
+    if for_user.is_superuser:
+        return [Profile.Roles.DONOR, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]
+    if _user_in_group(for_user, "accountant"):
+        return [Profile.Roles.DONOR]
+    return []
+
+@login_required
+@permission_required("auth.add_user", raise_exception=True)
+def create_user_with_profile(request):
+    allowed_roles = _allowed_creation_roles(request.user)
+    if not allowed_roles:
+        raise PermissionDenied("ليست لديك صلاحية إنشاء هذا النوع من الحسابات.")
+
+    if request.method == "POST":
+        form = UserWithProfileCreateForm(request.POST, allowed_roles=allowed_roles)
+        if form.is_valid():
+            role = form.cleaned_data["role"]
+            if role not in allowed_roles:
+                raise PermissionDenied("لا يُسمح لك بإنشاء هذا الدور.")
+            try:
+                with transaction.atomic():
+                    email = form.cleaned_data["email"].strip().lower()
+                    user = User.objects.create_user(
+                        username=email,
+                        password=form.cleaned_data["password1"],
+                        email=email,
+                        first_name=form.cleaned_data["first_name"],
+                        last_name=form.cleaned_data["last_name"],
+                    )
+                    Profile.objects.create(
+                        user=user,
+                        role=role,
+                        phone=form.cleaned_data["phone"],
+                        national_number=form.cleaned_data["national_number"],
+                        father_name=form.cleaned_data.get("father_name") or "",
+                        grandpa_name=form.cleaned_data.get("grandpa_name") or "",
+                    )
+                messages.success(request, "تم إنشاء المستخدم والبروفايل وربط الجروب بنجاح.")
+                return redirect("Management:create_user_with_profile")
+            except IntegrityError as ie:
+                messages.error(request, f"تعذّر الحفظ بسبب تعارض بيانات فريدة: {ie}")
+            except Exception as e:
+                messages.error(request, f"حدث خطأ غير متوقع: {e}")
+    else:
+        form = UserWithProfileCreateForm(allowed_roles=allowed_roles)
+
+    return render(request, "Management/create_user_with_profile.html", {"form": form, "title": "إضافة مستخدم جديد"})
+
+# -------------------------------------------------------------------
+# 🔹 قائمة المستخدمين (System Admin فقط)
+# -------------------------------------------------------------------
+@role_required([Profile.Roles.SYSTEM_ADMIN])
+@login_required
+@permission_required("auth.view_user", raise_exception=True)
+def users_list(request):
+    q = (request.GET.get("q") or "").strip()
+    role = (request.GET.get("role") or "").strip()
+
+    qs = User.objects.select_related("profile") \
+        .filter(profile__isnull=False) \
+        .exclude(profile__role=Profile.Roles.SYSTEM_ADMIN) \
+        .order_by("-id")
+
+
+    if q:
+        qs = qs.filter(
+            Q(username__icontains=q)
+            | Q(email__icontains=q)
+            | Q(first_name__icontains=q)
+            | Q(last_name__icontains=q)
+            | Q(profile__phone__icontains=q)
+            | Q(profile__national_number__icontains=q)
+        )
+    if role:
+        qs = qs.filter(profile__role=role)
+
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    roles = [
+        (Profile.Roles.DONOR, "كفيل"),
+        (Profile.Roles.ACCOUNTANT, "محاسب"),
+        (Profile.Roles.CASHIER, "كاشير"),
+    ]
+
+    return render(request, "Management/users_list.html", {
+        "page_obj": page_obj,
+        "q": q,
+        "role": role,
+        "roles": roles,
+        "title": "قائمة المستخدمين",
+    })
+
+# -------------------------------------------------------------------
+# 🔹 تعديل / حذف / صلاحيات المستخدم
+# -------------------------------------------------------------------
+def _allowed_target_roles(for_user):
+    if for_user.is_superuser:
+        return [Profile.Roles.DONOR, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]
+    if _user_in_group(for_user, "accountant"):
+        return [Profile.Roles.DONOR]
+    return []
+
+@login_required
+@permission_required("auth.change_user", raise_exception=True)
+def update_user_role(request, user_id):
+    if request.method != "POST":
+        raise PermissionDenied("طريقة غير مسموحة.")
+    user = get_object_or_404(User.objects.select_related("profile"), pk=user_id, profile__isnull=False)
+
+    target_role = request.POST.get("role")
+    allowed = _allowed_target_roles(request.user)
+    if target_role not in allowed:
+        raise PermissionDenied("لا تملك صلاحية تغيير الدور إلى هذا الخيار.")
+
+    with transaction.atomic():
+        user.profile.role = target_role
+        user.profile.save()
+
+    messages.success(request, "تم تحديث الدور بنجاح.")
+    return redirect("Management:users_list")
+
+@login_required
+@permission_required("auth.delete_user", raise_exception=True)
+def delete_user(request, user_id):
+    if request.method != "POST":
+        raise PermissionDenied("طريقة غير مسموحة.")
+    if request.user.id == int(user_id):
+        raise PermissionDenied("لا يمكنك حذف حسابك الشخصي.")
+
+    user = get_object_or_404(User, pk=user_id)
+    user.delete()
+    messages.success(request, "تم حذف المستخدم.")
+    return redirect("Management:users_list")
+
+@login_required
+@permission_required("auth.change_user", raise_exception=True)
+def edit_user_contact(request, user_id):
+    user = get_object_or_404(User.objects.select_related("profile"), pk=user_id, profile__isnull=False)
+
+    if request.method == "POST":
+        form = UserContactEditForm(request.POST, user=user)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    new_email = form.cleaned_data["email"].strip().lower()
+                    user.email = new_email
+                    user.username = new_email
+                    user.save(update_fields=["email", "username"])
+                    user.profile.phone = form.cleaned_data["phone"]
+                    user.profile.save(update_fields=["phone"])
+                messages.success(request, "تم تحديث البيانات بنجاح.")
+                return redirect("Management:users_list")
+            except IntegrityError as ie:
+                messages.error(request, f"فشل التعديل بسبب تعارض بيانات فريدة: {ie}")
+            except Exception as e:
+                messages.error(request, f"فشل التعديل: {e}")
+        else:
+            messages.error(request, "تحقق من الأخطاء في الحقول أدناه.")
+    else:
+        form = UserContactEditForm(user=user, initial={
+            "email": user.email or user.username,
+            "phone": user.profile.phone,
+        })
+
+    return render(request, "Management/edit_user_contact.html", {
+        "form": form,
+        "title": f"تعديل بيانات الاتصال — {user.first_name} {user.last_name}",
+        "user_obj": user,
+    })
+
+# -------------------------------------------------------------------
+# 🔹 صفحات تجريبية للأدوار الأخرى
+# -------------------------------------------------------------------
+@role_required([Profile.Roles.ACCOUNTANT])
+def accountant_home(request):
+    return render(request, "Management/role_home.html", {
+        "title": "صفحة المحاسب",
+        "heading": "مرحبًا بالمحاسب",
+        "desc": "هذه صفحة تجريبية لصلاحيات المحاسب."
+    })
+
+@role_required([Profile.Roles.DONOR])
+def donor_home(request):
+    return render(request, "Management/role_home.html", {
+        "title": "صفحة الكفيل",
+        "heading": "مرحبًا بالكفيل",
+        "desc": "هذه صفحة تجريبية لصلاحيات الكفيل."
+    })
+
+@role_required([Profile.Roles.CASHIER])
+def cashier_home(request):
+    return render(request, "Management/role_home.html", {
+        "title": "صفحة الكاشير",
+        "heading": "مرحبًا بالكاشير",
+        "desc": "هذه صفحة تجريبية لصلاحيات الكاشير."
+    })
+
+
+
+@login_required
+def my_profile(request):
+    user = request.user
+    if request.method == "POST":
+        form = UserContactEditForm(request.POST, user=user)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    new_email = form.cleaned_data["email"].strip().lower()
+                    user.email = new_email
+                    user.username = new_email
+                    user.save(update_fields=["email", "username"])
+                    user.profile.phone = form.cleaned_data["phone"]
+                    user.profile.save(update_fields=["phone"])
+                messages.success(request, "تم تحديث بيانات ملفك الشخصي بنجاح.")
+                return redirect("Management:my_profile")
+            except IntegrityError as ie:
+                messages.error(request, f"فشل التعديل بسبب تعارض بيانات فريدة: {ie}")
+        else:
+            messages.error(request, "تحقق من الأخطاء في الحقول أدناه.")
+    else:
+        form = UserContactEditForm(
+            user=user,
+            initial={"email": user.email or user.username, "phone": user.profile.phone}
+        )
+    return render(request, "Management/my_profile.html", {"form": form, "title": "الملف الشخصي"})
+
+#######################################################################################################################################
+
+
+
+def _beneficiary_roles():
+    return [Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT]
+
+@role_required(_beneficiary_roles())
+def beneficiaries_list(request):
+    form = BeneficiaryFilterForm(request.GET or None)
+    qs = Beneficiary.objects.select_related("donor","donor__user").all().order_by("-created_at")
+
+    if form.is_valid():
+        q = form.cleaned_data.get("q") or ""
+        gender = form.cleaned_data.get("gender") or ""
+        donor = form.cleaned_data.get("donor")
+        edu = form.cleaned_data.get("education_level") or ""   # ← جديد
+
+        if q:
+            qs = qs.filter(
+                Q(first_name__icontains=q) | Q(last_name__icontains=q) |
+                Q(father_name__icontains=q) | Q(grand_name__icontains=q) |
+                Q(national_number__icontains=q)
+            )
+        if gender:
+            qs = qs.filter(gender=gender)
+        if donor:
+            qs = qs.filter(donor=donor)
+        if edu:                                           # ← جديد
+            qs = qs.filter(education_level=edu)
+
+
+    paginator = Paginator(qs, 20)
+    page_obj = paginator.get_page(request.GET.get("page"))
+
+    ctx = {
+        "title": "قائمة المستفيدين",
+        "form": form,
+        "page_obj": page_obj,
+    }
+
+    bulk_form = BeneficiariesBulkAssignForm()
+    bulk_edu_form = BeneficiariesBulkEducationForm()
+    ctx = {
+        "title": "قائمة المستفيدين",
+        "form": form,
+        "page_obj": page_obj,
+        "bulk_form": bulk_form,   # ← أضفناه
+        "bulk_edu_form": bulk_edu_form,   # ← جديد
+
+    }
+
+    return render(request, "Management/beneficiaries_list.html", ctx)
+
+@role_required(_beneficiary_roles())
+def beneficiary_create(request):
+    if request.method == "POST":
+        form = BeneficiaryForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تم إضافة المستفيد بنجاح.")
+            return redirect("Management:beneficiaries_list")
+        messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
+    else:
+        form = BeneficiaryForm()
+    return render(request, "Management/beneficiary_form.html", {"form": form, "title": "إضافة مستفيد"})
+
+@role_required(_beneficiary_roles())
+def beneficiary_update(request, pk):
+    obj = get_object_or_404(Beneficiary, pk=pk)
+    if request.method == "POST":
+        form = BeneficiaryForm(request.POST, instance=obj)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "تم تعديل بيانات المستفيد.")
+            return redirect("Management:beneficiaries_list")
+        messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
+    else:
+        form = BeneficiaryForm(instance=obj)
+    return render(request, "Management/beneficiary_form.html", {"form": form, "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}"})
+
+@role_required(_beneficiary_roles())
+@require_http_methods(["POST"])
+def beneficiary_delete(request, pk):
+    obj = get_object_or_404(Beneficiary, pk=pk)
+    obj.delete()
+    messages.success(request, "تم حذف المستفيد.")
+    return redirect("Management:beneficiaries_list")
+
+@role_required(_beneficiary_roles())
+def beneficiaries_import(request):
+    """
+    يقبل رأس عربي نموذجي:
+    الإسم/الاسم, النوع, رقم الهوية, (اختياري) العمر, الدخل, المرحلة الدراسية, الحالة الصحية, المرض, نوع المرض,
+    (اختياري) تاريخ الميلاد بالميلادي / تاريخ الميلاد
+
+    ما يحدث:
+      - تفكيك الاسم إلى first_name/father_name/grand_name/last_name.
+      - تطبيع النوع إلى (male/female).
+      - التأكد من "رقم الهوية" وتحويل الأرقام العربية إلى إنجليزية ووجوب 10 أرقام.
+      - (اختياري) ضبط المرحلة الدراسية/الحالة الصحية/المرض/نوع المرض إذا توفرت.
+      - (جديد) قراءة "تاريخ الميلاد بالميلادي" (أو "تاريخ الميلاد"/مرادفات) وتحويله لتاريخ وكتابته في birth_date.
+      - حساب العمر من الميلاد (للتحقّق فقط، لا يُخزّن لأنه @property).
+      - استخدام update_or_create على national_number.
+    """
+    if request.method == "POST":
+        form = BeneficiaryImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            file = form.cleaned_data["file"]
+            import openpyxl
+            from datetime import date, datetime
+            from dateutil.relativedelta import relativedelta
+            import pandas as pd
+
+            # خرائط التطبيع (مطابقة choices في المودل)
+            GENDER_MAP = {
+                "ذكر": "male", "انثى": "female", "أنثى": "female",
+                "male": "male", "m": "male", "f": "female", "female": "female",
+            }
+            EDUCATION_MAP = {
+                # طفل / روضة
+                "طفل": "child", "رضيع": "child",
+                "روضة": "kg", "رياض اطفال": "kg", "رياض الأطفال": "kg", "kg": "kg", "k.g": "kg",
+                # ابتدائي
+                "اول ابتدائي": "p1", "أول ابتدائي": "p1", "1 ابتدائي": "p1", "الاول ابتدائي": "p1", "grade 1": "p1",
+                "ثاني ابتدائي": "p2", "2 ابتدائي": "p2", "grade 2": "p2",
+                "ثالث ابتدائي": "p3", "3 ابتدائي": "p3", "grade 3": "p3",
+                "رابع ابتدائي": "p4", "4 ابتدائي": "p4", "grade 4": "p4",
+                "خامس ابتدائي": "p5", "5 ابتدائي": "p5", "grade 5": "p5",
+                "سادس ابتدائي": "p6", "6 ابتدائي": "p6", "grade 6": "p6",
+                # متوسط
+                "اول متوسط": "m1", "أول متوسط": "m1", "1 متوسط": "m1", "grade 7": "m1",
+                "ثاني متوسط": "m2", "2 متوسط": "m2", "grade 8": "m2",
+                "ثالث متوسط": "m3", "3 متوسط": "m3", "grade 9": "m3",
+                # ثانوي
+                "اول ثانوي": "h1", "أول ثانوي": "h1", "1 ثانوي": "h1", "grade 10": "h1",
+                "ثاني ثانوي": "h2", "2 ثانوي": "h2", "grade 11": "h2",
+                "ثالث ثانوي": "h3", "3 ثانوي": "h3", "grade 12": "h3",
+            }
+            HEALTH_STATUS_MAP = {
+                "سليم": "healthy", "healthy": "healthy",
+                "مريض": "sick",   "sick": "sick",
+            }
+            DISEASE_TYPE_MAP = {
+                "لا يوجد": "none", "بدون": "none",
+                "مزمن": "chronic", "مستعصي": "chronic",
+                "مؤقت": "temporary", "غير مستعصي": "temporary",
+                "none": "none", "chronic": "chronic", "temporary": "temporary",
+            }
+
+            # مرادفات لتاريخ الميلاد
+            DOB_CANDIDATES = {
+                "تاريخ الميلاد بالميلادي", "تاريخ الميلاد", "ميلاد",
+                "Birth Date", "Birthdate", "DOB", "Date of Birth", "DoB",
+            }
+            # مرادفات للاسم
+            NAME_CANDIDATES = {"الإسم", "الاسم", "اسم", "اسم المستفيد", "الاسم الكامل", "Full Name", "Name"}
+            # مرادفات للنوع
+            GENDER_CANDIDATES = {"النوع", "الجنس", "Gender", "Sex"}
+            # مرادفات للهوية
+            NID_CANDIDATES = {"رقم الهوية", "الهوية", "National ID", "ID", "Identity Number"}
+
+            # أدوات مساعدة
+            def norm(map_, val, default=""):
+                if val is None:
+                    return default
+                s = str(val).strip()
+                if s in map_:
+                    return map_[s]
+                if s.lower() in map_:
+                    return map_[s.lower()]
+                s2 = " ".join(s.split())
+                return map_.get(s2, default)
+
+            AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+            def normalize_digits_to_en(s):
+                if s is None:
+                    return ""
+                return str(s).translate(AR_DIGITS)
+
+            def split_ar_name(full):
+                """تفكيك الاسم العربي إلى أربعة أجزاء قدر الإمكان"""
+                if not full:
+                    return "", "", "", ""
+                parts = [p for p in str(full).strip().split() if p]
+                parts = (parts + ["", "", "", ""])[:4]
+                # لو كلمتين فقط: أول/عائلة
+                if parts[2] == "" and parts[3] == "" and len(parts) >= 2:
+                    return parts[0], "", "", parts[1]
+                return parts[0], parts[1], parts[2], parts[3]
+
+            def parse_excel_date(val):
+                """تحويل قيمة إكسل (نص/سيريال/Datetime) إلى datetime.date أو None"""
+                if val is None:
+                    return None
+                if isinstance(val, (pd.Timestamp, datetime)):
+                    return val.date()
+                if isinstance(val, (int, float)) and not isinstance(val, bool):
+                    try:
+                        origin = pd.Timestamp("1899-12-30")
+                        d = origin + pd.to_timedelta(int(val), unit="D")
+                        return d.date()
+                    except Exception:
+                        pass
+                d = pd.to_datetime(str(val), errors="coerce", dayfirst=True, infer_datetime_format=True)
+                return d.date() if not pd.isna(d) else None
+
+            def compute_age_years(dob, today=None):
+                if not dob:
+                    return None
+                if today is None:
+                    today = date.today()
+                rd = relativedelta(today, dob)
+                return rd.years
+            # --- تطبيع عربي/أرقام + مطابقة مرحلة دراسية بالأنماط ---
+            AR_DIGITS = str.maketrans("٠١٢٣٤٥٦٧٨٩", "0123456789")
+
+            def normalize_digits_to_en(s):
+                if s is None:
+                    return ""
+                return str(s).translate(AR_DIGITS)
+
+            def ar_simplify(s: str) -> str:
+                """تبسيط نص عربي: توحيد الألف/الهمزة، إزالة التطويل، مسافات زائدة، تحويل للأحرف الصغيرة."""
+                if not s:
+                    return ""
+                s = normalize_digits_to_en(s)
+                s = s.strip()
+                # توحيد بعض الحروف
+                s = (s
+                    .replace("أ", "ا")
+                    .replace("إ", "ا")
+                    .replace("آ", "ا")
+                    .replace("ة", "ه")
+                    .replace("ى", "ي")
+                    .replace("ـ", "")
+                )
+                # مسافات متتالية → فراغ واحد
+                s = " ".join(s.split())
+                return s.lower()
+
+            def map_education(value):
+                """
+                يحوّل نص المرحلة الدراسية إلى one of:
+                child, kg, p1..p6, m1..m3, h1..h3
+                يدعم: (أول/اول/اولى/١/1) + (ابتدائي/متوسط/ثانوي) + grade N
+                """
+                if value is None or str(value).strip() == "":
+                    return ""
+                raw = str(value)
+                t = ar_simplify(raw)
+
+                # حالات سهلة
+                if any(k in t for k in ["طفل", "رضيع"]):
+                    return "child"
+                if any(k in t for k in ["روضه", "روضة", "kg", "k.g"]):
+                    return "kg"
+
+                # إنجليزي: grade N
+                import re
+                m = re.search(r"\bgrade\s*(\d{1,2})\b", t)
+                if m:
+                    n = int(m.group(1))
+                    if 1 <= n <= 6:  return f"p{n}"
+                    if 7 <= n <= 9:  return f"m{n-6}"
+                    if 10 <= n <= 12: return f"h{n-9}"
+                    return ""
+
+                # عربي بالأرقام أو الكلمات
+                # استخراج رقم إن وُجد
+                m2 = re.search(r"\b([1-6])\b", t)
+                m_mid = re.search(r"\b([1-3])\b", t)
+                # مؤشرات للمرحلة
+                is_primary  = "ابتدائي" in t
+                is_middle   = "متوسط"  in t
+                is_high     = "ثانوي"  in t
+
+                # كلمات ترتيب عربية
+                WORD2NUM = {
+                    "اول": 1, "الاول": 1, "اولى": 1,
+                    "ثاني": 2, "الثاني": 2,
+                    "ثالث": 3, "الثالث": 3,
+                    "رابع": 4, "الرابع": 4,
+                    "خامس": 5, "الخامس": 5,
+                    "سادس": 6, "السادس": 6,
+                }
+                found_word_num = next((WORD2NUM[w] for w in WORD2NUM.keys() if w in t), None)
+
+                # ابتدائي
+                if is_primary:
+                    n = None
+                    if m2: n = int(m2.group(1))
+                    if found_word_num: n = found_word_num
+                    if n and 1 <= n <= 6:
+                        return f"p{n}"
+                    # لو ذكر "ابتدائي" بلا رقم → نتركه فارغ أفضل من تخمين
+                    return ""
+
+                # متوسط
+                if is_middle:
+                    n = None
+                    if m_mid: n = int(m_mid.group(1))
+                    if found_word_num and found_word_num in (1, 2, 3): n = found_word_num
+                    if n and 1 <= n <= 3:
+                        return f"m{n}"
+                    return ""
+
+                # ثانوي
+                if is_high:
+                    n = None
+                    if m_mid: n = int(m_mid.group(1))
+                    if found_word_num and found_word_num in (1, 2, 3): n = found_word_num
+                    if n and 1 <= n <= 3:
+                        return f"h{n}"
+                    return ""
+
+                return ""
+
+            # اقرأ الملف (قيم الصيغ كأرقام)
+            wb = openpyxl.load_workbook(file, data_only=True)
+            ws = wb.active
+
+            # قراءة العناوين
+            headers = [str(c.value).strip() if c.value is not None else "" for c in next(ws.rows)]
+            H = {h: i for i, h in enumerate(headers)}
+
+            # دالة إيجاد أول مفتاح مطابق
+            def find_key(candidates):
+                # تطابق مباشر
+                for cand in candidates:
+                    if cand in H:
+                        return cand
+                # تطابق يحتوي
+                for h in H.keys():
+                    if any(cand.lower() in h.lower() for cand in candidates):
+                        return h
+                return None
+
+            name_key   = find_key(NAME_CANDIDATES)
+            gender_key = find_key(GENDER_CANDIDATES)
+            nid_key    = find_key(NID_CANDIDATES)
+            dob_key    = find_key(DOB_CANDIDATES)  # قد يكون None
+
+            # تحقق من الأعمدة الإلزامية الدنيا
+            missing = []
+            if not name_key:   missing.append("الاسم")
+            if not gender_key: missing.append("النوع")
+            if not nid_key:    missing.append("رقم الهوية")
+            if missing:
+                messages.error(request, f"الأعمدة الإلزامية مفقودة أو غير معرّفة بوضوح: {', '.join(missing)}")
+                return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
+
+            # مفاتيح اختيارية أخرى
+            edu_key       = find_key({"المرحلة الدراسية", "التعليم", "Education Level"})
+            health_key    = find_key({"الحالة الصحية", "Health Status"})
+            disease_key   = find_key({"المرض", "Disease"})
+            dtype_key     = find_key({"نوع المرض", "Disease Type"})
+
+            get_cell = lambda row, k: (row[H[k]].value if k and k in H else None)
+
+            created, updated, skipped = 0, 0, 0
+            errors = []
+
+            for r, row in enumerate(ws.iter_rows(min_row=2), start=2):
+                try:
+                    full_name = get_cell(row, name_key)
+                    gender_in = get_cell(row, gender_key)
+                    nat_raw   = get_cell(row, nid_key)
+
+                    # الهوية: تطبيع أرقام عربية → إنجليزية + تحقق 10 أرقام
+                    nat = normalize_digits_to_en(nat_raw).strip()
+                    if not nat.isdigit() or len(nat) != 10:
+                        skipped += 1
+                        errors.append(f"سطر {r}: رقم الهوية غير صالح.")
+                        continue
+
+                    # ابحث أو أنشئ بحسب رقم الهوية
+                    obj, is_created = Beneficiary.objects.get_or_create(national_number=nat)
+
+                    # الاسم
+                    f, fa, gr, la = split_ar_name(full_name)
+                    if f:  obj.first_name = str(f)
+                    if fa: obj.father_name = str(fa)
+                    if gr: obj.grand_name = str(gr)
+                    # last_name مطلوب في المودل؛ استخدم المتوفر أو اتركه فارغًا كـ "" (مسموح تقنيًا)
+                    obj.last_name = str(la) if la else (obj.last_name or "")
+
+                    # الجنس
+                    gnorm = norm(GENDER_MAP, gender_in, default="")
+                    if gnorm:
+                        obj.gender = gnorm
+
+                    # المرحلة الدراسية (اختياري)
+                    # edu_in = get_cell(row, edu_key)
+                    # edu = norm(EDUCATION_MAP, edu_in, default="")
+                    # if edu:
+                    #     obj.education_level = edu
+                    edu_in = get_cell(row, edu_key)
+                    edu = norm(EDUCATION_MAP, edu_in, default="")
+                    if not edu:
+                        # محاولة تطبيع ذكي بالأنماط
+                        edu = map_education(edu_in)
+                    if edu in {"child","kg","p1","p2","p3","p4","p5","p6","m1","m2","m3","h1","h2","h3"}:
+                        obj.education_level = edu
+
+                    # الحالة الصحية (healthy/sick فقط)
+                    health_in = get_cell(row, health_key)
+                    hs = norm(HEALTH_STATUS_MAP, health_in, default="")
+                    if hs:
+                        obj.health_status = hs
+
+                    # المرض ونوعه (اختياري)
+                    dis_in = get_cell(row, disease_key)
+                    if dis_in is not None:
+                        obj.disease = str(dis_in).strip()
+                    dtype_in = get_cell(row, dtype_key)
+                    dtype = norm(DISEASE_TYPE_MAP, dtype_in, default="")
+                    if dtype:
+                        obj.type_disease = dtype
+
+                    # (جديد) تاريخ الميلاد بالميلادي → birth_date
+                    if dob_key:
+                        dob_val = get_cell(row, dob_key)
+                        dob = parse_excel_date(dob_val)
+                        if dob:
+                            obj.birth_date = dob
+                            # حساب العمر (للتحقق/التقرير فقط، لا يُخزّن)
+                            _ = compute_age_years(dob)
+
+                    # تحقق أساسي: وجود first_name
+                    if not obj.first_name:
+                        skipped += 1
+                        errors.append(f"سطر {r}: الاسم غير صالح/فارغ.")
+                        continue
+
+                    obj.save()
+                    if is_created:
+                        created += 1
+                    else:
+                        updated += 1
+
+                except Exception as ex:
+                    skipped += 1
+                    errors.append(f"سطر {r}: خطأ غير متوقع — {ex}")
+
+            msg = f"تم الاستيراد: مضافة {created} / محدثة {updated} / متجاوزة {skipped}."
+            if errors:
+                msg += f" أخطاء: {len(errors)} (أظهرنا أول 5)\n- " + "\n- ".join(errors[:5])
+                messages.warning(request, msg)
+            else:
+                messages.success(request, msg)
+            return redirect("Management:beneficiaries_list")
+
+    else:
+        form = BeneficiaryImportForm()
+
+    return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
+
+
+# @role_required(_beneficiary_roles())
+# def beneficiaries_import(request):
+#     """
+#     يقبل رأس عربي:
+#     الإسم, النوع, العمر, رقم الهوية, الدخل, المرحلة الدراسية, الحالة الصحية, المرض, نوع المرض
+
+#     الحقول التي نملؤها فقط:
+#       - الاسم (تفكيك إلى first_name/father_name/grand_name/last_name)
+#       - الجنس (النوع)
+#       - رقم الهوية
+#       - المرحلة الدراسية (اختياري)
+#       - الحالة الصحية (اختياري)
+#       - المرض (اختياري)
+#       - نوع المرض (اختياري)
+#     والباقي يظل فارغًا ليملؤه المستخدم لاحقًا.
+#     """
+#     if request.method == "POST":
+#         form = BeneficiaryImportForm(request.POST, request.FILES)
+#         if form.is_valid():
+#             file = form.cleaned_data["file"]
+#             import openpyxl
+
+#             # تطبيع القيم
+#             HEALTH_STATUS_MAP = {
+#                 "سليم": "healthy",
+#                 "مريض": "sick",
+#                 # دعم إنجليزي اختياري
+#                 "healthy": "healthy",
+#                 "sick": "sick",
+#             }
+#             GENDER_MAP = {
+#                 "ذكر": "male", "انثى": "female", "أنثى": "female",
+#                 "male": "male", "m": "male", "f": "female", "female": "female",
+#             }
+#             EDUCATION_MAP = {
+#                 # طفل / روضة
+#                 "طفل": "child", "رضيع": "child",
+#                 "روضة": "kg", "رياض اطفال": "kg", "رياض الأطفال": "kg", "kg": "kg", "k.g": "kg",
+
+#                 # ابتدائي
+#                 "اول ابتدائي": "p1", "أول ابتدائي": "p1", "1 ابتدائي": "p1", "الاول ابتدائي": "p1", "grade 1": "p1",
+#                 "ثاني ابتدائي": "p2", "2 ابتدائي": "p2", "grade 2": "p2",
+#                 "ثالث ابتدائي": "p3", "3 ابتدائي": "p3", "grade 3": "p3",
+#                 "رابع ابتدائي": "p4", "4 ابتدائي": "p4", "grade 4": "p4",
+#                 "خامس ابتدائي": "p5", "5 ابتدائي": "p5", "grade 5": "p5",
+#                 "سادس ابتدائي": "p6", "6 ابتدائي": "p6", "grade 6": "p6",
+
+#                 # متوسط
+#                 "اول متوسط": "m1", "أول متوسط": "m1", "1 متوسط": "m1", "grade 7": "m1",
+#                 "ثاني متوسط": "m2", "2 متوسط": "m2", "grade 8": "m2",
+#                 "ثالث متوسط": "m3", "3 متوسط": "m3", "grade 9": "m3",
+
+#                 # ثانوي
+#                 "اول ثانوي": "h1", "أول ثانوي": "h1", "1 ثانوي": "h1", "grade 10": "h1",
+#                 "ثاني ثانوي": "h2", "2 ثانوي": "h2", "grade 11": "h2",
+#                 "ثالث ثانوي": "h3", "3 ثانوي": "h3", "grade 12": "h3",
+#             }
+
+#             HEALTH_MAP = {
+#                 "جيد": "good", "good": "good",
+#                 "متوسط": "fair", "fair": "fair",
+#                 "ضعيف": "poor", "poor": "poor",
+#             }
+#             # بدّل خريطة نوع المرض إلى التالية:
+#             DISEASE_TYPE_MAP = {
+#                 # عربي شائع
+#                 "لا يوجد": "none", "بدون": "none",
+#                 "مزمن": "chronic",
+#                 "مؤقت": "temporary",
+
+#                 # المطلوب الآن:
+#                 "مستعصي": "chronic",
+#                 "غير مستعصي": "temporary",
+
+#                 # إنجليزي ورموز مختصرة
+#                 "none": "none",
+#                 "chronic": "chronic",
+#                 "temporary": "temporary",
+#             }
+          
+
+#             # def norm(map_, val, default=""):
+#             #     if val is None:
+#             #         return default
+#             #     s = str(val).strip()
+#             #     # نحاول المطابقة المباشرة
+#             #     if s in map_: 
+#             #         return map_[s]
+#             #     # نحاول بحروف صغيرة (للإنجليزية)
+#             #     if s.lower() in map_: 
+#             #         return map_[s.lower()]
+#             #     # نحاول إزالة المسافات الزائدة (تفيد "غير مستعصي" لو فيها فراغات مختلفة)
+#             #     s2 = " ".join(s.split())
+#             #     return map_.get(s2, default)
+#             def norm(map_, val, default=""):
+#                 if val is None:
+#                     return default
+#                 s = str(val).strip()
+#                 if s in map_:
+#                     return map_[s]
+#                 if s.lower() in map_:
+#                     return map_[s.lower()]
+#                 s2 = " ".join(s.split())
+#                 return map_.get(s2, default)
+                
+
+#             def split_ar_name(full):
+#                 """
+#                 يحاول تفكيك الاسم العربي إلى 4 أجزاء: أول/أب/جد/عائلة.
+#                 لو أقل من 4 كلمات: يوزّع قدر الإمكان.
+#                 """
+#                 if not full:
+#                     return "", "", "", ""
+#                 parts = [p for p in str(full).strip().split() if p]
+#                 # ضمان 4 خانات
+#                 parts = (parts + ["", "", "", ""])[:4]
+#                 # heuristic: لو 2 كلمات فقط → أول/عائلة
+#                 if parts[2] == "" and parts[3] == "" and len(parts) >= 2:
+#                     return parts[0], "", "", parts[1]
+#                 return parts[0], parts[1], parts[2], parts[3]
+
+#             try:
+#                 wb = openpyxl.load_workbook(file)
+#                 ws = wb.active
+#                 # قراءة الهيدر العربي
+#                 headers = [str(c.value).strip() if c.value is not None else "" for c in next(ws.rows)]
+#                 H = {h: i for i, h in enumerate(headers)}
+
+#                 REQUIRED = ["الإسم", "النوع", "رقم الهوية"]
+#                 missing = [h for h in REQUIRED if h not in H]
+#                 if missing:
+#                     messages.error(request, f"الأعمدة الإلزامية مفقودة: {', '.join(missing)}")
+#                     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
+
+#                 get = lambda row, k: (row[H[k]].value if k in H else None)
+
+#                 created, updated, skipped = 0, 0, 0
+#                 errors = []
+
+#                 for r, row in enumerate(ws.iter_rows(min_row=2), start=2):
+#                     full_name = get(row, "الإسم")
+#                     gender_in = get(row, "النوع")
+#                     nat = get(row, "رقم الهوية")
+
+#                     nat = str(nat or "").strip()
+#                     if not nat or not nat.isdigit() or len(nat) != 10:
+#                         skipped += 1
+#                         errors.append(f"سطر {r}: رقم الهوية غير صحيح.")
+#                         continue
+
+#                     # الحقول الاختيارية
+#                     edu_in = get(row, "المرحلة الدراسية")
+#                     edu = norm(EDUCATION_MAP, edu_in, default="")
+#                     if edu:
+#                         obj.education_level = edu
+#                     # لو ما تطابقت، نتركه فارغًا ليعدّله المستخدم لاحقًا
+#                     health_in = get(row, "الحالة الصحية")
+#                     disease_in = get(row, "المرض")
+#                     disease_type_in = get(row, "نوع المرض")
+
+#                     # ابحث أو أنشئ بحسب رقم الهوية
+#                     obj, is_created = Beneficiary.objects.get_or_create(national_number=nat)
+
+#                     # الاسم
+#                     f, fa, gr, la = split_ar_name(full_name)
+#                     # عبِّئ المتاح فقط؛ اترك الباقي كما هو لو كان موجود سابقًا
+#                     if f:  obj.first_name = str(f)
+#                     if fa: obj.father_name = str(fa)
+#                     if gr: obj.grand_name = str(gr)
+#                     if la: obj.last_name = str(la)
+#                     if not obj.last_name and not la and f:
+#                         # fallback لو الاسم كلمة واحدة
+#                         obj.last_name = obj.last_name or ""
+#                     # بعد get(row, "...") للأعمدة:
+#                     health_in = get(row, "الحالة الصحية")
+
+#                     # قبل obj.save() مباشرة:
+#                     hs = norm(HEALTH_STATUS_MAP, health_in, default="")
+#                     if hs:
+#                         obj.health_status = hs   # يخزن healthy/sick حسب ملف الإكسل (سليم/مريض)
+
+#                     # الجنس
+#                     gnorm = norm(GENDER_MAP, gender_in, default="")
+#                     if gnorm: obj.gender = gnorm  # وإلا اتركه فارغًا ليدخله المستخدم لاحقًا
+
+#                     # المرحلة الدراسية/الصحية/المرض/نوع المرض (اختيارية)
+#                     # edu = norm(EDU_MAP, edu_in, default="")
+#                     # if edu: obj.education_level = edu
+#                     edu = form.cleaned_data.get("education_level") or ""
+#                     if edu:
+#                         qs = qs.filter(education_level=edu)
+
+
+#                     health = norm(HEALTH_MAP, health_in, default="")
+#                     if health: obj.health_status = health
+
+#                     if disease_in is not None:
+#                         obj.disease = str(disease_in).strip()
+
+#                     dtype = norm(DISEASE_TYPE_MAP, disease_type_in, default="")
+#                     if dtype: obj.type_disease = dtype
+
+#                     # لا نملأ: birth_date, type_housing, housing_fee, beneficiary_rank,
+#                     # number_of_beneficiary_in_family, donor ... إلخ
+
+#                     # تحقق أساسي: لا نسمح بسجل بلا اسم أول
+#                     if not obj.first_name:
+#                         errors.append(f"سطر {r}: الاسم غير صالح/فارغ.")
+#                         skipped += 1
+#                         continue
+
+#                     obj.save()
+#                     if is_created: created += 1
+#                     else: updated += 1
+
+#                 msg = f"تم الاستيراد: مضافة {created} / محدثة {updated} / متجاوزة {skipped}."
+#                 if errors:
+#                     msg += f" أخطاء: {len(errors)} (أظهرنا أول 5)\n- " + "\n- ".join(errors[:5])
+#                     messages.warning(request, msg)
+#                 else:
+#                     messages.success(request, msg)
+#                 return redirect("Management:beneficiaries_list")
+
+#             except Exception as e:
+#                 messages.error(request, f"فشل قراءة الملف: {e}")
+#     else:
+#         form = BeneficiaryImportForm()
+#     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
+
+
+
+@role_required(_beneficiary_roles())
+@require_http_methods(["POST"])
+def beneficiaries_bulk_assign(request):
+    form = BeneficiariesBulkAssignForm(request.POST)
+    if form.is_valid():
+        donor = form.cleaned_data["donor"]
+
+        # اقرأ المعرّفات من selected_ids (المعبأة via JS)
+        ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
+        try:
+            ids = [int(i) for i in ids_raw.replace("[","").replace("]","").split(",") if str(i).strip().isdigit()]
+        except Exception:
+            ids = []
+
+        if not ids:
+            messages.error(request, "لم يتم تحديد مستفيدين.")
+            return redirect("Management:beneficiaries_list")
+
+        updated = Beneficiary.objects.filter(id__in=ids).update(donor=donor)
+        messages.success(request, f"تم إلحاق {updated} مستفيد/ـين بالمتبرع المحدد.")
+        return redirect("Management:beneficiaries_list")
+
+    # لو فيه أخطاء (مثلاً دونر غير مُرسَل)
+    messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
+    return redirect("Management:beneficiaries_list")
+
+
+
+@role_required(_beneficiary_roles())
+def beneficiaries_template(request):
+    """
+    تنزيل قالب Excel بالأعمدة الصحيحة
+    """
+    import openpyxl
+    from openpyxl import Workbook
+    from django.http import HttpResponse
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Beneficiaries"
+
+    headers = [
+        "first_name","father_name","grand_name","last_name","gender","birth_date",
+        "education_level","health_status","disease","type_disease","type_housing",
+        "housing_fee","beneficiary_rank","number_of_beneficiary_in_family",
+        "national_number","donor_email"
+    ]
+    ws.append(headers)
+
+    # مثال صف إرشادي (اختياري)
+    ws.append(["أحمد","محمد","سعيد","القحطاني","ذكر","2010-01-01","primary","good","", "none","rent", "1500","child","3","1234567890","donor@example.com"])
+
+    # حفظ إلى استجابة HTTP
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response["Content-Disposition"] = 'attachment; filename="beneficiaries_template.xlsx"'
+    wb.save(response)
+    return response
+
+
+
+
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT])
+def beneficiary_detail(request, pk):
+    b = get_object_or_404(Beneficiary.objects.select_related("donor","donor__user"), pk=pk)
+    return render(request, "Management/beneficiary_detail.html", {
+        "title": f"عرض مستفيد — {b.first_name} {b.last_name}",
+        "b": b,
+    })
+
+@role_required(_beneficiary_roles())
+@require_http_methods(["POST"])
+def beneficiaries_bulk_change_education(request):
+    form = BeneficiariesBulkEducationForm(request.POST)
+    if form.is_valid():
+        target_level = form.cleaned_data["education_level"]
+        ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
+        try:
+            ids = [int(x) for x in ids_raw.replace("[","").replace("]","").split(",") if str(x).strip().isdigit()]
+        except Exception:
+            ids = []
+
+        if not ids:
+            messages.error(request, "لم يتم تحديد مستفيدين.")
+            return redirect("Management:beneficiaries_list")
+
+        updated = Beneficiary.objects.filter(id__in=ids).update(education_level=target_level)
+        messages.success(request, f"تم تغيير المرحلة الدراسية لـ {updated} مستفيد/ـين.")
+        return redirect("Management:beneficiaries_list")
+
+    messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
+    return redirect("Management:beneficiaries_list")

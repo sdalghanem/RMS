@@ -1,0 +1,246 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+<style>
+  .print-container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .invoice-header {
+    border-bottom: 2px solid #e5e7eb;
+    padding-bottom: 12px;
+    margin-bottom: 16px;
+  }
+  .invoice-logo {
+    max-height: 60px;
+  }
+  .invoice-table th,
+  .invoice-table td {
+    padding: 6px 8px;
+    border: 1px solid #e5e7eb;
+    font-size: 0.9rem;
+  }
+  .invoice-table th {
+    background-color: #f9fafb;
+    width: 30%;
+  }
+  .btn-print {
+    min-width: 140px;
+  }
+
+  @media print {
+    .navbar,
+    .rms-footer,
+    .btn-print,
+    .rms-pagebar,
+    .no-print,
+    footer,
+    .footer,
+    .site-footer,
+    .main-footer {
+      display: none !important;
+    }
+    body {
+      background: #ffffff !important;
+    }
+    .card {
+      border: none !important;
+      box-shadow: none !important;
+    }
+  }
+
+</style>
+
+<div class="print-container my-3">
+  <div class="d-flex justify-content-between align-items-center mb-3 no-print">
+    <h5 class="m-0 fw-bold">سند {{ invoice.get_invoice_type_display }}</h5>
+    <button type="button" class="btn btn-primary btn-print" onclick="window.print()">
+      <i class="bi bi-printer"></i> طباعة
+    </button>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+
+      <!-- رأس السند / الشعار -->
+      <div class="invoice-header d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="mb-1 fw-bold">جمعية الرياحين</h6>
+          <p class="mb-0 text-muted small">نظام إدارة المحاسبة - سند مالي</p>
+        </div>
+        <div>
+          {# عدل مسار الشعار حسب ملفك #}
+          <img src="{% static 'Management/images/widelogo.png' %}" alt="شعار الجمعية" class="invoice-logo">
+        </div>
+      </div>
+
+      <!-- بيانات أساسية -->
+      <table class="table invoice-table mb-3">
+        <tbody>
+          <tr>
+            <th>رقم السند</th>
+            <td>{{ invoice.number }}</td>
+          </tr>
+          <tr>
+            <th>تاريخ السند</th>
+            <td>{{ invoice.date|date:"Y-m-d" }}</td>
+          </tr>
+          <tr>
+            <th>نوع السند</th>
+            <td>{{ invoice.get_receipt_kind_display }}</td>
+          </tr>
+          <tr>
+            <th>نوع الفاتورة</th>
+            <td>{{ invoice.get_invoice_type_display }}</td>
+          </tr>
+          <tr>
+            <th>وسيلة القبض</th>
+            <td>
+              {% if invoice.payment_method %}
+                {{ invoice.get_payment_method_display }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      {# تفاصيل خاصة بكل نوع #}
+      {% if invoice.invoice_type == "general_donation" and invoice.general_donation %}
+        <h6 class="fw-bold mb-2">بيانات التبرع العام</h6>
+        <table class="table invoice-table mb-3">
+          <tbody>
+            <tr>
+              <th>اسم الداعم</th>
+              <td>{{ invoice.general_donation.supporter_name|default:"—" }}</td>
+            </tr>
+
+            {# ✅ بيانات البنك للتبرع العام تظهر فقط لو وسيلة القبض تحويل بنكي #}
+            {% if invoice.payment_method == "bank_transfer" %}
+              <tr>
+                <th>البنك المحوّل منه</th>
+                <td>{{ invoice.general_donation.bank_from|default:"—" }}</td>
+              </tr>
+              <tr>
+                <th>الحساب المحوّل منه</th>
+                <td>{{ invoice.general_donation.from_account_number|default:"—" }}</td>
+              </tr>
+              <tr>
+                <th>الحساب المحوّل عليه</th>
+                <td>{{ invoice.general_donation.to_account_number|default:"—" }}</td>
+              </tr>
+            {% endif %}
+
+            <tr>
+              <th>المبلغ</th>
+              <td>{{ invoice.general_donation.amount }} ر.س</td>
+            </tr>
+            <tr>
+              <th>المبلغ كتابة</th>
+              <td>{{ invoice.general_donation.amount_in_words|default:"—" }}</td>
+            </tr>
+          </tbody>
+        </table>
+
+      {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
+        <div class="d-flex justify-content-between align-items-center mb-2 no-print">
+          <h6 class="fw-bold m-0">بيانات الكفالة المالية</h6>
+          <a href="{% url 'Accounting:sponsorship_allocations_manage' invoice.financial_sponsorship.pk %}"
+             class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-people"></i>
+            تخصيص مبلغ الكفالة للمستفيدين
+          </a>
+        </div>
+
+        <table class="table invoice-table mb-3">
+          <tbody>
+            <tr>
+              <th>الكافل</th>
+              <td>
+                {{ invoice.financial_sponsorship.sponsor.user.get_full_name|default:invoice.financial_sponsorship.sponsor }}
+              </td>
+            </tr>
+
+            {# ✅ بيانات البنك للكفالة المالية تظهر فقط لو وسيلة القبض تحويل بنكي #}
+            {% if invoice.payment_method == "bank_transfer" %}
+              <tr>
+                <th>البنك المحوّل منه</th>
+                <td>{{ invoice.financial_sponsorship.bank_from|default:"—" }}</td>
+              </tr>
+              <tr>
+                <th>الحساب المحوّل منه</th>
+                <td>{{ invoice.financial_sponsorship.from_account_number|default:"—" }}</td>
+              </tr>
+              <tr>
+                <th>الحساب المحوّل عليه</th>
+                <td>{{ invoice.financial_sponsorship.to_account_number|default:"—" }}</td>
+              </tr>
+            {% endif %}
+
+            <tr>
+              <th>نوع الكفالة</th>
+              <td>
+                {% if invoice.financial_sponsorship.payment_plan %}
+                  {{ invoice.financial_sponsorship.payment_plan.name|default:invoice.financial_sponsorship.payment_plan }}
+                {% else %}
+                  <span class="text-muted small">خطة مخصّصة</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>مبلغ الكفالة</th>
+              <td>
+                {% if invoice.financial_sponsorship.custom_amount %}
+                  {{ invoice.financial_sponsorship.custom_amount }} ر.س
+                {% else %}
+                  <span class="text-muted small">من خطة الكفالة</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>مدة الكفالة (أشهر)</th>
+              <td>
+                {% if invoice.financial_sponsorship.custom_duration_months %}
+                  {{ invoice.financial_sponsorship.custom_duration_months }} شهر
+                {% else %}
+                  <span class="text-muted small">من خطة الكفالة</span>
+                {% endif %}
+              </td>
+            </tr>
+            <tr>
+              <th>تاريخ البداية</th>
+              <td>{{ invoice.financial_sponsorship.start_date|date:"Y-m-d" }}</td>
+            </tr>
+            <tr>
+              <th>تاريخ النهاية</th>
+              <td>{{ invoice.financial_sponsorship.end_date|date:"Y-m-d" }}</td>
+            </tr>
+          </tbody>
+        </table>
+      {% endif %}
+
+      {% if invoice.notes %}
+        <h6 class="fw-bold mb-2">ملاحظات</h6>
+        <p class="border rounded p-2 small mb-0">{{ invoice.notes }}</p>
+      {% endif %}
+
+      <div class="mt-4 d-flex justify-content-between">
+        <div class="text-center">
+          <p class="mb-1 small text-muted">الموظف المسؤول</p>
+          <p class="mb-0">{{ invoice.created_by.get_full_name|default:invoice.created_by.username }}</p>
+        </div>
+        <div class="text-center">
+          <p class="mb-1 small text-muted">توقيع المستلم</p>
+          <p class="mb-0">____________________</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}

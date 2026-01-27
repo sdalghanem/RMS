@@ -1,0 +1,121 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}الملف الشخصي - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  .helper{font-size:.875rem;color:#6b7280}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط علوي موحّد -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">الملف الشخصي</h5>
+    <small class="text-muted">تحديث بيانات الدخول ووسيلة التواصل</small>
+  </div>
+  <div>
+    <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:home' %}">
+      <i class="bi bi-arrow-right-circle"></i> رجوع
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-lg-6 col-md-8">
+
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert alert-{{ m.tags }} mb-3">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card rms">
+      <div class="card-body p-4">
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3">
+            <i class="bi bi-exclamation-triangle me-1"></i> {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+
+        <form method="post" novalidate id="profileForm">
+          {% csrf_token %}
+
+          <!-- البريد -->
+          <div class="mb-3">
+            <label class="form-label">البريد الإلكتروني (اسم الدخول)</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              {{ form.email }}
+            </div>
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|striptags }}</div>{% endif %}
+            <div class="helper">سيُستخدم البريد الإلكتروني كاسم الدخول.</div>
+          </div>
+
+          <!-- الجوال -->
+          <div class="mb-3">
+            <label class="form-label">رقم الجوال</label>
+            <div class="input-group">
+              <span class="input-group-text">+966</span>
+              {{ form.phone }}
+            </div>
+            {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors|striptags }}</div>{% endif %}
+            <div class="helper">أدخل الرقم بصيغة 05xxxxxxxx (10 أرقام).</div>
+          </div>
+
+          <!-- أزرار -->
+          <div class="border-top pt-3 d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:home' %}">رجوع</a>
+            <button class="btn btn-primary btn-rms" id="saveBtn" type="submit">
+              <i class="bi bi-check2-circle me-1"></i> حفظ
+            </button>
+          </div>
+
+          <!-- رابط تغيير كلمة المرور -->
+          <div class="mt-4 small text-muted">
+            تريد تغيير كلمة المرور؟ انتقل إلى
+            <a href="{% url 'Management:password_change' %}">تغيير كلمة المرور</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const form = document.getElementById('profileForm');
+  const saveBtn = document.getElementById('saveBtn');
+  const phoneInput = document.querySelector('input[name="phone"]');
+
+  // تهيئة رقم الجوال: أرقام فقط، يبدأ بـ 05، طول 10
+  if (phoneInput){
+    phoneInput.addEventListener('input', function(){
+      this.value = this.value.replace(/[^\d]/g,'');      // أرقام فقط
+      if (this.value.length > 10) this.value = this.value.slice(0,10);
+      if (this.value && !this.value.startsWith('05')) {
+        // ألصق 05 ببداية الرقم مع إزالة الأصفار الزائدة
+        const rest = this.value.replace(/^0+/, '');
+        this.value = ('05' + rest).slice(0,10);
+      }
+    });
+  }
+
+  // سبنر بسيط عند الإرسال
+  form.addEventListener('submit', function(){
+    if(saveBtn){
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الحفظ...';
+    }
+  });
+})();
+</script>
+{% endblock %}

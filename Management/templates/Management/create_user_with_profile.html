@@ -1,0 +1,180 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط علوي -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">إنشاء حساب مستخدم جديد</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'Management:users_list' %}" class="btn btn-outline-secondary btn-rms">
+      <i class="bi bi-arrow-right-circle"></i> رجوع للقائمة
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-xl-8 col-lg-9">
+
+    <div class="card rms">
+      <div class="card-body p-4">
+
+        <!-- الأخطاء العامة -->
+        {% if form.non_field_errors %}
+        <div class="alert alert-danger mb-3">
+          <i class="bi bi-exclamation-triangle me-1"></i> {{ form.non_field_errors|striptags }}
+        </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- نوع الحساب -->
+          <div class="mb-4">
+            <div class="fw-semibold mb-2">
+              <i class="bi bi-shield-lock me-1"></i> نوع الحساب
+            </div>
+
+            {% if form.role %}
+              <div class="d-flex flex-wrap gap-3">
+                {% for radio in form.role %}
+                  <label class="form-check d-inline-flex align-items-center gap-2 m-0">
+                    {{ radio.tag }}
+                    <span class="small">{{ radio.choice_label }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+              {% if form.role.errors %}
+                <div class="text-danger small mt-1">{{ form.role.errors|striptags }}</div>
+              {% endif %}
+            {% else %}
+              <div class="alert alert-warning py-2 px-3 m-0">لا توجد أدوار متاحة للإنشاء.</div>
+            {% endif %}
+          </div>
+
+          <hr class="my-3">
+
+          <!-- بيانات المستخدم -->
+          <div class="fw-semibold mb-2">
+            <i class="bi bi-person-badge me-1"></i> بيانات المستخدم
+          </div>
+
+          <!-- البريد الإلكتروني -->
+          <div class="mb-3">
+            <label class="form-label">البريد الإلكتروني (اسم المستخدم)</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              {{ form.email }}
+            </div>
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <!-- الأسماء -->
+          <div class="row g-3">
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label">الاسم الأول</label>
+              {{ form.first_name }}
+              {% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label">اسم الأب (اختياري)</label>
+              {{ form.father_name }}
+              {% if form.father_name.errors %}<div class="text-danger small mt-1">{{ form.father_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label">اسم الجد (اختياري)</label>
+              {{ form.grandpa_name }}
+              {% if form.grandpa_name.errors %}<div class="text-danger small mt-1">{{ form.grandpa_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-lg-3 col-md-6">
+              <label class="form-label">اسم العائلة</label>
+              {{ form.last_name }}
+              {% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- كلمة المرور -->
+          <div class="row g-3 mt-0">
+            <div class="col-md-6">
+              <label class="form-label">كلمة المرور</label>
+              <div class="position-relative">
+                {{ form.password1 }}
+                <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-50 translate-middle-y end-0 me-2 toggle-pass" data-target="password1" tabindex="-1">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              {% if form.password1.errors %}<div class="text-danger small mt-1">{{ form.password1.errors|striptags }}</div>{% endif %}
+              <div class="form-text">٨ أحرف على الأقل وتحتوي حرفًا واحدًا ورقمًا واحدًا على الأقل.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">تأكيد كلمة المرور</label>
+              <div class="position-relative">
+                {{ form.password2 }}
+                <button type="button" class="btn btn-sm btn-outline-secondary position-absolute top-50 translate-middle-y end-0 me-2 toggle-pass" data-target="password2" tabindex="-1">
+                  <i class="bi bi-eye"></i>
+                </button>
+              </div>
+              {% if form.password2.errors %}<div class="text-danger small mt-1">{{ form.password2.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- الهاتف والهوية -->
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label class="form-label">الجوال (05xxxxxxxx)</label>
+              <div class="input-group">
+                <span class="input-group-text">+966</span>
+                {{ form.phone }}
+              </div>
+              {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">الهوية الوطنية (10 أرقام)</label>
+              {{ form.national_number }}
+              {% if form.national_number.errors %}<div class="text-danger small mt-1">{{ form.national_number.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- أزرار -->
+          <div class="mt-4 d-flex justify-content-end gap-2">
+            <a href="{% url 'Management:users_list' %}" class="btn btn-outline-secondary btn-rms">إلغاء</a>
+            <button type="submit" class="btn btn-primary btn-rms">
+              <i class="bi bi-check2-circle me-1"></i> حفظ
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // أزرار إظهار/إخفاء كلمة المرور
+  (function(){
+    document.querySelectorAll('.toggle-pass').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        const input = document.querySelector('input[name="'+btn.dataset.target+'"]');
+        if(!input) return;
+        const isPwd = input.type === 'password';
+        input.type = isPwd ? 'text' : 'password';
+        btn.querySelector('i').classList.toggle('bi-eye');
+        btn.querySelector('i').classList.toggle('bi-eye-slash');
+      });
+    });
+  })();
+</script>
+{% endblock %}

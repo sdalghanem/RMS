@@ -1,0 +1,252 @@
+{% extends "Management/base.html" %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<style>
+  .section-card{
+    border:1px solid #e5e7eb;
+    border-radius:16px;
+    padding:16px 18px;
+    margin-bottom:16px;
+    background:#ffffff;
+  }
+  .section-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:12px;
+  }
+  .section-title-icon{
+    width:32px;
+    height:32px;
+    border-radius:10px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#f3f6ff;
+    font-size:16px;
+  }
+  .section-title-text{
+    font-weight:600;
+    font-size:0.95rem;
+  }
+  .section-subtext{
+    font-size:0.8rem;
+    color:#6b7280;
+  }
+</style>
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">
+      <i class="bi bi-receipt me-1"></i>
+      {{ title }}
+    </h5>
+    <small class="text-muted">إنشاء سند تبرع عام جديد وتسجيل بيانات الداعم والمبلغ بشكل منظم.</small>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body">
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      {# أخطاء عامة للفورم إن وجدت #}
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger small mb-3">
+          {{ form.non_field_errors }}
+        </div>
+      {% endif %}
+
+      <!-- 🧾 القسم الأول: بيانات السند -->
+      <div class="section-card">
+        <div class="section-title">
+          <div class="section-title-icon">
+            <i class="bi bi-file-earmark-text"></i>
+          </div>
+          <div>
+            <div class="section-title-text">بيانات السند</div>
+            <div class="section-subtext">تاريخ السند ووسيلة القبض الأساسية.</div>
+          </div>
+        </div>
+<div class="col-md-4">
+  <label class="form-label small fw-semibold">
+    <i class="bi bi-hash"></i> رقم السند
+  </label>
+  {{ form.number }}
+  {% if form.number.errors %}
+    <div class="text-danger small">{{ form.number.errors.0 }}</div>
+  {% endif %}
+</div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              <i class="bi bi-calendar-event ms-1"></i>{{ form.date.label }}
+            </label>
+            {{ form.date }}
+            {% if form.date.errors %}
+              <div class="text-danger small">{{ form.date.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              <i class="bi bi-credit-card-2-front ms-1"></i>{{ form.payment_method.label }}
+            </label>
+            {{ form.payment_method }}
+            {% if form.payment_method.errors %}
+              <div class="text-danger small">{{ form.payment_method.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- 👤 القسم الثاني: بيانات الداعم -->
+      <div class="section-card">
+        <div class="section-title">
+          <div class="section-title-icon">
+            <i class="bi bi-person-heart"></i>
+          </div>
+          <div>
+            <div class="section-title-text">بيانات الداعم</div>
+            <div class="section-subtext">
+              يمكن تعبئة بيانات الداعم (اسم، جوال، هوية)، ويمكن مستقبلاً تحويله إلى كافل بحساب في النظام.
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">اسم الداعم</label>
+            {{ form.supporter_name }}
+            {% if form.supporter_name.errors %}
+              <div class="text-danger small">{{ form.supporter_name.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">جوال الداعم</label>
+            {{ form.supporter_phone }}
+            {% if form.supporter_phone.errors %}
+              <div class="text-danger small">{{ form.supporter_phone.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">هوية الداعم</label>
+            {{ form.supporter_national_number }}
+            {% if form.supporter_national_number.errors %}
+              <div class="text-danger small">{{ form.supporter_national_number.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- 🏦 القسم الثالث: تفاصيل التحويل البنكي (إن وجدت) -->
+      <div class="section-card">
+        <div class="section-title">
+          <div class="section-title-icon">
+            <i class="bi bi-bank2"></i>
+          </div>
+          <div>
+            <div class="section-title-text">تفاصيل التحويل البنكي (اختياري)</div>
+            <div class="section-subtext">
+              تُستخدم في حال كان التبرع عن طريق تحويل بنكي أو حساب معين.
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              {{ form.bank_from.label }}
+            </label>
+            {{ form.bank_from }}
+            {% if form.bank_from.errors %}
+              <div class="text-danger small">{{ form.bank_from.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              {{ form.from_account_number.label }}
+            </label>
+            {{ form.from_account_number }}
+            {% if form.from_account_number.errors %}
+              <div class="text-danger small">{{ form.from_account_number.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              {{ form.to_account_number.label }}
+            </label>
+            {{ form.to_account_number }}
+            {% if form.to_account_number.errors %}
+              <div class="text-danger small">{{ form.to_account_number.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- 💰 القسم الرابع: مبلغ التبرع والملاحظات -->
+      <div class="section-card">
+        <div class="section-title">
+          <div class="section-title-icon">
+            <i class="bi bi-cash-coin"></i>
+          </div>
+          <div>
+            <div class="section-title-text">مبلغ التبرع والملاحظات</div>
+            <div class="section-subtext">
+              سجل مبلغ التبرع رقماً وكتابة، وأضف أي ملاحظات بخصوص هذا السند.
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label small fw-semibold">
+              {{ form.amount.label }}
+            </label>
+            {{ form.amount }}
+            {% if form.amount.errors %}
+              <div class="text-danger small">{{ form.amount.errors.0 }}</div>
+            {% endif %}
+          </div>
+          <div class="col-md-8">
+            <label class="form-label small fw-semibold">
+              {{ form.amount_in_words.label }}
+            </label>
+            {{ form.amount_in_words }}
+            {% if form.amount_in_words.errors %}
+              <div class="text-danger small">{{ form.amount_in_words.errors.0 }}</div>
+            {% endif %}
+          </div>
+
+          <div class="col-12">
+            <label class="form-label small fw-semibold">
+              {{ form.notes.label }}
+            </label>
+            {{ form.notes }}
+            {% if form.notes.errors %}
+              <div class="text-danger small">{{ form.notes.errors.0 }}</div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- أزرار الحفظ -->
+      <div class="mt-3 d-flex justify-content-end gap-2">
+        <a href="{% url 'Accounting:cashier_invoices_list' %}" class="btn btn-outline-secondary">
+          إلغاء
+        </a>
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check2-circle ms-1"></i> حفظ السند
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}

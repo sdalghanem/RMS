@@ -1,0 +1,184 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+
+<!-- رأس الصفحة الموحد -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">تحرير بيانات مستفيد  </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:beneficiaries_list' %}">
+      <i class="bi bi-arrow-right-circle"></i> رجوع للقائمة
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-xl-8 col-lg-9">
+
+    <div class="card rms">
+      <div class="card-body p-4">
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3">
+            <i class="bi bi-exclamation-triangle me-1"></i> {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- القسم 1: البيانات الأساسية -->
+          <div class="fw-semibold mb-2"><i class="bi bi-person-badge me-1"></i> البيانات الأساسية</div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label">الاسم الأول</label>
+              {{ form.first_name }}{% if form.first_name.errors %}<div class="text-danger small mt-1">{{ form.first_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">اسم الأب</label>
+              {{ form.father_name }}{% if form.father_name.errors %}<div class="text-danger small mt-1">{{ form.father_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">اسم الجد</label>
+              {{ form.grand_name }}{% if form.grand_name.errors %}<div class="text-danger small mt-1">{{ form.grand_name.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">اسم العائلة</label>
+              {{ form.last_name }}{% if form.last_name.errors %}<div class="text-danger small mt-1">{{ form.last_name.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <div class="row g-3 mt-0">
+            <div class="col-md-3">
+              <label class="form-label">الجنس</label>
+              {{ form.gender }}{% if form.gender.errors %}<div class="text-danger small mt-1">{{ form.gender.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">تاريخ الميلاد</label>
+              <div class="position-relative">
+                {{ form.birth_date }}
+                <span id="ageBadge" class="badge bg-light text-dark position-absolute top-50 translate-middle-y end-0 me-2 d-none">—</span>
+              </div>
+              {% if form.birth_date.errors %}<div class="text-danger small mt-1">{{ form.birth_date.errors|striptags }}</div>{% endif %}
+              <div class="form-text">صيغة مقترحة: YYYY-MM-DD</div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">المستوى التعليمي</label>
+              {{ form.education_level }}{% if form.education_level.errors %}<div class="text-danger small mt-1">{{ form.education_level.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">الهوية الوطنية</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-person-vcard"></i></span>
+                {{ form.national_number }}
+              </div>
+              {% if form.national_number.errors %}<div class="text-danger small mt-1">{{ form.national_number.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- القسم 2: الحالة الصحية -->
+          <hr class="my-3">
+          <div class="fw-semibold mb-2"><i class="bi bi-heart-pulse me-1"></i> الحالة الصحية</div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label">الحالة الصحية</label>
+              {{ form.health_status }}{% if form.health_status.errors %}<div class="text-danger small mt-1">{{ form.health_status.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">المرض</label>
+              {{ form.disease }}{% if form.disease.errors %}<div class="text-danger small mt-1">{{ form.disease.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">نوع المرض</label>
+              {{ form.type_disease }}{% if form.type_disease.errors %}<div class="text-danger small mt-1">{{ form.type_disease.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- القسم 3: السكن والأسرة -->
+          <hr class="my-3">
+          <div class="fw-semibold mb-2"><i class="bi bi-house-door me-1"></i> السكن والأسرة</div>
+          <div class="row g-3">
+            <div class="col-md-3">
+              <label class="form-label">نوع السكن</label>
+              {{ form.type_housing }}{% if form.type_housing.errors %}<div class="text-danger small mt-1">{{ form.type_housing.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">قيمة الإيجار</label>
+              <div class="input-group">
+                {{ form.housing_fee }}
+                <span class="input-group-text">SAR</span>
+              </div>
+              {% if form.housing_fee.errors %}<div class="text-danger small mt-1">{{ form.housing_fee.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">ترتيبه بالأسرة</label>
+              {{ form.beneficiary_rank }}{% if form.beneficiary_rank.errors %}<div class="text-danger small mt-1">{{ form.beneficiary_rank.errors|striptags }}</div>{% endif %}
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">عدد الأيتام بالأسرة</label>
+              {{ form.number_of_beneficiary_in_family }}{% if form.number_of_beneficiary_in_family.errors %}<div class="text-danger small mt-1">{{ form.number_of_beneficiary_in_family.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- القسم 4: الكفالة -->
+          <hr class="my-3">
+          <div class="fw-semibold mb-2"><i class="bi bi-hand-heart me-1"></i> الكفالة</div>
+          <div class="row g-3">
+            <div class="col-md-12">
+              <label class="form-label">الكافل</label>
+              {{ form.donor }}{% if form.donor.errors %}<div class="text-danger small mt-1">{{ form.donor.errors|striptags }}</div>{% endif %}
+            </div>
+          </div>
+
+          <!-- الأزرار -->
+          <div class="border-top mt-4 pt-3 d-flex justify-content-end gap-2">
+            <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:beneficiaries_list' %}">إلغاء</a>
+            <button class="btn btn-primary btn-rms">
+              <i class="bi bi-check2-circle me-1"></i> حفظ
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // حساب العمر تلقائياً
+  (function(){
+    const input = document.querySelector('input[name="birth_date"]');
+    const badge = document.getElementById('ageBadge');
+    if(!input || !badge) return;
+
+    function calcAge(val){
+      const d = new Date(val);
+      if(String(d) === 'Invalid Date') { badge.classList.add('d-none'); return; }
+      const today = new Date();
+      let age = today.getFullYear() - d.getFullYear();
+      const m = today.getMonth() - d.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < d.getDate())) age--;
+      if(isNaN(age) || age < 0) { badge.classList.add('d-none'); return; }
+      badge.textContent = age + ' سنة';
+      badge.classList.remove('d-none');
+    }
+
+    input.addEventListener('change', e => calcAge(e.target.value));
+    if(input.value) calcAge(input.value);
+  })();
+</script>
+{% endblock %}

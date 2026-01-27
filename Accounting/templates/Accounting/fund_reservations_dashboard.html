@@ -1,0 +1,369 @@
+{% extends "Management/base.html" %}
+{% block title %}إدارة الحجوزات والمحافظ{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">إدارة الحجوزات والمحافظ</h5>
+    <small class="text-muted">عرض الحجوزات الداخلية والتحكم في تحريرها + مراقبة المحافظ (Budget Wallets).</small>
+  </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="kpi-card p-3 h-100">
+      <div class="text-muted small mb-1">إجمالي الصندوق (FundEntry)</div>
+      <div class="fs-3 fw-bold">{{ fund_total|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="kpi-card p-3 h-100">
+      <div class="text-muted small mb-1">إجمالي المحجوزات (FundReservation)</div>
+      <div class="fs-3 fw-bold text-warning">{{ reserved_total|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="kpi-card p-3 h-100">
+      <div class="text-muted small mb-1">المتاح بعد الحجوزات</div>
+      <div class="fs-3 fw-bold text-success">{{ available_fund|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
+    </div>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-bene" type="button" role="tab">محافظ المستفيدين</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-main" type="button" role="tab">البرامج الرئيسية</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sub" type="button" role="tab">البرامج الفرعية</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab">سجل الحجوزات</button>
+  </li>
+</ul>
+
+<div class="tab-content">
+
+  <!-- Beneficiaries -->
+  <div class="tab-pane fade show active" id="tab-bene" role="tabpanel">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">محافظ المستفيدين</h6>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>المستفيد</th>
+                <th class="text-end">رصيد المحفظة</th>
+                <th class="text-end">محجوز من الصندوق</th>
+                <th class="text-end">إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for b in beneficiaries_wallets %}
+                {% if b.wallet_balance or b.reserved_from_fund %}
+                <tr>
+                  <td class="small">{{ b }}</td>
+                  <td class="text-end small fw-bold">{{ b.wallet_balance|floatformat:2 }}</td>
+                  <td class="text-end small fw-bold {% if b.reserved_from_fund > 0 %}text-warning{% endif %}">
+                    {{ b.reserved_from_fund|floatformat:2 }}
+                  </td>
+                  <td class="text-end">
+  {% if b.reserved_from_fund > 0 %}
+    <form method="post" class="d-inline-flex gap-2 align-items-center">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_partial_wallet">
+      <input type="hidden" name="source_type" value="beneficiary">
+      <input type="hidden" name="obj_id" value="{{ b.id }}">
+      <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
+             step="0.01" min="0.01" max="{{ b.reserved_from_fund }}"
+             placeholder="مبلغ">
+      <button class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-unlock"></i> تحرير جزئي
+      </button>
+    </form>
+
+    <form method="post" class="d-inline ms-2">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_all">
+      <input type="hidden" name="source_type" value="beneficiary">
+      <input type="hidden" name="obj_id" value="{{ b.id }}">
+      <button class="btn btn-sm btn-danger">
+        <i class="bi bi-x-circle"></i> تحرير كامل
+      </button>
+    </form>
+  {% else %}
+    <span class="text-muted small">—</span>
+  {% endif %}
+</td>
+
+                </tr>
+                {% endif %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="text-muted small">* يظهر فقط من لديه رصيد محفظة أو حجز.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Programs -->
+  <div class="tab-pane fade" id="tab-main" role="tabpanel">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">ميزانيات البرامج الرئيسية</h6>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>البرنامج الرئيسي</th>
+                <th class="text-end">ميزانية الرئيسي</th>
+                <th class="text-end">مخصص للفروع</th>
+                <th class="text-end">محجوز من الصندوق</th>
+                <th class="text-end">إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in main_program_wallets %}
+              <tr>
+                <td class="small">{{ p.name }}</td>
+                <td class="text-end small fw-bold">{{ p.total_donation_amount|floatformat:2 }}</td>
+                <td class="text-end small">{{ p.allocated_sum|floatformat:2 }}</td>
+                <td class="text-end small fw-bold {% if p.reserved_from_fund > 0 %}text-warning{% endif %}">
+                  {{ p.reserved_from_fund|floatformat:2 }}
+                </td>
+               <td class="text-end">
+  {% if p.reserved_from_fund > 0 %}
+
+    {% if p.sub_reserved_total > 0 or p.sub_spent_total > 0 %}
+      <span class="badge bg-secondary">
+        لا يمكن تحرير الرئيسي قبل تحرير الفروع
+      </span>
+    {% else %}
+      <form method="post" class="d-inline-flex gap-2 align-items-center">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="release_partial_wallet">
+        <input type="hidden" name="source_type" value="main_program">
+        <input type="hidden" name="obj_id" value="{{ p.id }}">
+        <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
+               step="0.01" min="0.01" max="{{ p.reserved_from_fund }}"
+               placeholder="مبلغ">
+        <button class="btn btn-sm btn-outline-danger">
+          <i class="bi bi-unlock"></i> تحرير جزئي
+        </button>
+      </form>
+
+      <form method="post" class="d-inline ms-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="release_all">
+        <input type="hidden" name="source_type" value="main_program">
+        <input type="hidden" name="obj_id" value="{{ p.id }}">
+        <button class="btn btn-sm btn-danger">
+          <i class="bi bi-x-circle"></i> تحرير كامل
+        </button>
+      </form>
+    {% endif %}
+
+  {% else %}
+    <span class="text-muted small">—</span>
+  {% endif %}
+</td>
+
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Sub Programs -->
+  <div class="tab-pane fade" id="tab-sub" role="tabpanel">
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">ميزانيات البرامج الفرعية</h6>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>البرنامج الفرعي</th>
+                <th class="text-muted">الرئيسي</th>
+                <th class="text-end">مخصص الفرعي</th>
+                <th class="text-end">مصروف</th>
+                <th class="text-end">المتبقي</th>
+                <th class="text-end">محجوز من الصندوق</th>
+                <th class="text-end">إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for sp in sub_program_wallets %}
+              <tr>
+                <td class="small">{{ sp.name }}</td>
+                <td class="small text-muted">{{ sp.main_program.name }}</td>
+                <td class="text-end small">{{ sp.allocated_amount|floatformat:2 }}</td>
+                <td class="text-end small text-danger">{{ sp.spent_amount|floatformat:2 }}</td>
+                <td class="text-end small fw-bold text-success">{{ sp.remaining_amount|floatformat:2 }}</td>
+                <td class="text-end small fw-bold {% if sp.reserved_from_fund > 0 %}text-warning{% endif %}">
+                  {{ sp.reserved_from_fund|floatformat:2 }}
+                </td>
+                <td class="text-end">
+  {% if sp.reserved_from_fund > 0 %}
+    <form method="post" class="d-inline-flex gap-2 align-items-center">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_partial_wallet">
+      <input type="hidden" name="source_type" value="sub_program">
+      <input type="hidden" name="obj_id" value="{{ sp.id }}">
+      <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
+             step="0.01" min="0.01" max="{{ sp.reserved_from_fund }}"
+             placeholder="مبلغ">
+      <button class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-unlock"></i> تحرير جزئي
+      </button>
+    </form>
+
+    <form method="post" class="d-inline ms-2">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="release_all">
+      <input type="hidden" name="source_type" value="sub_program">
+      <input type="hidden" name="obj_id" value="{{ sp.id }}">
+      <button class="btn btn-sm btn-danger">
+        <i class="bi bi-x-circle"></i> تحرير كامل
+      </button>
+    </form>
+  {% else %}
+    <span class="text-muted small">—</span>
+  {% endif %}
+</td>
+
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Reservations Log -->
+  <div class="tab-pane fade" id="tab-log" role="tabpanel">
+
+    <div class="card shadow-sm border-0 mb-3">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">فلترة سجل الحجوزات</h6>
+
+        <form method="get" class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label">نوع الحجز</label>
+            <select class="form-select" name="source_type">
+              <option value="">— الكل —</option>
+              <option value="beneficiary" {% if filters.source_type == "beneficiary" %}selected{% endif %}>محفظة مستفيد</option>
+              <option value="main_program" {% if filters.source_type == "main_program" %}selected{% endif %}>برنامج رئيسي</option>
+              <option value="sub_program" {% if filters.source_type == "sub_program" %}selected{% endif %}>برنامج فرعي</option>
+            </select>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label">من تاريخ</label>
+            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">إلى تاريخ</label>
+            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
+          </div>
+
+          <div class="col-md-3">
+            <label class="form-label">بحث</label>
+            <input type="text" class="form-control" name="q" value="{{ filters.q }}" placeholder="مرجع / ملاحظة / اسم">
+          </div>
+
+          <div class="col-md-2 d-flex gap-2">
+            <button class="btn btn-primary w-100"><i class="bi bi-search"></i> بحث</button>
+            <a class="btn btn-light w-100" href="{% url 'Accounting:fund_reservations_dashboard' %}">مسح</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">سجل الحجوزات (FundReservation)</h6>
+
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th>التاريخ</th>
+                <th>النوع</th>
+                <th>المستفيد</th>
+                <th>رئيسي</th>
+                <th>فرعي</th>
+                <th class="text-end">المبلغ</th>
+                <th>مرجع</th>
+                <th>ملاحظة</th>
+                <th class="text-end">تحرير</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in reservations %}
+              <tr>
+                <td class="small">{{ r.created_at|date:"Y-m-d" }}</td>
+                <td class="small">{{ r.get_source_type_display }}</td>
+                <td class="small">{{ r.beneficiary|default:"—" }}</td>
+                <td class="small">{{ r.main_program|default:"—" }}</td>
+                <td class="small">{{ r.sub_program|default:"—" }}</td>
+                <td class="text-end small fw-bold {% if r.amount < 0 %}text-success{% else %}text-warning{% endif %}">
+                  {{ r.amount|floatformat:2 }}
+                </td>
+                <td class="small text-muted">{{ r.reference|default:"—" }}</td>
+                <td class="small text-muted">{{ r.note|default:"—" }}</td>
+                <td class="text-end">
+                  {% if r.amount > 0 %}
+                    <form method="post" class="d-inline">
+                      {% csrf_token %}
+                      <input type="hidden" name="action" value="release_amount">
+                      <input type="hidden" name="source_type" value="{{ r.source_type }}">
+                      {% if r.beneficiary_id %}<input type="hidden" name="obj_id" value="{{ r.beneficiary_id }}">{% endif %}
+                      {% if r.main_program_id %}<input type="hidden" name="obj_id" value="{{ r.main_program_id }}">{% endif %}
+                      {% if r.sub_program_id %}<input type="hidden" name="obj_id" value="{{ r.sub_program_id }}">{% endif %}
+                      <input type="hidden" name="amount" value="{{ r.amount }}">
+                      <input type="hidden" name="reference" value="REL-{{ r.id }}">
+                      <button class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-unlock"></i>
+                      </button>
+                    </form>
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr>
+                <td colspan="9" class="text-center text-muted p-4">لا توجد حجوزات مطابقة.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="text-muted small">* زر التحرير هنا يحرر مقدار هذا السطر كحد أقصى وبشكل آمن (لا يحرر أكثر من المحجوز الحالي).</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+{% endblock %}

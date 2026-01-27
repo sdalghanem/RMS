@@ -1,0 +1,198 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  /* تنسيق جداول العرض */
+  .print-table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:14px;
+    background:#fff;
+  }
+  .print-table th, .print-table td{
+    border:1px solid #e5e7eb;
+    padding:10px 12px;
+    vertical-align:top;
+  }
+  .print-table thead th{
+    background:#f8fafc;
+    text-align:center;
+    font-weight:600;
+  }
+  .kv-th{ width:22%; background:#fbfbff; color:#374151; }
+  .kv-td{ width:28%; color:#111827; }
+
+  /* رأس الطباعة */
+  .print-header{ display:none; text-align:center; margin-bottom:16px; }
+  .print-header .logo{
+    display:inline-block;
+    height:72px; width:auto;
+  }
+  .print-title{ font-size:18px; font-weight:700; margin:6px 0 0; }
+  .print-sub{ font-size:12px; color:#6b7280; }
+
+  /* تحسين الكارد للشاشة فقط */
+  .card.rms{ border:1px solid #e5e7eb; border-radius:1rem; box-shadow:0 3px 8px rgba(0,0,0,.05); background:#fff; }
+  .card.rms .card-body{ padding:2rem; }
+
+  /* طباعة: إخفاء كل شيء عدا الجداول والرأس */
+  @media print{
+    /* اخفاء الهيدر/الفوتر وأي عناصر غير لازمة */
+    header, footer, .navbar, .sidebar, .rms-pagebar, .no-print { display:none !important; }
+
+    /* جعل الخلفية بيضاء دائمًا */
+    html, body{ background:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+
+    /* إظهار رأس الطباعة (مع الشعار) */
+    .print-header{ display:block !important; }
+    .print-header img{ display:inline-block !important; visibility:visible !important; }
+
+    /* إزالة الكارد نهائيًا: لا إطار ولا ظل ولا حشوة */
+    .card, .card.rms, .card.rms .card-body{
+      border:none !important; box-shadow:none !important; background:transparent !important; padding:0 !important; margin:0 !important;
+    }
+
+    /* احتلال العرض الكامل */
+    .container, .row, [class*="col-"]{ max-width:100% !important; width:100% !important; padding:0 !important; }
+
+    /* إخفاء قسم التعقّب بالكامل */
+    .track-section{ display:none !important; }
+
+    /* هوامش الصفحة */
+    @page{ size:A4 portrait; margin:15mm; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط علوي للشاشة فقط -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center no-print">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">عرض تفاصيل المستفيد • جاهز للطباعة</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'Management:beneficiaries_list' %}" class="btn btn-outline-secondary btn-rms">
+      <i class="bi bi-arrow-right-circle"></i> رجوع
+    </a>
+    <button class="btn btn-primary btn-rms" onclick="window.print()">
+      <i class="bi bi-printer"></i> طباعة
+    </button>
+  </div>
+</div>
+
+<!-- رأس الطباعة: شعار + عنوان بيانات المستفيد (بدون رقم المستفيد) -->
+<div class="print-header">
+  <img src="{% static 'Management\images\widelogo.png' %}" alt="شعار الجمعية" class="logo">
+  <div class="print-title">
+    بيانات المستفيد:
+    {{ b.first_name }}{% if b.father_name %} {{ b.father_name }}{% endif %}{% if b.grand_name %} {{ b.grand_name }}{% endif %} {{ b.last_name }}
+  </div>
+  <div class="print-sub">
+    رقم الهوية: {{ b.national_number|default:"—" }}
+  </div>
+</div>
+
+<!-- (للعرض على الشاشة فقط) كارد يحتوي الجداول، لكنه يُلغى تمامًا في الطباعة -->
+<div class="card rms">
+  <div class="card-body">
+
+    <!-- الجداول فقط ستظهر في الطباعة -->
+
+    <!-- البيانات الأساسية -->
+    <h6 class="fw-semibold mb-2 no-print"><i class="bi bi-person-badge me-1"></i> البيانات الأساسية</h6>
+    <table class="print-table mb-4">
+      <tbody>
+        <tr>
+          <th class="kv-th">الاسم الأول</th><td class="kv-td">{{ b.first_name }}</td>
+          <th class="kv-th">اسم الأب</th><td class="kv-td">{{ b.father_name|default:"—" }}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">اسم الجد</th><td class="kv-td">{{ b.grand_name|default:"—" }}</td>
+          <th class="kv-th">اسم العائلة</th><td class="kv-td">{{ b.last_name }}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">الجنس</th><td class="kv-td">{{ b.get_gender_display }}</td>
+          <th class="kv-th">تاريخ الميلاد</th><td class="kv-td">{{ b.birth_date|date:"Y-m-d"|default:"—" }}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">العمر</th>
+          <td class="kv-td">{% if b.age_years is not None %}{{ b.age_years }}{% else %}—{% endif %}</td>
+          <th class="kv-th">المرحلة الدراسية</th>
+          <td class="kv-td">{{ b.get_education_level_display|default:"—" }}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">الهوية الوطنية</th>
+          <td class="kv-td" colspan="3"><span dir="ltr">{{ b.national_number|default:"—" }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- الحالة الصحية -->
+    <h6 class="fw-semibold mb-2 no-print"><i class="bi bi-heart-pulse me-1"></i> الحالة الصحية</h6>
+    <table class="print-table mb-4">
+      <tbody>
+        <tr>
+          <th class="kv-th">الحالة الصحية</th><td class="kv-td">{{ b.get_health_status_display|default:"—" }}</td>
+          <th class="kv-th">نوع المرض</th><td class="kv-td">{{ b.get_type_disease_display|default:"—" }}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">اسم المرض</th><td class="kv-td" colspan="3">{{ b.disease|default:"—" }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- السكن والأسرة -->
+    <h6 class="fw-semibold mb-2 no-print"><i class="bi bi-house-door me-1"></i> السكن والأسرة</h6>
+    <table class="print-table mb-4">
+      <tbody>
+        <tr>
+          <th class="kv-th">نوع السكن</th><td class="kv-td">{{ b.get_type_housing_display|default:"—" }}</td>
+          <th class="kv-th">قيمة الإيجار</th>
+          <td class="kv-td">{% if b.housing_fee %}{{ b.housing_fee }} <span class="text-muted">SAR</span>{% else %}—{% endif %}</td>
+        </tr>
+        <tr>
+          <th class="kv-th">ترتيبه بالأسرة</th><td class="kv-td">{{ b.beneficiary_rank|default_if_none:"غير محدد" }}</td>
+          <th class="kv-th">عدد الأيتام بالأسرة</th><td class="kv-td">{{ b.number_of_beneficiary_in_family|default_if_none:"—" }}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- الكفالة -->
+    <h6 class="fw-semibold mb-2 no-print"><i class="bi bi-hand-heart me-1"></i> الكفالة</h6>
+    <table class="print-table mb-4">
+      <tbody>
+        <tr>
+          <th class="kv-th">الكافل</th>
+          <td class="kv-td" colspan="3">
+            {% if b.donor %}
+              {{ b.donor.user.get_full_name|default:b.donor.user.username }}
+            {% else %}
+              <span class="text-muted">—</span>
+            {% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- قسم التعقب (سيُخفى في الطباعة) -->
+    <div class="track-section">
+      <h6 class="fw-semibold mb-2 no-print"><i class="bi bi-clock-history me-1"></i> التعقّب</h6>
+      <table class="print-table">
+        <tbody>
+          <tr>
+            <th class="kv-th">تاريخ الإضافة</th><td class="kv-td">{{ b.created_at|date:"Y-m-d H:i" }}</td>
+            <th class="kv-th">آخر تحديث</th><td class="kv-td">{{ b.updated_at|date:"Y-m-d H:i" }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,151 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %} {{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">
+      هذه الصفحة مخصّصة لإدارة سندات التبرع العام والكفالات المالية لموظف الاستقبال.
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'Accounting:invoice_create_general' %}" class="btn btn-primary">
+      <i class="bi bi-receipt-cutoff"></i> + سند تبرع عام
+    </a>
+    <a href="{% url 'Accounting:invoice_create_sponsorship' %}" class="btn btn-outline-primary">
+      <i class="bi bi-people-heart"></i> + سند كفالة مالية
+    </a>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>رقم السند</th>
+            <th>تاريخ السند</th>
+            <th>نوع الفاتورة</th>
+            <th>نوع السند</th>
+            <th>وسيلة القبض</th>
+            <th>الطرف</th>
+            <th>المبلغ</th>
+            <th>أنشئ بواسطة</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if page_obj.object_list %}
+            {% for invoice in page_obj.object_list %}
+              <tr>
+                <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
+                <td class="fw-semibold">
+                <a href="{% url 'Accounting:invoice_detail' invoice.pk %}">
+                  {{ invoice.number }}
+                </a>
+              </td>
+                <td>{{ invoice.date|date:"Y-m-d" }}</td>
+                <td>
+                  {% if invoice.invoice_type == "general_donation" %}
+                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+                      تبرع عام
+                    </span>
+                  {% elif invoice.invoice_type == "financial_sponsorship" %}
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+                      كفالة مالية
+                    </span>
+                  {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary">غير محدد</span>
+                  {% endif %}
+                </td>
+                <td>{{ invoice.get_receipt_kind_display }}</td>
+                <td>
+                  {% if invoice.payment_method %}
+                    {{ invoice.get_payment_method_display }}
+                  {% else %}
+                    <span class="text-muted small">غير محدد</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {# الطرف: اسم الداعم أو الكافل #}
+                  {% if invoice.invoice_type == "general_donation" and invoice.general_donation %}
+                    {{ invoice.general_donation.supporter_name|default:"—" }}
+                  {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
+                    {{ invoice.financial_sponsorship.sponsor.user.get_full_name|default:invoice.financial_sponsorship.sponsor }}
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if invoice.invoice_type == "general_donation" and invoice.general_donation %}
+                    {{ invoice.general_donation.amount }} ر.س
+                  {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
+                    {% if invoice.financial_sponsorship.custom_amount %}
+                      {{ invoice.financial_sponsorship.custom_amount }} ر.س
+                    {% else %}
+                      <span class="text-muted small">من خطة الكفالة</span>
+                    {% endif %}
+                  {% else %}
+                    <span class="text-muted small">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {{ invoice.created_by.get_full_name|default:invoice.created_by.username }}
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="9" class="text-center py-4 text-muted">
+                لا توجد فواتير مسجّلة حتى الآن.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div class="card-footer bg-white border-0 pt-3">
+      <nav aria-label="Pagination">
+        <ul class="pagination justify-content-center mb-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.previous_page_number }}">السابق</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">السابق</span></li>
+          {% endif %}
+
+          {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+              <li class="page-item active">
+                <span class="page-link">{{ num }}</span>
+              </li>
+            {% elif num > page_obj.number|add:-3 and num < page_obj.number|add:3 %}
+              <li class="page-item">
+                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
+              </li>
+            {% endif %}
+          {% endfor %}
+
+          {% if page_obj.has_next %}
+            <li class="page-item">
+              <a class="page-link" href="?page={{ page_obj.next_page_number }}">التالي</a>
+            </li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">التالي</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+  {% endif %}
+</div>
+
+{% endblock %}

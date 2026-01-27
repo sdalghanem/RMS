@@ -1,0 +1,270 @@
+{% extends "Management/base.html" %}
+{% block title %}لوحة المحاسب{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">لوحة المحاسب</h5>
+    <small class="text-muted">
+      نظرة شاملة على رصيد الصندوق، البرامج، وأوامر الصرف.
+    </small>
+  </div>
+
+  <div class="d-flex gap-2">
+    <a href="{% url 'Accounting:fund_to_main_allocate' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-wallet2"></i> تخصيص الصندوق للرئيسي
+    </a>
+
+    <a href="{% url 'Accounting:main_to_sub_allocate' %}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-diagram-3"></i> تحويل رئيسي → فرعي
+    </a>
+
+    {# ✅ إصلاح: بدلاً من reverse لاسم غير موجود نستخدم المسار الصحيح مباشرة #}
+    <a href="/accounting/subprogram-disburse/" class="btn btn-primary btn-sm">
+      <i class="bi bi-cash-stack"></i> أمر صرف جديد
+    </a>
+  </div>
+</div>
+
+<!-- الصف الأول: كروت الأرقام الرئيسية -->
+<div class="row g-3 mb-3">
+  <div class="col-md-3 col-6">
+    <div class="kpi-card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="text-muted small">رصيد الصندوق العام</span>
+        <i class="bi bi-safe2 text-muted"></i>
+      </div>
+      <div class="fs-4 fw-bold">
+        {{ fund_balance|default:0|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span>
+      </div>
+      <div class="text-muted small mt-1">
+        صافي الرصيد بعد جميع الإيرادات والمصروفات.
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3 col-6">
+    <div class="kpi-card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="text-muted small">إجمالي مخصص للبرامج الفرعية</span>
+        <i class="bi bi-diagram-2 text-muted"></i>
+      </div>
+      <div class="fs-4 fw-bold">
+        {{ allocated_total|default:0|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span>
+      </div>
+      <div class="text-muted small mt-1">
+        مجموع ما تم تحويله فعليًا من الرئيسية إلى الفروع.
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3 col-6">
+    <div class="kpi-card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="text-muted small">مصروف من البرامج الفرعية</span>
+        <i class="bi bi-arrow-down-circle text-muted"></i>
+      </div>
+      <div class="fs-4 fw-bold text-danger">
+        {{ spent_total|default:0|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span>
+      </div>
+      <div class="text-muted small mt-1">
+        مجموع أوامر الصرف التي تم تنفيذها من حسابات الفروع.
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-3 col-6">
+    <div class="kpi-card p-3 h-100">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="text-muted small">متبقي في حسابات الفروع</span>
+        <i class="bi bi-piggy-bank text-muted"></i>
+      </div>
+      <div class="fs-4 fw-bold text-success">
+        {{ remaining_total|default:0|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span>
+      </div>
+      <div class="text-muted small mt-1">
+        الرصيد المتبقي في جميع البرامج الفرعية بعد الصرف.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- الصف الثاني: اليوم + إحصائيات البرامج/المستفيدين -->
+<div class="row g-3 mb-4">
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold m-0">حركات اليوم ({{ today|date:"Y-m-d" }})</h6>
+          <span class="badge bg-light text-muted">يوميًا</span>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="kpi-card p-2 h-100">
+              <div class="text-muted small mb-1">إيرادات اليوم</div>
+              <div class="fs-5 fw-bold text-success">
+                {{ today_revenue|default:0|floatformat:2 }} ر.س
+              </div>
+              <div class="text-muted small">من التبرعات أو إضافة رصيد.</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card p-2 h-100">
+              <div class="text-muted small mb-1">مصروف اليوم</div>
+              <div class="fs-5 fw-bold text-danger">
+                {{ today_expense|default:0|floatformat:2 }} ر.س
+              </div>
+              <div class="text-muted small">أوامر صرف تم تنفيذها اليوم.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <a href="{% url 'Accounting:ledger' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-journal-text"></i> الذهاب إلى سجل الحركات
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold m-0">نظرة على البرامج والمستفيدين</h6>
+        </div>
+
+        <div class="row g-2">
+          <div class="col-4">
+            <div class="kpi-card p-2 h-100 text-center">
+              <div class="text-muted small mb-1">البرامج الرئيسية</div>
+              <div class="fs-4 fw-bold">{{ main_programs_count }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="kpi-card p-2 h-100 text-center">
+              <div class="text-muted small mb-1">البرامج الفرعية</div>
+              <div class="fs-4 fw-bold">{{ sub_programs_count }}</div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="kpi-card p-2 h-100 text-center">
+              <div class="text-muted small mb-1">عدد المستفيدين</div>
+              <div class="fs-4 fw-bold">{{ beneficiaries_count }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-3">
+          <a href="{% url 'Accounting:program_balances' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-graph-up"></i> أرصدة البرامج بالتفصيل
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- الصف الثالث: آخر الحركات -->
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold m-0">آخر حركات الصندوق</h6>
+          <span class="badge bg-light text-muted">FundEntry</span>
+        </div>
+
+        {% if last_fund_moves %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle m-0">
+              <thead class="table-light">
+                <tr>
+                  <th>التاريخ</th>
+                  <th>الوصف</th>
+                  <th>البرنامج</th>
+                  <th class="text-end">المبلغ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in last_fund_moves %}
+                <tr>
+                  <td class="small">{{ m.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="small text-muted">{{ m.description|default:"—" }}</td>
+                  <td class="small">
+                    {% if m.main_program %}
+                      {{ m.main_program.name }}
+                      {% if m.sub_program %}/ {{ m.sub_program.name }}{% endif %}
+                    {% else %}
+                      <span class="text-muted small">—</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end small fw-bold {% if m.amount < 0 %}text-danger{% else %}text-success{% endif %}">
+                    {{ m.amount|floatformat:2 }}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-muted small">لا توجد حركات مسجّلة.</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h6 class="fw-bold m-0">آخر أوامر الصرف من الفروع</h6>
+          <span class="badge bg-light text-muted">SubProgramDisbursement</span>
+        </div>
+
+        {% if last_disbursements %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle m-0">
+              <thead class="table-light">
+                <tr>
+                  <th>رقم السند</th>
+                  <th>التاريخ</th>
+                  <th>البرنامج</th>
+                  <th class="text-end">الإجمالي</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for d in last_disbursements %}
+                <tr>
+                  <td class="small fw-bold">{{ d.voucher_number }}</td>
+                  <td class="small">{{ d.created_at|date:"Y-m-d H:i" }}</td>
+                  <td class="small">
+                    {{ d.sub_program.main_program.name }} / {{ d.sub_program.name }}
+                  </td>
+                  <td class="text-end small fw-bold">
+                    {{ d.total_amount|floatformat:2 }} ر.س
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="text-muted small">لا توجد أوامر صرف مسجّلة.</div>
+        {% endif %}
+
+        <div class="mt-3">
+          {# ✅ إصلاح نفس الرابط هنا #}
+          <a href="/accounting/subprogram-disburse/" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-cash"></i> إنشاء أمر صرف جديد
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

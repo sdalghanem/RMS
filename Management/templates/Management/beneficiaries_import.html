@@ -1,0 +1,164 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  .dropzone{
+    border:1.5px dashed var(--rms-border, #e9ecef);
+    border-radius:14px;
+    padding:28px;
+    background:linear-gradient(180deg,#fff,#fbfbff);
+    text-align:center;
+    transition:.2s ease;
+  }
+  .dropzone.dragover{ background:#f6f7ff; border-color:#cfd5ff; }
+  .dropzone .hint{ color:#6b7280; }
+  .file-meta{ font-size:.875rem; color:#6b7280; }
+  code{ direction:ltr; display:inline-block; white-space:nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط علوي موحّد -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">استيراد بيانات المستفيدين من ملف Excel (XLSX)</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:beneficiaries_list' %}">
+      <i class="bi bi-arrow-right-circle"></i> رجوع للقائمة
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-xl-6 col-lg-7">
+
+    <div class="card rms">
+      <div class="card-body p-4">
+        <!-- أدوات -->
+        <div class="d-flex gap-2 mb-3">
+          <a class="btn btn-soft btn-rms" href="{% url 'Management:beneficiaries_template' %}">
+            <i class="bi bi-download me-1"></i> تنزيل القالب
+          </a>
+        </div>
+
+        <!-- وصف الأعمدة -->
+        <div class="alert alert-light border mb-3">
+          <div class="fw-semibold mb-1"><i class="bi bi-info-circle me-1"></i> صيغة الأعمدة (غير حسّاسة لحالة الأحرف):</div>
+          <div class="small" dir="ltr">
+          </div>
+          <div class="file-meta mt-2">
+            يُقبل فقط امتداد <strong>.xlsx</strong> • التاريخ بصيغة <strong>YYYY-MM-DD</strong> • الأرقام بدون فواصل
+          </div>
+        </div>
+
+        <!-- نموذج الرفع -->
+       <form method="post" enctype="multipart/form-data" id="importForm" novalidate>
+  {% csrf_token %}
+
+  <div class="mb-3">
+    <label class="form-label fw-semibold">ملف Excel</label>
+    <div id="dropzone" class="dropzone">
+      <div class="mb-2">
+        <i class="bi bi-file-earmark-spreadsheet" style="font-size:2rem;"></i>
+      </div>
+      <div class="mb-1">اسحب الملف إلى هنا أو</div>
+      <div class="mb-2">
+        <label class="btn btn-outline-secondary btn-rms m-0" for="fileInput">
+          اختر ملفًا
+        </label>
+      </div>
+      <div class="hint small">الملف يجب أن يكون بصيغة XLSX فقط</div>
+
+      <!-- ✅ المهم هنا هو name="file" -->
+      <input type="file" id="fileInput" name="file" accept=".xlsx" class="d-none" required>
+    </div>
+
+    <div id="fileName" class="file-meta mt-2 d-none"></div>
+    {% if form.file.errors %}<div class="text-danger small mt-1">{{ form.file.errors|striptags }}</div>{% endif %}
+  </div>
+
+  <div class="border-top pt-3 d-flex justify-content-end gap-2">
+    <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:beneficiaries_list' %}">إلغاء</a>
+    <button class="btn btn-primary btn-rms" id="submitBtn" type="submit">
+      <i class="bi bi-upload me-1"></i> رفع واستيراد
+    </button>
+  </div>
+</form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  // عناصر
+  const dz = document.getElementById('dropzone');
+  const input = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  const form = document.getElementById('importForm');
+  const submitBtn = document.getElementById('submitBtn');
+
+  // لو لم تكن تستخدم add_class في القالب، اربط الاسم الصحيح للحقل:
+  // إن كان {{ form.file }} مرسومًا تلقائيًا ولا يمكن إخفاؤه/استبداله،
+  // استبدل input.id في الأعلى بعنصر {{ form.file }} نفسه.
+
+  // عرض اسم الملف
+  function showName(file){
+    fileName.textContent = file.name + ' (' + Math.ceil(file.size/1024) + ' KB)';
+    fileName.classList.remove('d-none');
+  }
+
+  // تحقق من الامتداد
+  function validXlsx(file){
+    return file && (file.name.endsWith('.xlsx') || file.type.includes('spreadsheetml'));
+  }
+
+  // سحب وإفلات
+  ['dragenter','dragover'].forEach(evt=>{
+    dz.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover'); });
+  });
+  ['dragleave','drop'].forEach(evt=>{
+    dz.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover'); });
+  });
+  dz.addEventListener('drop', e=>{
+    const file = e.dataTransfer.files[0];
+    if(!validXlsx(file)){ alert('الرجاء اختيار ملف XLSX صحيح.'); return; }
+    input.files = e.dataTransfer.files;
+    showName(file);
+  });
+
+  // اختيار يدوي
+  dz.addEventListener('click', ()=> input.click());
+  input.addEventListener('change', ()=>{
+    const file = input.files[0];
+    if(!validXlsx(file)){ alert('الرجاء اختيار ملف XLSX بصيغة صحيحة.'); input.value=''; return; }
+    showName(file);
+  });
+
+  // منع الإرسال بدون ملف صحيح
+  form.addEventListener('submit', (e)=>{
+    const file = input.files[0];
+    if(!validXlsx(file)){
+      e.preventDefault();
+      alert('لم يتم اختيار ملف XLSX صالح.');
+      return false;
+    }
+    // تعطيل الزر مؤقتًا
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الاستيراد...';
+  });
+})();
+</script>
+{% endblock %}

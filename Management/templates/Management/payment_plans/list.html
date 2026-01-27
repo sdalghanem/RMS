@@ -1,0 +1,77 @@
+{% extends "Management/base.html" %}
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">هذه الصفحة مخصّصة لإدارة خطط الدفع والاشتراكات،</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a class="btn btn-primary" href="{% url 'Management:payment_plan_create' %}">+ إضافة خطة</a>
+  </div>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>المبلغ (ريال)</th>
+            <th>المدة (شهر)</th>
+            <th>الحالة</th>
+            <th>تاريخ الإضافة</th>
+            <th class="text-center" style="width:160px">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in plans %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td>{{ p.amount }}</td>
+            <td>{{ p.duration_months }}</td>
+            <td>
+              {% if p.is_active %}
+                <span class="badge bg-success">نشطة</span>
+              {% else %}
+                <span class="badge bg-secondary">موقوفة</span>
+              {% endif %}
+            </td>
+            <td>{{ p.created_at|date:"Y-m-d H:i" }}</td>
+
+            <!-- الإجراءات (نفس صفحة المستفيدين) -->
+            <td class="text-center">
+              <div class="d-inline-flex align-items-center gap-1">
+                <!-- تعديل -->
+                <a class="btn btn-sm btn-outline-secondary btn-rms"
+                   href="{% url 'Management:payment_plan_update' p.pk %}" title="تعديل">
+                  <i class="bi bi-pencil"></i>
+                </a>
+
+                <!-- حذف عبر POST + confirm() -->
+                <form method="post"
+                      action="{% url 'Management:payment_plan_delete' p.pk %}"
+                      style="display:inline"
+                      onsubmit="return confirm('هل ترغب بحذف هذه الخطة؟');">
+                  {% csrf_token %}
+                  <button class="btn btn-sm btn-outline-danger btn-rms" title="حذف">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+            <!-- /الإجراءات -->
+
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="text-center py-4 text-muted">لا توجد خطط حتى الآن</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}

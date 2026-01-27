@@ -1,0 +1,532 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">
+      <i class="bi bi-people-heart me-1"></i> {{ title }}
+    </h5>
+    <small class="text-muted">
+      عرض وإدارة الكفلاء (حسابات المتبرعين) من داخل نظام المحاسبة.
+    </small>
+  </div>
+  <div class="d-flex gap-2">
+    <button type="button"
+            class="btn btn-primary btn-sm"
+            data-bs-toggle="modal"
+            data-bs-target="#createSponsorModal">
+      <i class="bi bi-person-plus"></i> إضافة كافل جديد
+    </button>
+  </div>
+</div>
+
+<!-- بطاقة البحث -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body pb-2">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="small text-muted">
+        إجمالي الكفلاء:
+        <span class="badge bg-primary-subtle text-primary border rounded-pill px-2">
+          {{ total_count }}
+        </span>
+      </div>
+
+      <form method="get" class="d-flex gap-2 align-items-center">
+        <input type="text"
+               name="q"
+               class="form-control form-control-sm"
+               style="min-width: 230px;"
+               value="{{ query }}"
+               placeholder="بحث بالاسم، الجوال، الهوية">
+        {% if query %}
+          <a href="{% url 'Accounting:sponsors_list' %}" class="btn btn-outline-secondary btn-sm">
+            مسح
+          </a>
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-sm">
+          <i class="bi bi-search"></i> بحث
+        </button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<!-- جدول الكفلاء -->
+<div class="card shadow-sm border-0">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th style="width:4%;">#</th>
+            <th style="width:26%;">الاسم</th>
+            <th style="width:18%;">الجوال</th>
+            <th style="width:18%;">الهوية</th>
+            <th style="width:18%;">تاريخ الإضافة</th>
+            <th style="width:16%;" class="text-center">إجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if page_obj.object_list %}
+            {% for sponsor in page_obj.object_list %}
+              <tr>
+                <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
+
+                <td>
+                  <div class="fw-semibold">
+                    {{ sponsor.user.get_full_name|default:sponsor.user.username }}
+                  </div>
+                  <div class="small text-muted">
+                    {{ sponsor.user.email }}
+                  </div>
+                </td>
+
+                <td>
+                  <span class="badge bg-light text-dark border small">
+                    {{ sponsor.phone }}
+                  </span>
+                </td>
+
+                <td>
+                  <span class="badge bg-secondary-subtle text-dark small">
+                    {{ sponsor.national_number }}
+                  </span>
+                </td>
+
+                <td>
+                  <span class="small text-muted">
+                    {{ sponsor.created_at|date:"Y-m-d H:i" }}
+                  </span>
+                </td>
+
+                <td class="text-center">
+                  <div class="d-inline-flex gap-1">
+                    <!-- عرض كفالاته -->
+                    <a href="{% url 'Accounting:sponsorship_inquiry' %}?q={{ sponsor.phone }}"
+                       class="btn btn-sm btn-outline-primary"
+                       title="عرض كفالات هذا الكافل">
+                      <i class="bi bi-journal-text"></i>
+                    </a>
+
+                    <!-- تعديل الكافل (يفتح مودال) -->
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary btn-edit-sponsor"
+                            title="تعديل بيانات الكافل"
+                            data-bs-toggle="modal"
+                            data-bs-target="#editSponsorModal"
+                            data-id="{{ sponsor.id }}"
+                            data-email="{{ sponsor.user.email }}"
+                            data-first-name="{{ sponsor.user.first_name }}"
+                            data-father-name="{{ sponsor.father_name }}"
+                            data-grandpa-name="{{ sponsor.grandpa_name }}"
+                            data-last-name="{{ sponsor.user.last_name }}"
+                            data-phone="{{ sponsor.phone }}"
+                            data-national-number="{{ sponsor.national_number }}">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-3 text-muted small">
+                لا توجد حسابات كفلاء مسجلة حتى الآن.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ترقيم الصفحات -->
+    {% if page_obj.paginator.num_pages > 1 %}
+      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top small">
+        <div class="text-muted">
+          صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
+        </div>
+        <nav>
+          <ul class="pagination pagination-sm mb-0">
+            {% if page_obj.has_previous %}
+              <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">
+                  السابق
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">السابق</span></li>
+            {% endif %}
+
+            <li class="page-item active">
+              <span class="page-link">{{ page_obj.number }}</span>
+            </li>
+
+            {% if page_obj.has_next %}
+              <li class="page-item">
+                <a class="page-link"
+                   href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}">
+                  التالي
+                </a>
+              </li>
+            {% else %}
+              <li class="page-item disabled"><span class="page-link">التالي</span></li>
+            {% endif %}
+          </ul>
+        </nav>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+
+<div class="modal fade" id="createSponsorModal" tabindex="-1" aria-labelledby="createSponsorModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form id="create-sponsor-form">
+        <div class="modal-header">
+          <h6 class="modal-title" id="createSponsorModalLabel">
+            <i class="bi bi-person-plus me-1"></i> إضافة كافل جديد
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-3">
+            <!-- البريد -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">البريد الإلكتروني (اسم المستخدم)</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                <input type="email" name="email" class="form-control" required>
+              </div>
+              <div class="text-danger small mt-1 d-none" data-error="email"></div>
+            </div>
+
+            <!-- الجوال -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">الجوال (05xxxxxxxx)</label>
+              <div class="input-group">
+                <span class="input-group-text">+966</span>
+                <input type="text" name="phone" class="form-control" maxlength="10" required>
+              </div>
+              <div class="text-danger small mt-1 d-none" data-error="phone"></div>
+            </div>
+
+            <!-- الأسماء -->
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">الاسم الأول</label>
+              <input type="text" name="first_name" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-error="first_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم الأب (اختياري)</label>
+              <input type="text" name="father_name" class="form-control">
+              <div class="text-danger small mt-1 d-none" data-error="father_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم الجد (اختياري)</label>
+              <input type="text" name="grandpa_name" class="form-control">
+              <div class="text-danger small mt-1 d-none" data-error="grandpa_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم العائلة</label>
+              <input type="text" name="last_name" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-error="last_name"></div>
+            </div>
+
+            <!-- الهوية -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">الهوية الوطنية (10 أرقام)</label>
+              <input type="text" name="national_number" class="form-control" maxlength="10" required>
+              <div class="text-danger small mt-1 d-none" data-error="national_number"></div>
+            </div>
+
+            <!-- كلمة المرور -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">كلمة المرور</label>
+              <input type="password" name="password1" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-error="password1"></div>
+              <div class="form-text small text-muted">
+                ٨ أحرف على الأقل وتحتوي حرفًا واحدًا ورقمًا واحدًا على الأقل.
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">تأكيد كلمة المرور</label>
+              <input type="password" name="password2" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-error="password2"></div>
+            </div>
+          </div>
+
+          <div class="alert alert-light border small mt-3 mb-0">
+            <i class="bi bi-info-circle"></i>
+            سيتم إنشاء حساب كافل جديد (User + Profile بدور <strong>DONOR</strong>) ويمكن استخدامه مباشرة في السندات.
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">إلغاء</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check2-circle ms-1"></i> حفظ الكافل
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<div class="modal fade" id="editSponsorModal" tabindex="-1" aria-labelledby="editSponsorModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content">
+      <form id="edit-sponsor-form">
+        <input type="hidden" name="sponsor_id" id="edit-sponsor-id">
+        <div class="modal-header">
+          <h6 class="modal-title" id="editSponsorModalLabel">
+            <i class="bi bi-pencil-square me-1"></i> تعديل بيانات الكافل
+          </h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-3">
+            <!-- البريد -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">البريد الإلكتروني</label>
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+                <input type="email" name="email" id="edit-email" class="form-control" required>
+              </div>
+              <div class="text-danger small mt-1 d-none" data-edit-error="email"></div>
+            </div>
+
+            <!-- الجوال -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">الجوال (05xxxxxxxx)</label>
+              <div class="input-group">
+                <span class="input-group-text">+966</span>
+                <input type="text" name="phone" id="edit-phone" class="form-control" maxlength="10" required>
+              </div>
+              <div class="text-danger small mt-1 d-none" data-edit-error="phone"></div>
+            </div>
+
+            <!-- الأسماء -->
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">الاسم الأول</label>
+              <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-edit-error="first_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم الأب (اختياري)</label>
+              <input type="text" name="father_name" id="edit-father-name" class="form-control">
+              <div class="text-danger small mt-1 d-none" data-edit-error="father_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم الجد (اختياري)</label>
+              <input type="text" name="grandpa_name" id="edit-grandpa-name" class="form-control">
+              <div class="text-danger small mt-1 d-none" data-edit-error="grandpa_name"></div>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold">اسم العائلة</label>
+              <input type="text" name="last_name" id="edit-last-name" class="form-control" required>
+              <div class="text-danger small mt-1 d-none" data-edit-error="last_name"></div>
+            </div>
+
+            <!-- الهوية -->
+            <div class="col-md-6">
+              <label class="form-label small fw-semibold">الهوية الوطنية (10 أرقام)</label>
+              <input type="text" name="national_number" id="edit-national-number" class="form-control" maxlength="10" required>
+              <div class="text-danger small mt-1 d-none" data-edit-error="national_number"></div>
+            </div>
+          </div>
+
+          <div class="alert alert-light border small mt-3 mb-0">
+            <i class="bi bi-info-circle"></i>
+            سيتم تحديث بيانات الكافل مباشرة، مع الحفاظ على نوعه كـ <strong>DONOR</strong>.
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">إلغاء</button>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-check2-circle ms-1"></i> حفظ التعديلات
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+<script>
+(function() {
+  function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== "") {
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i].trim();
+        if (cookie.substring(0, name.length + 1) === (name + "=")) {
+          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+          break;
+        }
+      }
+    }
+    return cookieValue;
+  }
+
+  const csrftoken = getCookie("csrftoken");
+
+  // ==========================
+  // 1) إرسال إنشاء كافل جديد
+  // ==========================
+  const createForm = document.getElementById("create-sponsor-form");
+  if (createForm) {
+    createForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      const formData = new FormData(createForm);
+
+      // مسح الأخطاء القديمة
+      createForm.querySelectorAll("[data-error]").forEach(el => {
+        el.classList.add("d-none");
+        el.textContent = "";
+      });
+
+      fetch("{% url 'Accounting:sponsor_quick_create' %}", {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrftoken,
+        },
+        body: formData,
+      })
+      .then(res => res.json().then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || !data.success) {
+          if (data.errors) {
+            Object.entries(data.errors).forEach(([field, msg]) => {
+              const errEl = createForm.querySelector("[data-error='" + field + "']");
+              if (errEl) {
+                errEl.textContent = Array.isArray(msg) ? msg.join("، ") : msg;
+                errEl.classList.remove("d-none");
+              }
+            });
+          } else if (data.error) {
+            alert(data.error);
+          }
+          return;
+        }
+
+        // نجاح -> إعادة تحميل الصفحة لظهور الكافل الجديد في الجدول
+        location.reload();
+      })
+      .catch(err => {
+        console.error(err);
+        alert("حدث خطأ غير متوقع أثناء إضافة الكافل.");
+      });
+    });
+  }
+
+  // ==========================
+  // 2) تجهيز مودال التعديل عند الضغط على زر تعديل
+  // ==========================
+  const editModalEl = document.getElementById("editSponsorModal");
+  const editForm = document.getElementById("edit-sponsor-form");
+
+  if (editModalEl && editForm) {
+    editModalEl.addEventListener("show.bs.modal", function(event) {
+      const button = event.relatedTarget;
+      if (!button) return;
+
+      const sponsorId = button.getAttribute("data-id");
+      const email = button.getAttribute("data-email") || "";
+      const firstName = button.getAttribute("data-first-name") || "";
+      const fatherName = button.getAttribute("data-father-name") || "";
+      const grandpaName = button.getAttribute("data-grandpa-name") || "";
+      const lastName = button.getAttribute("data-last-name") || "";
+      const phone = button.getAttribute("data-phone") || "";
+      const nationalNumber = button.getAttribute("data-national-number") || "";
+
+      editForm.querySelector("#edit-sponsor-id").value = sponsorId;
+      editForm.querySelector("#edit-email").value = email;
+      editForm.querySelector("#edit-first-name").value = firstName;
+      editForm.querySelector("#edit-father-name").value = fatherName;
+      editForm.querySelector("#edit-grandpa-name").value = grandpaName;
+      editForm.querySelector("#edit-last-name").value = lastName;
+      editForm.querySelector("#edit-phone").value = phone;
+      editForm.querySelector("#edit-national-number").value = nationalNumber;
+
+      // مسح أخطاء قديمة
+      editForm.querySelectorAll("[data-edit-error]").forEach(el => {
+        el.classList.add("d-none");
+        el.textContent = "";
+      });
+    });
+
+    // ==========================
+    // 3) إرسال تعديل الكافل
+    // ==========================
+    editForm.addEventListener("submit", function(e) {
+      e.preventDefault();
+
+      const sponsorId = editForm.querySelector("#edit-sponsor-id").value;
+      if (!sponsorId) {
+        alert("لم يتم تحديد الكافل.");
+        return;
+      }
+
+      const formData = new FormData(editForm);
+
+      // مسح الأخطاء القديمة
+      editForm.querySelectorAll("[data-edit-error]").forEach(el => {
+        el.classList.add("d-none");
+        el.textContent = "";
+      });
+
+      const updateUrlTemplate = "{% url 'Accounting:sponsor_quick_update' 0 %}";
+      const updateUrl = updateUrlTemplate.replace("0", sponsorId);
+
+      fetch(updateUrl, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": csrftoken,
+        },
+        body: formData,
+      })
+      .then(res => res.json().then(data => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || !data.success) {
+          if (data.errors) {
+            Object.entries(data.errors).forEach(([field, msg]) => {
+              const errEl = editForm.querySelector("[data-edit-error='" + field + "']");
+              if (errEl) {
+                errEl.textContent = Array.isArray(msg) ? msg.join("، ") : msg;
+                errEl.classList.remove("d-none");
+              }
+            });
+          } else if (data.error) {
+            alert(data.error);
+          }
+          return;
+        }
+
+        // نجاح -> إعادة تحميل الصفحة لعرض التعديلات
+        location.reload();
+      })
+      .catch(err => {
+        console.error(err);
+        alert("حدث خطأ غير متوقع أثناء تعديل بيانات الكافل.");
+      });
+    });
+  }
+
+})();
+</script>
+
+{% endblock %}

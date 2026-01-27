@@ -1,0 +1,26 @@
+{# templates/Management/payment_plans/confirm_delete.html #}
+{% extends "Management/base.html" %}
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+<div class="rms-pagebar d-flex justify-content-between align-items-center p-3 mb-3 rounded-3">
+  <h5 class="m-0">{{ title }}</h5>
+  <a class="btn btn-outline-secondary" href="{% url 'Management:payment_plan_list' %}">رجوع للقائمة</a>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body">
+    <p class="mb-4">
+      هل أنت متأكد من حذف الخطة:
+      <strong>{{ plan.amount }} ريال / {{ plan.duration_months }} شهر</strong>؟
+    </p>
+    <form method="post" class="d-flex gap-2">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-danger">
+        <i class="bi bi-trash"></i> تأكيد الحذف
+      </button>
+      <a class="btn btn-light" href="{% url 'Management:payment_plan_list' %}">إلغاء</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

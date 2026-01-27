@@ -1,0 +1,179 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">إدارة المستخدمين والصلاحيات</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="{% url 'Management:create_user_with_profile' %}" class="btn btn-primary btn-rms">
+      + إضافة مستخدم
+    </a>
+  </div>
+</div>
+
+<!-- فلاتر البحث -->
+<div class="card rms mb-3">
+  <div class="card-body rms-filters">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-lg-6 col-md-8">
+        <label class="form-label">بحث</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="ابحث بالاسم، الإيميل، الجوال، الهوية...">
+        </div>
+      </div>
+      <div class="col-lg-3 col-md-4">
+        <label class="form-label">نوع الحساب</label>
+        <select name="role" class="form-select">
+          <option value="">الكل</option>
+          {% for value,label in roles %}
+            <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-lg-3 col-md-12">
+        <label class="form-label d-none d-lg-block">&nbsp;</label>
+        <button class="btn btn-soft w-100 btn-rms"><i class="bi bi-funnel"></i> تطبيق</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- الجدول -->
+<div class="card rms">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover rms-table m-0">
+        <thead>
+          <tr>
+            <th style="width:60px;">#</th>
+            <th>الاسم</th>
+            <th>الإيميل (اسم الدخول)</th>
+            <th>نوع الحساب</th>
+            <th>الجوال</th>
+            <th>الهوية</th>
+            <th style="width:220px;" class="text-center">الإجراءات</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% if page_obj.object_list %}
+          {% for u in page_obj.object_list %}
+            <tr>
+              <td class="text-muted">{{ forloop.counter0|add:page_obj.start_index }}</td>
+              <td>
+                <div class="fw-semibold">{{ u.first_name }} {{ u.last_name }}</div>
+                {% if u.last_login %}
+                <div class="small text-muted">آخر دخول: {{ u.last_login|date:"Y-m-d H:i" }}</div>
+                {% endif %}
+              </td>
+              <td><code dir="ltr">{{ u.email }}</code></td>
+
+              <!-- تغيير نوع الحساب -->
+           <td>
+              <form method="post" action="{% url 'Management:update_user_role' u.id %}" 
+                    class="d-inline-flex align-items-center justify-content-start" 
+                    style="gap: 6px; white-space: nowrap;">
+                {% csrf_token %}
+                <div class="input-group input-group-sm" style="width: 180px;">
+                  <select name="role" class="form-select"
+                          {% if u.id == request.user.id %}disabled{% endif %}>
+                    {% for value,label in roles %}
+                      <option value="{{ value }}" {% if u.profile.role == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-outline-secondary btn-rms"
+                          type="submit" title="حفظ" {% if u.id == request.user.id %}disabled{% endif %}>
+                    <i class="bi bi-check2"></i>
+                  </button>
+                </div>
+              </form>
+            </td>
+
+
+              <td>{% if u.profile %}{{ u.profile.phone }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td>{% if u.profile %}{{ u.profile.national_number }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+
+              <!-- الإجراءات -->
+              <td class="text-center">
+                <div class="d-inline-flex align-items-center gap-1">
+                  <a href="{% url 'Management:edit_user_contact' u.id %}" class="btn btn-sm btn-outline-secondary btn-rms" title="تعديل">
+                    <i class="bi bi-pencil"></i>
+                  </a>
+
+                
+
+                  <form method="post" action="{% url 'Management:delete_user' u.id %}" onsubmit="return confirm('متأكد من حذف هذا المستخدم؟');" style="display:inline">
+                    {% csrf_token %}
+                    <button class="btn btn-sm btn-outline-danger btn-rms" {% if u.id == request.user.id %}disabled{% endif %} title="حذف">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="7">
+              <div class="rms-empty">
+                <span class="emoji">👥</span>
+                لا توجد نتائج مطابقة.
+                <div class="mt-2">
+                  <a href="{% url 'Management:create_user_with_profile' %}" class="btn btn-primary btn-rms">+ إضافة مستخدم</a>
+                </div>
+              </div>
+            </td>
+          </tr>
+        {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ترقيم الصفحات -->
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <small class="text-muted">عرض {{ page_obj.start_index }}–{{ page_obj.end_index }} من {{ page_obj.paginator.count }}</small>
+      <nav>
+        <ul class="pagination pagination-sm m-0">
+          {% if page_obj.has_previous %}
+            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page=1">الأولى</a></li>
+            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.previous_page_number }}">السابق</a></li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">الأولى</span></li>
+            <li class="page-item disabled"><span class="page-link">السابق</span></li>
+          {% endif %}
+
+          <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+
+          {% if page_obj.has_next %}
+            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.next_page_number }}">التالي</a></li>
+            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.paginator.num_pages }}">الأخيرة</a></li>
+          {% else %}
+            <li class="page-item disabled"><span class="page-link">التالي</span></li>
+            <li class="page-item disabled"><span class="page-link">الأخيرة</span></li>
+          {% endif %}
+        </ul>
+      </nav>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // تحسين بسيط لزر الحفظ عند النجاح
+  document.querySelectorAll('form[action*="update_user_role"]').forEach(function(form){
+    form.addEventListener('submit', function(){
+      const btn = form.querySelector('button');
+      btn.innerHTML = '<i class="bi bi-check2-circle"></i>';
+      setTimeout(()=>{ btn.innerHTML = 'حفظ'; }, 1500);
+    });
+  });
+</script>
+{% endblock %}

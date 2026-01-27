@@ -1,0 +1,149 @@
+:root{
+  --rms-primary:#0E7C66;       /* الأخضر الزمردي العصري (موثوق وراقي) */
+  --rms-primary-600:#0B5E4E;   /* للهوفر - أغمق قليلاً */
+  --rms-accent:#50C4B7;        /* تركوازي باهت يستخدم في الرسوم البيانية أو الهايلايت */
+  --rms-danger:#E54848;        /* أحمر دقيق - عصري وواضح */
+  --rms-warning:#FFB020;       /* أصفر كهرماني ناعم */
+  --rms-success:#2E9E44;       /* أخضر النجاح */
+  --rms-muted:#6B7280;         /* رمادي النصوص الثانوية */
+  --rms-bg:#F9FAFB;            /* خلفية النظام الفاتحة جدًا */
+  --rms-card:#FFFFFF;          /* خلفيات البطاقات */
+  --rms-border:#E5E7EB;        /* لون الحدود الخفيف */
+  --rms-text:#1E293B;          /* نص داكن مائل للأزرق (قابلية قراءة عالية) */
+}
+
+
+body{background:var(--rms-bg);color:var(--rms-text);}
+
+/* Header bar */
+.rms-pagebar{
+  background:linear-gradient(180deg,#fff,#f9fdfb);
+  border:1px solid var(--rms-border);
+  border-radius:14px;
+  padding:14px 16px;
+  box-shadow:0 6px 18px rgba(0,0,0,.04);
+}
+
+/* Buttons */
+.btn-rms{
+  --bs-btn-padding-y:.45rem; --bs-btn-padding-x:.9rem; --bs-btn-font-weight:600;
+  border-radius:10px; letter-spacing:.2px;
+}
+.btn-primary{
+  background:linear-gradient(135deg,var(--rms-primary),#119b83);
+  border:none;
+  color:#fff;
+  transition:all .25s ease;
+}
+.btn-primary:hover{
+  background:linear-gradient(135deg,var(--rms-primary-600),#0e7c66);
+  transform:translateY(-1px);
+}
+
+.btn-outline-secondary{
+  border-color:var(--rms-border);
+  color:var(--rms-text);
+  background:#fff;
+}
+.btn-outline-secondary:hover{
+  background:#f3f4f6;
+}
+.btn-soft{
+  background:#f2faf5;
+  border:1px solid #d7f1e0;
+  color:var(--rms-primary);
+}
+.btn-soft:hover{
+  background:#e6f7ec;
+  border-color:#cdebd6;
+  color:#075b31;
+}
+
+/* Search + filters */
+.rms-filters .form-control,
+.rms-filters .form-select{
+  border-radius:10px;
+  border-color:var(--rms-border);
+  height:42px;
+}
+.rms-filters .input-group-text{
+  border-radius:10px 0 0 10px;
+  background:#fff;
+  border-color:var(--rms-border);
+}
+
+/* Cards/Tables */
+.card.rms{
+  border:1px solid var(--rms-border);
+  border-radius:14px;
+  box-shadow:0 8px 20px rgba(20,33,61,.04);
+}
+.table.rms-table{margin:0;}
+.table.rms-table thead th{
+  background:#f8fdf9;
+  border-bottom:1px solid var(--rms-border);
+  font-weight:700;
+  color:#21412a;
+}
+.table.rms-table tbody td{
+  vertical-align:middle;
+  border-color:#f1f3f5;
+}
+.table-hover tbody tr:hover{
+  background:#f6fbf7;
+}
+.table .actions .btn{
+  margin-inline-end:.35rem;
+}
+
+/* Badges */
+.badge-rms{
+  padding:.45rem .6rem;
+  border-radius:8px;
+  font-weight:600;
+}
+.badge-success{
+  background:rgba(11,125,69,.12);
+  color:var(--rms-primary);
+}
+.badge-warning{
+  background:rgba(245,159,0,.12);
+  color:#b7791f;
+}
+.badge-danger{
+  background:rgba(224,49,49,.1);
+  color:var(--rms-danger);
+}
+.badge-secondary{
+  background:#eef1f4;
+  color:#495057;
+}
+
+/* Empty state */
+.rms-empty{
+  text-align:center;
+  padding:48px 16px;
+  color:#6b7280;
+}
+.rms-empty .emoji{
+  font-size:32px;
+  display:block;
+  margin-bottom:8px;
+}
+
+/* Sticky tools */
+.rms-sticky-toolbar{
+  position:sticky;
+  top:0;
+  z-index:3;
+  background:#fff;
+  border-bottom:1px solid var(--rms-border);
+}
+
+/* Utilities */
+.text-truncate-2{
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}

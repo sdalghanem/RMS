@@ -1,0 +1,499 @@
+{% extends "Management/base.html" %}
+{% block title %}تحويل من برنامج رئيسي إلى فرعي{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">تحويل رصيد من برنامج رئيسي إلى فرعي</h5>
+    <small class="text-muted">توزيع ميزانية البرنامج الرئيسي على فروعه .</small>
+  </div>
+</div>
+
+
+
+<div class="row g-3">
+  <!-- نموذج التحويل -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">بيانات التحويل</h6>
+
+        <form method="post" id="alloc-form" class="row g-3">
+          {% csrf_token %}
+
+          <div class="col-12">
+            <label class="form-label">البرنامج الرئيسي</label>
+            <select name="main_program" class="form-select" id="main-program-select" required>
+              <option value="">— اختر —</option>
+              {% for p in programs %}
+                <option value="{{ p.id }}">{{ p.name }}</option>
+              {% endfor %}
+            </select>
+            <div class="form-text text-muted">سيتم الخصم من هذا الرئيسي.</div>
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">البرنامج الفرعي (يظهر حسب الرئيسي)</label>
+            <select name="sub_program" class="form-select" id="sub-program-select" disabled required>
+              <option value="">— اختر برنامج رئيسي أولاً —</option>
+            </select>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">مبلغ التحويل</label>
+            <input type="number" step="0.01" min="0" name="amount"
+                   class="form-control" id="alloc-amount" placeholder="0.00" disabled required>
+            <div id="alloc-error" class="form-text text-danger small d-none">المبلغ غير صالح.</div>
+          </div>
+
+          <div class="col-md-6">
+            <label class="form-label">المتاح في الرئيسي (تقديري)</label>
+            <input type="text" class="form-control bg-light" id="main-available" readonly value="—">
+          </div>
+
+          <div class="col-12">
+            <label class="form-label">ملاحظات</label>
+            <textarea name="notes" class="form-control" rows="3"
+                      placeholder="مثال: توزيع ميزانية التعليم على جوائز التفوق"></textarea>
+          </div>
+
+          <div class="col-12 d-flex justify-content-end gap-2">
+            <a href="#" class="btn btn-light">رجوع</a>
+            <button type="button" class="btn btn-primary" id="submit-btn" disabled>
+              <i class="bi bi-check2-circle"></i> تنفيذ التحويل
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- تفاصيل الرئيسي + تفاصيل الفرعي -->
+  <div class="col-lg-6">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <h6 class="fw-bold mb-3">تفاصيل البرامج</h6>
+
+        <div id="main-details" class="text-muted small mb-3">
+          اختر برنامجًا رئيسيًا لعرض تفاصيله.
+        </div>
+
+        <div id="sub-details" class="text-muted small">
+          اختر برنامجًا فرعيًا لعرض تفاصيله.
+        </div>
+
+        <!-- بيانات مخفية للرئيسية -->
+        <div class="d-none" id="main-data">
+          {% for p in program_data %}
+            <div class="main-prog"
+                 data-id="{{ p.id }}"
+                 data-name="{{ p.name }}"
+                 data-total="{{ p.total }}"
+                 data-allocated="{{ p.allocated }}"
+                 data-spent="{{ p.spent }}"
+                 data-available="{{ p.available }}">
+            </div>
+          {% endfor %}
+        </div>
+
+        <!-- بيانات مخفية للفروع -->
+        <div class="d-none" id="sub-data">
+          {% for sp in sub_program_data %}
+            <div class="sub-prog"
+                 data-id="{{ sp.id }}"
+                 data-name="{{ sp.name }}"
+                 data-main="{{ sp.main_id }}"
+                 data-allocated="{{ sp.allocated }}"
+                 data-spent="{{ sp.spent }}">
+            </div>
+          {% endfor %}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal تأكيد التحويل -->
+<div class="modal fade" id="confirmAllocModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">تأكيد تنفيذ التحويل</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+        <div class="row g-2">
+          <div class="col-4 text-muted">من (رئيسي)</div>
+          <div class="col-8 fw-semibold" id="c-main">—</div>
+
+          <div class="col-4 text-muted">إلى (فرعي)</div>
+          <div class="col-8 fw-semibold" id="c-sub">—</div>
+
+          <div class="col-4 text-muted">المبلغ</div>
+          <div class="col-8 fw-bold" id="c-amount">—</div>
+
+          <div class="col-4 text-muted">المتبقي في الرئيسي بعد التحويل</div>
+          <div class="col-8 fw-semibold" id="c-after">—</div>
+
+          <div class="col-12 text-muted mt-2">ملاحظات</div>
+          <div class="col-12 fw-semibold" id="c-notes">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
+        <button id="c-confirm" class="btn btn-primary">تأكيد التحويل</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal تفاصيل تحويل من السجل -->
+<div class="modal fade" id="allocModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header">
+        <h6 class="modal-title fw-bold">تفاصيل التحويل</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body small">
+        <div class="row g-2">
+          <div class="col-4 text-muted">التاريخ</div>
+          <div class="col-8 fw-semibold" id="mv-date">—</div>
+
+          <div class="col-4 text-muted">من</div>
+          <div class="col-8 fw-semibold" id="mv-main">—</div>
+
+          <div class="col-4 text-muted">إلى</div>
+          <div class="col-8 fw-semibold" id="mv-sub">—</div>
+
+          <div class="col-4 text-muted">المبلغ</div>
+          <div class="col-8 fw-bold" id="mv-amount">—</div>
+
+          <div class="col-12 text-muted mt-2">ملاحظات</div>
+          <div class="col-12 fw-semibold" id="mv-notes">—</div>
+
+          <div class="col-4 text-muted mt-2">بواسطة</div>
+          <div class="col-8 fw-semibold mt-2" id="mv-user">—</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ملخص سريع + آخر التحويلات -->
+
+
+  <div class="col-12">
+    <div class="kpi-card p-3 h-100">
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <div class="icon-wrap"><i class="bi bi-clock-history"></i> آخر تحويلات رئيسي → فرعي</div>
+      </div>
+
+      {% if last_allocs %}
+        <div class="table-responsive" style="max-height:220px; overflow:auto;">
+          <table class="table table-sm align-middle m-0">
+            <thead class="table-light sticky-top">
+              <tr>
+                <th>التاريخ</th>
+                <th>من (رئيسي)</th>
+                <th>إلى (فرعي)</th>
+                <th class="text-end">المبلغ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in last_allocs %}
+              <tr class="alloc-row" role="button"
+                  data-id="{{ a.id }}"
+                  data-date="{{ a.created_at|date:'Y-m-d H:i' }}"
+                  data-main="{{ a.main_program.name }}"
+                  data-sub="{{ a.sub_program.name }}"
+                  data-amount="{{ a.amount|floatformat:2 }}"
+                  data-notes="{{ a.notes|default:'—' }}"
+                  data-user="{{ a.created_by.get_full_name|default:a.created_by.username|default:'—' }}"
+              >
+                <td class="small">{{ a.created_at|date:"Y-m-d" }}</td>
+                <td class="small">{{ a.main_program.name }}</td>
+                <td class="small">{{ a.sub_program.name }}</td>
+                <td class="text-end small fw-bold">{{ a.amount|floatformat:2 }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="text-muted small">لا توجد تحويلات حتى الآن.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+
+
+<script>
+  // عناصر DOM
+  const mainSelect = document.getElementById("main-program-select");
+  const subSelect  = document.getElementById("sub-program-select");
+  const amountInput = document.getElementById("alloc-amount");
+  const availableBox = document.getElementById("main-available");
+  const submitBtn = document.getElementById("submit-btn");
+  const allocError = document.getElementById("alloc-error");
+
+  const mainDetails = document.getElementById("main-details");
+  const subDetails = document.getElementById("sub-details");
+
+  // مساعدات parsing
+  function parseNum(v){ return parseFloat((v||"0").toString().replace(/,/g, '')) || 0; }
+
+  function getMainEl(id){
+    return document.querySelector(`#main-data .main-prog[data-id="${id}"]`);
+  }
+  function getSubEls(mainId){
+    return Array.from(document.querySelectorAll(`#sub-data .sub-prog[data-main="${mainId}"]`));
+  }
+  function getSubEl(id){
+    return document.querySelector(`#sub-data .sub-prog[data-id="${id}"]`);
+  }
+
+  function renderMainDetails(el){
+    const name = el.dataset.name;
+    const total = parseNum(el.dataset.total);
+    const allocated = parseNum(el.dataset.allocated);
+    const spent = parseNum(el.dataset.spent);
+    const available = parseNum(el.dataset.available);
+    const remaining = total - spent;
+
+    mainDetails.innerHTML = `
+      <div class="mb-2"><strong>${name}</strong></div>
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">ميزانية الرئيسي</div>
+            <div class="fw-bold">${total.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">المخصص للفروع</div>
+            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">المصروف</div>
+            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">المتبقي بعد الصرف</div>
+            <div class="fw-bold text-success">${remaining.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-12 mt-2">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">المتاح لتخصيص فروع جديدة</div>
+            <div class="fw-bold">${available.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSubDetails(el){
+    const name = el.dataset.name;
+    const allocated = parseNum(el.dataset.allocated);
+    const spent = parseNum(el.dataset.spent);
+    const remaining = allocated - spent;
+    const pct = allocated ? (spent * 100 / allocated) : 0;
+
+    subDetails.innerHTML = `
+      <div class="mb-2"><strong>${name}</strong></div>
+      <div class="row g-2">
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">مخصص الفرعي</div>
+            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">مصروف الفرعي</div>
+            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">المتبقي</div>
+            <div class="fw-bold text-success">${remaining.toFixed(2)} ر.س</div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kpi-card p-2">
+            <div class="text-muted small">نسبة الصرف</div>
+            <div class="fw-bold">${pct.toFixed(2)}%</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function resetSub(){
+    subSelect.innerHTML = `<option value="">— اختر فرعًا —</option>`;
+    subSelect.disabled = true;
+    amountInput.disabled = true;
+    submitBtn.disabled = true;
+    allocError.classList.add('d-none');
+    subDetails.innerHTML = "اختر برنامجًا فرعيًا لعرض تفاصيله.";
+  }
+
+  // عند اختيار الرئيسي
+  mainSelect.addEventListener("change", function(){
+    const mainId = this.value;
+    resetSub();
+
+    if (!mainId){
+      mainDetails.innerHTML = "اختر برنامجًا رئيسيًا لعرض تفاصيله.";
+      availableBox.value = "—";
+      return;
+    }
+
+    const el = getMainEl(mainId);
+    if (el){
+      renderMainDetails(el);
+      availableBox.value = parseNum(el.dataset.available || 0).toFixed(2) + " ر.س";
+      amountInput.disabled = false;
+    }
+
+    // ملأ قائمة الفروع المرتبطة
+    const subs = getSubEls(mainId);
+    if (subs.length){
+      subSelect.disabled = false;
+      subs.forEach(s=>{
+        const opt = document.createElement("option");
+        opt.value = s.dataset.id;
+        opt.textContent = s.dataset.name;
+        subSelect.appendChild(opt);
+      });
+    } else {
+      subSelect.innerHTML = `<option value="">لا توجد فروع لهذا البرنامج</option>`;
+      subSelect.disabled = true;
+    }
+  });
+
+  // عند اختيار الفرعي
+  subSelect.addEventListener("change", function(){
+    const id = this.value;
+    if (!id){
+      submitBtn.disabled = true;
+      subDetails.innerHTML = "اختر برنامجًا فرعيًا لعرض تفاصيله.";
+      return;
+    }
+    const el = getSubEl(id);
+    if (el) renderSubDetails(el);
+    // إعادة التحقق من صلاحية الزر بحسب المبلغ
+    checkValidation();
+  });
+
+  // تحقق صلاحية المبلغ مقابل المتاح في الرئيسي
+  function checkValidation(){
+    allocError.classList.add('d-none');
+    const mainId = mainSelect.value;
+    const subId = subSelect.value;
+    const val = parseNum(amountInput.value || 0);
+    if (!mainId || !subId || val <= 0){
+      submitBtn.disabled = true;
+      return false;
+    }
+    const mainEl = getMainEl(mainId);
+    if (!mainEl){
+      submitBtn.disabled = true;
+      return false;
+    }
+    const available = parseNum(mainEl.dataset.available || 0);
+    if (val > available){
+      allocError.innerText = "المبلغ أكبر من المتاح في الرئيسي.";
+      allocError.classList.remove('d-none');
+      submitBtn.disabled = true;
+      return false;
+    }
+    allocError.classList.add('d-none');
+    submitBtn.disabled = false;
+    return true;
+  }
+
+  // عند إدخال المبلغ
+  amountInput.addEventListener("input", function(){
+    const mainId = mainSelect.value;
+    const mainEl = getMainEl(mainId);
+    if (!mainEl) return;
+    const available = parseNum(mainEl.dataset.available || 0);
+    const val = parseNum(this.value || 0);
+    if (val > available){
+      this.classList.add("is-invalid");
+      submitBtn.disabled = true;
+    } else {
+      this.classList.remove("is-invalid");
+      checkValidation();
+    }
+  });
+
+  // عند الضغط على زر تنفيذ — نعرض مودال التأكيد
+  document.getElementById("submit-btn").addEventListener("click", function(){
+    if (!checkValidation()) return;
+
+    const mainId = mainSelect.value;
+    const subId = subSelect.value;
+    const mainEl = getMainEl(mainId);
+    const subEl = getSubEl(subId);
+
+    document.getElementById("c-main").innerText = mainEl ? mainEl.dataset.name : "—";
+    document.getElementById("c-sub").innerText = subEl ? subEl.dataset.name : "—";
+    document.getElementById("c-amount").innerText = parseNum(amountInput.value).toFixed(2) + " ر.س";
+    const after = (parseNum(mainEl.dataset.available || 0) - parseNum(amountInput.value || 0)).toFixed(2) + " ر.س";
+    document.getElementById("c-after").innerText = after;
+    document.getElementById("c-notes").innerText = document.querySelector('textarea[name="notes"]').value || "—";
+
+    const modal = new bootstrap.Modal(document.getElementById("confirmAllocModal"));
+    modal.show();
+  });
+
+  // زر التأكيد في المودال: ينفذ إرسال الفورم
+  document.getElementById("c-confirm").addEventListener("click", function(){
+    document.getElementById("alloc-form").submit();
+  });
+
+  // فتح مودال تفاصيل من السجل عند الضغط على صف
+  document.addEventListener("click", function(e){
+    const row = e.target.closest(".alloc-row");
+    if (!row) return;
+
+    document.getElementById("mv-date").innerText = row.dataset.date || "—";
+    document.getElementById("mv-main").innerText = row.dataset.main || "—";
+    document.getElementById("mv-sub").innerText = row.dataset.sub || "—";
+    document.getElementById("mv-amount").innerText = row.dataset.amount || "—";
+    document.getElementById("mv-notes").innerText = row.dataset.notes || "—";
+    document.getElementById("mv-user").innerText = row.dataset.user || "—";
+
+    const modal = new bootstrap.Modal(document.getElementById("allocModal"));
+    modal.show();
+  });
+
+  // initial
+  document.addEventListener("DOMContentLoaded", function(){
+    resetSub();
+    // لو عندك قيمة مسبقة للـ mainSelect (مثلاً بعد خطأ في POST) عرض التفاصيل
+    if (mainSelect.value){
+      const ev = new Event('change'); mainSelect.dispatchEvent(ev);
+    }
+  });
+
+</script>
+
+{% endblock %}

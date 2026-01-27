@@ -1,0 +1,41 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="module">
+  <h2>⚠️ تنظيف بيانات المحاسبة</h2>
+
+  <p>
+    هذه العملية ستحذف <strong>جميع بيانات المحاسبة</strong> بشكل نهائي:
+  </p>
+
+  <ul>
+    <li>السندات (Invoices)</li>
+    <li>الحركات المالية</li>
+    <li>أوامر الصرف</li>
+    <li>أرصدة المستفيدين</li>
+    <li>التخصيصات</li>
+  </ul>
+
+  <p><strong>لن يتم حذف المستخدمين أو الحسابات.</strong></p>
+
+  <form method="post" style="margin-top:20px;">
+    {% csrf_token %}
+
+    <label style="display:block;margin-bottom:10px;">
+      <input type="checkbox" name="delete_management">
+      حذف البرامج والمستفيدين (MainProgram / SubProgram / Beneficiary)
+    </label>
+
+    <button type="submit" class="deletelink">
+      حذف البيانات الآن
+    </button>
+  </form>
+
+  <hr>
+  <p style="color:#777">
+    المسار:
+    <code>/admin/Accounting/fundentry/cleanup/</code>
+  </p>
+</div>
+{% endblock %}

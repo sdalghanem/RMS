@@ -1,0 +1,218 @@
+{% extends "Management/base.html" %}
+{% block title %}أرصدة البرامج{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">أرصدة البرامج</h5>
+    <small class="text-muted">عرض ميزانيات البرامج الرئيسية والفرعية والمبالغ المتبقية.</small>
+  </div>
+  <div class="d-flex gap-2">
+    <a href="#" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download"></i> تصدير
+    </a>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body pb-2">
+    <form method="get" class="row g-2 align-items-end">
+
+      <div class="col-md-4">
+        <label class="form-label small text-muted">بحث</label>
+        <input type="text" name="q" class="form-control"
+               placeholder="ابحث باسم البرنامج الرئيسي أو الفرعي">
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label small text-muted">الحالة</label>
+        <select name="status" class="form-select">
+          <option value="">الكل</option>
+          <option value="healthy">سليم (&lt; 80%)</option>
+          <option value="warning">قريب من الحد (80–95%)</option>
+          <option value="critical">حرج (95–99.5%)</option>
+          <option value="exhausted">مستنفد (&ge; 99.5%)</option>
+        </select>
+      </div>
+
+      <div class="col-md-3">
+        <label class="form-label small text-muted">برنامج رئيسي محدد</label>
+        <select name="main_program" class="form-select">
+          <option value="">الكل</option>
+          {% for p in main_programs %}
+            <option value="{{ p.id }}">{{ p.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-primary">
+          <i class="bi bi-search"></i> بحث
+        </button>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+<!-- Summary KPI -->
+<section class="mb-3">
+  <div class="row g-3">
+    <div class="col-md-3 col-6">
+      <div class="kpi-card p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="icon-wrap"><i class="bi bi-diagram-3"></i></div>
+          <span class="text-muted small">عدد البرامج الرئيسية</span>
+        </div>
+        <h4 class="m-0">{{ summary.main_count|default:"—" }}</h4>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-6">
+      <div class="kpi-card p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="icon-wrap"><i class="bi bi-layers"></i></div>
+          <span class="text-muted small">عدد البرامج الفرعية</span>
+        </div>
+        <h4 class="m-0">{{ summary.sub_count|default:"—" }}</h4>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-6">
+      <div class="kpi-card p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="icon-wrap"><i class="bi bi-cash"></i></div>
+          <span class="text-muted small">إجمالي ميزانيات الرئيسية</span>
+        </div>
+        <h4 class="m-0">{{ summary.total_main|default:"—" }}</h4>
+      </div>
+    </div>
+
+    <div class="col-md-3 col-6">
+      <div class="kpi-card p-3">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <div class="icon-wrap"><i class="bi bi-pie-chart"></i></div>
+          <span class="text-muted small">إجمالي المتبقي</span>
+        </div>
+        <h4 class="m-0">{{ summary.total_remaining|default:"—" }}</h4>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Main Programs Table -->
+<div class="card shadow-sm border-0 mb-3">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle m-0">
+        <thead class="table-light">
+          <tr>
+            <th>#</th>
+            <th>البرنامج الرئيسي</th>
+            <th class="text-end">الميزانية</th>
+            <th class="text-end">المخصص للفروع</th>
+            <th class="text-end">المصروف</th>
+            <th class="text-end">المتبقي</th>
+            <th class="text-end">نسبة الصرف</th>
+            <th>الحالة</th>
+            <th class="text-center">تفاصيل</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in programs %}
+          <tr>
+            <td>{{ forloop.counter }}</td>
+            <td class="fw-bold">{{ p.name }}</td>
+
+            <td class="text-end">{{ p.total|floatformat:2 }}</td>
+            <td class="text-end">{{ p.allocated_sum|floatformat:2 }}</td>
+            <td class="text-end">{{ p.spent_sum|floatformat:2 }}</td>
+
+            <td class="text-end fw-bold">
+              {{ p.remaining|floatformat:2 }}
+            </td>
+
+            <td class="text-end">
+              {{ p.pct|floatformat:2 }}%
+            </td>
+
+            <td>
+              {% if p.pct < 80 %}
+                <span class="badge rounded-pill bg-success-subtle text-success">سليم</span>
+              {% elif p.pct < 95 %}
+                <span class="badge rounded-pill bg-warning-subtle text-warning">قريب للحد</span>
+              {% elif p.pct < 99.5 %}
+                <span class="badge rounded-pill bg-danger-subtle text-danger">حرج</span>
+              {% else %}
+                <span class="badge rounded-pill bg-dark text-white">مستنفد</span>
+              {% endif %}
+            </td>
+
+            <td class="text-center">
+              <a href="#" class="btn btn-light btn-sm">
+                <i class="bi bi-eye"></i>
+              </a>
+            </td>
+          </tr>
+
+          <!-- Sub Programs (Expandable style) -->
+{% if p.sub_programs.all %}
+<tr class="table-light">
+  <td colspan="9" class="py-2">
+    <div class="small fw-bold text-muted">البرامج الفرعية التابعة</div>
+  </td>
+</tr>
+
+{% for sp in p.sub_programs.all %}
+<tr>
+  <td></td>
+  <td class="ps-4">
+    <i class="bi bi-dot"></i> {{ sp.name }}
+  </td>
+
+  <td class="text-end">—</td>
+  <td class="text-end">{{ sp.allocated_amount|floatformat:2 }}</td>
+  <td class="text-end">{{ sp.spent_amount|floatformat:2 }}</td>
+  <td class="text-end fw-bold">{{ sp.remaining|floatformat:2 }}</td>
+
+  <td class="text-end">
+    {{ sp.pct|floatformat:2 }}%
+  </td>
+
+  <td>
+    {% if sp.pct < 80 %}
+      <span class="badge rounded-pill bg-success-subtle text-success">سليم</span>
+    {% elif sp.pct < 95 %}
+      <span class="badge rounded-pill bg-warning-subtle text-warning">قريب للحد</span>
+    {% elif sp.pct < 99.5 %}
+      <span class="badge rounded-pill bg-danger-subtle text-danger">حرج</span>
+    {% else %}
+      <span class="badge rounded-pill bg-dark text-white">مستنفد</span>
+    {% endif %}
+  </td>
+
+  <td class="text-center">
+    <a href="#" class="btn btn-light btn-sm">
+      <i class="bi bi-receipt"></i>
+    </a>
+  </td>
+</tr>
+{% endfor %}
+{% endif %}
+
+          {% empty %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-4">
+              لا توجد بيانات لعرضها.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

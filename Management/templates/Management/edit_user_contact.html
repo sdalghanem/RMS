@@ -1,0 +1,115 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+<style>
+  .helper { font-size:.875rem; color:#6b7280; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- شريط علوي موحّد -->
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">تحديث بيانات الدخول والتواصل</small>
+  </div>
+  <div>
+    <a href="{% url 'Management:users_list' %}" class="btn btn-outline-secondary btn-rms">
+      <i class="bi bi-arrow-right-circle"></i> رجوع للقائمة
+    </a>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-xl-6 col-lg-7">
+
+    {# رسائل Django إن لم تكن ضمن الـ base #}
+    {% if messages %}
+      {% for m in messages %}
+        <div class="alert alert-{{ m.tags }} mb-3">{{ m }}</div>
+      {% endfor %}
+    {% endif %}
+
+    <div class="card rms">
+      <div class="card-body p-4">
+
+        {% if form.non_field_errors %}
+          <div class="alert alert-danger mb-3">
+            <i class="bi bi-exclamation-triangle me-1"></i> {{ form.non_field_errors|striptags }}
+          </div>
+        {% endif %}
+
+        <form method="post" novalidate id="userContactForm">
+          {% csrf_token %}
+
+          <!-- البريد -->
+          <div class="mb-3">
+            <label class="form-label">البريد الإلكتروني (اسم الدخول)</label>
+            <div class="input-group">
+              <span class="input-group-text"><i class="bi bi-envelope"></i></span>
+              {{ form.email }}
+            </div>
+            {% if form.email.errors %}<div class="text-danger small mt-1">{{ form.email.errors|striptags }}</div>{% endif %}
+            <div class="helper">سيُستخدم أيضًا كاسم الدخول (username).</div>
+          </div>
+
+          <!-- الجوال -->
+          <div class="mb-3">
+            <label class="form-label">رقم الجوال</label>
+            <div class="input-group">
+              <span class="input-group-text">+966</span>
+              {{ form.phone }}
+            </div>
+            {% if form.phone.errors %}<div class="text-danger small mt-1">{{ form.phone.errors|striptags }}</div>{% endif %}
+          </div>
+
+          <div class="border-top pt-3 d-flex justify-content-end gap-2">
+            <a href="{% url 'Management:users_list' %}" class="btn btn-outline-secondary btn-rms">رجوع</a>
+            <button type="submit" class="btn btn-primary btn-rms" id="saveBtn">
+              <i class="bi bi-check2-circle me-1"></i> حفظ التعديلات
+            </button>
+          </div>
+        </form>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+  const form = document.getElementById('userContactForm');
+  const saveBtn = document.getElementById('saveBtn');
+  const phoneInput = document.querySelector('input[name="phone"]');
+
+  // منع الأحرف غير الرقمية في الجوال وإزالة المسافات
+  if (phoneInput){
+    phoneInput.addEventListener('input', function(){
+      this.value = this.value.replace(/[^\d]/g,'').replace(/\s+/g,'');
+      // تأكد من البدء بـ 05
+      if(this.value && !this.value.startsWith('05')) {
+        this.value = '05' + this.value.replace(/^0+/, '').slice(0,8);
+      }
+      // قصه على 10 أرقام كحد أقصى
+      if(this.value.length > 10) this.value = this.value.slice(0,10);
+    });
+  }
+
+  // سبنر بسيط عند الإرسال
+  form.addEventListener('submit', function(){
+    if(saveBtn){
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> جاري الحفظ...';
+    }
+  });
+})();
+</script>
+{% endblock %}

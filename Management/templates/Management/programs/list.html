@@ -1,0 +1,137 @@
+{% extends "Management/base.html" %}
+{% load static %}
+{% load math_tags %}
+{% block title %}البرامج - RMS{% endblock %}
+
+{% block content %}
+<style>
+  .progress-sm{height:10px;border-radius:8px;background:#eee;overflow:hidden}
+  .badge-soft{background:#f2faf5;border:1px solid #d7f1e0;color:var(--rms-primary)}
+  .card-hover:hover{transform:translateY(-2px);box-shadow:0 10px 28px rgba(2,2,75,.08)}
+  .btn-action{border-radius:10px}
+</style>
+
+<!-- شريط علوي أنيق -->
+<div class="rms-pagebar mb-3">
+  <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2">
+    <h5 class="m-0">البرامج</h5>
+    <div class="d-flex gap-2">
+      <!-- زر إضافة برنامج جديد (يوجه للأدمن) -->
+      {% if perms.Management.add_mainprogram %}
+        <a class="btn btn-primary btn-rms" href="{% url 'Management:program_create' %}">
+          <i class="bi bi-plus-lg"></i> إضافة برنامج جديد
+        </a>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- فلاتر -->
+<div class="card rms shadow-sm mb-3 border-0">
+  <div class="card-body py-3">
+    <form class="row g-2 rms-filters" method="get">
+      <div class="col-md-6">
+        <input type="text" name="q" value="{{ request.GET.q }}" class="form-control" placeholder="ابحث باسم البرنامج أو الوصف">
+      </div>
+      <div class="col-md-4">
+        <select name="status" class="form-select">
+          <option value="">كل الحالات</option>
+          <option value="healthy"  {% if request.GET.status == 'healthy'  %}selected{% endif %}>استهلاك أقل من 80%</option>
+          <option value="warning"  {% if request.GET.status == 'warning'  %}selected{% endif %}>تحذير 80–95%</option>
+          <option value="critical" {% if request.GET.status == 'critical' %}selected{% endif %}>حرج &gt;95%</option>
+          <option value="exhausted"{% if request.GET.status == 'exhausted'%}selected{% endif %}>مستنفد تقريبًا</option>
+        </select>
+      </div>
+      <div class="col-md-2 d-grid">
+        <button class="btn btn-outline-secondary btn-rms"><i class="bi bi-funnel"></i> تطبيق</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- الشبكة -->
+<div class="row g-3">
+  {% for p in programs %}
+  {% with total=p.total_donation_amount|default:0 spent=p.spent_sum|default:0 %}
+  {% with pct=spent|mul:"100"|div:total %}
+  <div class="col-lg-4 col-md-6">
+    <div class="card rms shadow-sm border-0 card-hover h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <h6 class="mb-1">{{ p.name }}</h6>
+          <span class="badge badge-soft">فروع: {{ p.sub_programs.count }}</span>
+        </div>
+        <p class="text-muted small text-truncate-2 mb-3">{{ p.description|default:"—" }}</p>
+
+        <div class="mb-2">
+          <div class="d-flex justify-content-between small">
+            <span>سقف البرنامج</span>
+            <strong>{{ p.total_donation_amount|floatformat:2 }} ر.س</strong>
+          </div>
+          <div class="d-flex justify-content-between small">
+            <span>مصروف</span>
+            <strong>{{ spent|floatformat:2 }} ر.س</strong>
+          </div>
+          <div class="d-flex justify-content-between small">
+            <span>المتبقي</span>
+            <strong>{{ total|sub:spent|floatformat:2 }} ر.س</strong>
+          </div>
+        </div>
+
+        <!-- شريط التقدم + النسبة -->
+        <div class="progress-sm my-2">
+          {% if total > 0 %}
+            {% if pct < 80 %}
+              <div style="width:{{ pct|floatformat:0 }}%;height:10px;background:var(--rms-primary)"></div>
+            {% elif pct < 95 %}
+              <div style="width:{{ pct|floatformat:0 }}%;height:10px;background:var(--rms-warning)"></div>
+            {% else %}
+              <div style="width:{{ pct|floatformat:0 }}%;height:10px;background:var(--rms-danger)"></div>
+            {% endif %}
+          {% else %}
+            <div style="width:0%;height:10px;background:#eee"></div>
+          {% endif %}
+        </div>
+        <div class="small text-end">
+          {% if total > 0 %}{{ pct|floatformat:0 }}%{% else %}—{% endif %}
+        </div>
+
+        <div class="d-flex justify-content-end gap-2 mt-3">
+          <a class="btn btn-primary btn-sm btn-action" href="{% url 'Management:program_detail' p.pk %}">
+            عرض التفاصيل
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endwith %}
+  {% endwith %}
+  {% empty %}
+    <div class="col-12">
+      <div class="rms-empty">
+        <span class="emoji">📂</span>
+        لا توجد برامج مطابقة لبحثك.
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- ترقيم الصفحات -->
+{% if is_paginated %}
+<nav class="mt-3">
+  <ul class="pagination justify-content-center">
+    {% if page_obj.has_previous %}
+      <li class="page-item">
+        <a class="page-link" href="?{% if request.GET.q %}q={{request.GET.q}}&{% endif %}{% if request.GET.status %}status={{request.GET.status}}&{% endif %}page={{ page_obj.previous_page_number }}">السابق</a>
+      </li>
+    {% endif %}
+    <li class="page-item disabled"><span class="page-link">صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span></li>
+    {% if page_obj.has_next %}
+      <li class="page-item">
+        <a class="page-link" href="?{% if request.GET.q %}q={{request.GET.q}}&{% endif %}{% if request.GET.status %}status={{request.GET.status}}&{% endif %}page={{ page_obj.next_page_number }}">التالي</a>
+      </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+{% endblock %}
