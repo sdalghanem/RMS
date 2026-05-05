@@ -92,7 +92,10 @@
           <div class="col-md-4">
             <span class="text-muted">الاسم:</span>
             <span class="fw-semibold">
-              {{ donor.user.get_full_name|default:donor.user.username }}
+              {{ donor.user.first_name }}
+              {{ donor.father_name }}
+              {{ donor.grandpa_name }}
+              {{ donor.user.last_name }}
             </span>
           </div>
           <div class="col-md-4">

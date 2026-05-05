@@ -37,6 +37,8 @@
             <th>الطرف</th>
             <th>المبلغ</th>
             <th>أنشئ بواسطة</th>
+            <th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -97,6 +99,25 @@
                 <td>
                   {{ invoice.created_by.get_full_name|default:invoice.created_by.username }}
                 </td>
+                <!---->
+                <td class="text-end">
+                <div class="d-flex gap-1 justify-content-end">
+                  <a href="{% url 'Accounting:invoice_update' invoice.pk %}"
+                    class="btn btn-sm btn-outline-warning">
+                    <i class="bi bi-pencil-square"></i> تعديل
+                  </a>
+
+                  <form method="post"
+                        action="{% url 'Accounting:invoice_delete' invoice.pk %}"
+                        onsubmit="return confirm('هل أنت متأكد من حذف هذه الفاتورة؟');">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">
+                      <i class="bi bi-trash"></i> حذف
+                    </button>
+                  </form>
+                </div>
+              </td>
+                <!---->
               </tr>
             {% endfor %}
           {% else %}
@@ -106,6 +127,7 @@
               </td>
             </tr>
           {% endif %}
+      
         </tbody>
       </table>
     </div>

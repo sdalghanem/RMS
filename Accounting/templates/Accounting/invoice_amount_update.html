@@ -1,0 +1,56 @@
+{% extends "Management/base.html" %}
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
+  <div>
+    <h5 class="m-0 fw-bold">{{ title }}</h5>
+    <small class="text-muted">تعديل مبلغ السند فقط.</small>
+  </div>
+
+  <a href="{% url 'Accounting:cashier_invoices_list' %}" class="btn btn-outline-secondary">
+    رجوع
+  </a>
+</div>
+
+<div class="card shadow-sm border-0">
+  <div class="card-body">
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="mb-3">
+        <label class="form-label">رقم السند</label>
+        <input type="text" class="form-control" value="{{ invoice.number }}" disabled>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">المبلغ الحالي</label>
+        <input type="text" class="form-control" value="{{ current_amount }}" disabled>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">المبلغ الجديد</label>
+        <input type="number"
+               step="0.01"
+               min="0.01"
+               name="amount"
+               class="form-control"
+               value="{{ current_amount }}"
+               required>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          حفظ التعديل
+        </button>
+
+        <a href="{% url 'Accounting:cashier_invoices_list' %}" class="btn btn-outline-secondary">
+          إلغاء
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

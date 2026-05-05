@@ -80,7 +80,11 @@
 
                 <td>
                   <div class="fw-semibold">
-                    {{ sponsor.user.get_full_name|default:sponsor.user.username }}
+                   
+                    {{ sponsor.user.first_name }}
+                    {{ sponsor.father_name }}
+                    {{ sponsor.grandpa_name }}
+                     {{ sponsor.user.last_name }}
                   </div>
                   <div class="small text-muted">
                     {{ sponsor.user.email }}

@@ -56,5 +56,6 @@ urlpatterns = [
 
     path("beneficiaries/supports/", views.beneficiary_supports_report, name="beneficiary_supports_report"),
 
-
+    path("invoices/<int:pk>/edit/", views.invoice_update, name="invoice_update"),
+    path("invoices/<int:pk>/delete/", views.invoice_delete, name="invoice_delete"),
 ]

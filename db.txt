@@ -1,0 +1,14 @@
+CREATE DATABASE rms_db
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE USER 'rms_user'@'localhost'
+  IDENTIFIED BY 'STRONG_PASSWORD_HERE';
+
+GRANT ALL PRIVILEGES
+  ON rms_db.*
+  TO 'rms_user'@'localhost';
+
+FLUSH PRIVILEGES;
+EXIT;
+STRONG_PASSWORD_HERE

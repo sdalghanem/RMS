@@ -75,6 +75,7 @@
             <th>مصدر التغطية</th>
             <th>نوع الحركة</th>
             <th>الوصف</th>
+            <th>ملاحظات</th>
             <th class="text-end">المبلغ</th>
             <th class="text-end">الرصيد(عام)</th>
           </tr>
@@ -93,11 +94,14 @@
             <td class="small">
               {{ m.get_type_display|default:m.type }}
             </td>
+            
 
             <td class="small text-muted">
               {{ m.description|default:"—" }}
             </td>
-
+ <td class="small">
+             {{ m.display_notes }}
+            </td>
             <td class="text-end fw-bold {% if m.amount < 0 %}text-danger{% else %}text-success{% endif %}">
               {{ m.amount|floatformat:2 }}
             </td>
@@ -112,10 +116,56 @@
           </tr>
           {% endfor %}
         </tbody>
+        
+
+        <tfoot class="table-light">
+          <tr>
+            <th colspan="6" class="text-end">الإجمالي</th>
+
+            <th id="total_amount" class="text-end fw-bold"></th>
+
+            <th id="general_balance" class="text-end fw-bold"></th>
+          </tr>
+        </tfoot>
 
       </table>
     </div>
   </div>
 </div>
+
+<script>
+function parseMoney(value) {
+    value = value.replace(/,/g, "").replace(/\s/g, "").trim();
+
+    // لو السالب مكتوب آخر الرقم مثل 500.00-
+    if (value.endsWith("-")) {
+        value = "-" + value.slice(0, -1);
+    }
+
+    return parseFloat(value) || 0;
+}
+
+function calculateTotals() {
+    let totalAmount = 0;
+    let totalBalance = 0;
+
+    const rows = document.querySelectorAll("tbody tr");
+
+    rows.forEach(row => {
+        const amountCell = row.querySelector("td:nth-child(7)");
+        const balanceCell = row.querySelector("td:nth-child(8)");
+
+        if (amountCell && balanceCell) {
+            totalAmount += parseMoney(amountCell.innerText);
+            totalBalance += parseMoney(balanceCell.innerText);
+        }
+    });
+
+    document.getElementById("total_amount").innerText = totalAmount.toFixed(2);
+    document.getElementById("general_balance").innerText = totalBalance.toFixed(2);
+}
+
+document.addEventListener("DOMContentLoaded", calculateTotals);
+</script>
 
 {% endblock %}

@@ -441,7 +441,111 @@ def cashier_invoices_list(request):
     }
     return render(request, "Accounting/cashier_invoices_list.html", context)
 
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def invoice_update(request, pk):
+    invoice = get_object_or_404(
+        Invoice.objects.select_related("general_donation", "financial_sponsorship"),
+        pk=pk
+    )
 
+    current_amount = Decimal("0.00")
+
+    if invoice.invoice_type == Invoice.Types.GENERAL_DONATION and hasattr(invoice, "general_donation"):
+        current_amount = invoice.general_donation.amount
+
+    elif invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP and hasattr(invoice, "financial_sponsorship"):
+        current_amount = invoice.financial_sponsorship.total_amount
+
+    if request.method == "POST":
+        amount_raw = (request.POST.get("amount") or "").strip()
+
+        try:
+            new_amount = Decimal(amount_raw)
+
+            if new_amount <= 0:
+                raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
+
+            with transaction.atomic():
+                if invoice.invoice_type == Invoice.Types.GENERAL_DONATION:
+                    general = invoice.general_donation
+                    general.amount = new_amount
+                    general.save(update_fields=["amount"])
+
+                    FundEntry.objects.filter(invoice=invoice).update(
+                        amount=new_amount,
+                        description=f"تبرع عام من {general.supporter_name or 'داعم'} - سند {invoice.number}",
+                    )
+
+                elif invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP:
+                    sponsorship = invoice.financial_sponsorship
+
+                    allocated = sponsorship.allocated_amount
+                    if new_amount < allocated:
+                        raise ValidationError(
+                            f"لا يمكن جعل المبلغ أقل من المخصص للمستفيدين. المخصص حالياً: {allocated} ر.س"
+                        )
+
+                    sponsorship.custom_amount = new_amount
+                    sponsorship.save(update_fields=["custom_amount"])
+
+                    FundEntry.objects.filter(invoice=invoice).update(
+                        amount=new_amount,
+                        description=f"دخل كفالة مالية من السند رقم {invoice.number}",
+                    )
+
+                messages.success(request, "تم تعديل مبلغ الفاتورة بنجاح.")
+                return redirect("Accounting:invoice_detail", pk=invoice.pk)
+
+        except (InvalidOperation, ValidationError) as e:
+            messages.error(request, str(e))
+
+    return render(request, "Accounting/invoice_amount_update.html", {
+        "title": f"تعديل مبلغ السند {invoice.number}",
+        "invoice": invoice,
+        "current_amount": current_amount,
+    })
+
+@require_POST
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def invoice_delete(request, pk):
+    invoice = get_object_or_404(
+        Invoice.objects.select_related("general_donation", "financial_sponsorship"),
+        pk=pk
+    )
+
+    try:
+        with transaction.atomic():
+
+            # 🔒 شرط أمان (مهم حالياً)
+            if invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP:
+                sponsorship = getattr(invoice, "financial_sponsorship", None)
+
+                if sponsorship and sponsorship.allocated_amount > 0:
+                    messages.error(
+                        request,
+                        "لا يمكن حذف الفاتورة لوجود مبالغ مخصصة للمستفيدين."
+                    )
+                    return redirect("Accounting:cashier_invoices_list")
+
+            # 🧹 حذف حركة الصندوق
+            FundEntry.objects.filter(invoice=invoice).delete()
+
+            # 🧹 حذف التفاصيل
+            if hasattr(invoice, "general_donation"):
+                invoice.general_donation.delete()
+
+            if hasattr(invoice, "financial_sponsorship"):
+                invoice.financial_sponsorship.delete()
+
+            # 🧹 حذف الفاتورة
+            invoice.delete()
+
+            messages.success(request, "تم حذف الفاتورة بنجاح.")
+
+    except Exception as e:
+        messages.error(request, f"حدث خطأ أثناء الحذف: {str(e)}")
+
+    return redirect("Accounting:cashier_invoices_list")
 # --------------------------------------------------
 # إنشاء سند تبرع عام
 # --------------------------------------------------
@@ -1491,6 +1595,122 @@ from django.http import HttpResponse
 from django.utils import timezone
 from openpyxl import Workbook
 
+# @role_required([Profile.Roles.ACCOUNTANT])
+# def ledger(request):
+#     base_qs = (
+#         FundEntry.objects
+#         .select_related("invoice", "created_by")
+#         .order_by("-created_at", "-id")
+#     )
+
+#     # Filters
+#     type_filter = (request.GET.get("type") or "").strip()
+#     date_from = (request.GET.get("date_from") or "").strip()
+#     date_to = (request.GET.get("date_to") or "").strip()
+#     q = (request.GET.get("q") or "").strip()
+#     export = (request.GET.get("export") or "").strip()
+
+#     movements = base_qs
+
+#     # نوع الحركة
+#     if type_filter:
+#         if type_filter == "revenue":
+#             movements = movements.filter(amount__gt=0)
+#         elif type_filter == "expense":
+#             movements = movements.filter(amount__lt=0)
+#         else:
+#             movements = movements.filter(type=type_filter)
+
+#     # فلترة التاريخ
+#     if date_from:
+#         movements = movements.filter(created_at__date__gte=date_from)
+#     if date_to:
+#         movements = movements.filter(created_at__date__lte=date_to)
+
+#     # بحث عام: (وصف + رقم سند voucher + رقم فاتورة invoice + مبلغ)
+#     if q:
+#         q_obj = (
+#             Q(description__icontains=q) |
+#             Q(voucher_number__icontains=q) |
+#             Q(invoice__number__icontains=q)
+#         )
+#         try:
+#             q_num = Decimal(q)
+#             q_obj |= Q(amount=q_num)
+#         except (InvalidOperation, TypeError):
+#             pass
+
+#         movements = movements.filter(q_obj)
+
+#     # opening balance قبل أول حركة ضمن النتائج
+#     first = movements.order_by("created_at", "id").values("created_at", "id").first()
+#     opening = Decimal("0.00")
+#     if first:
+#         dt0 = first["created_at"]
+#         id0 = first["id"]
+#         opening = (
+#             FundEntry.objects
+#             .filter(Q(created_at__lt=dt0) | Q(created_at=dt0, id__lt=id0))
+#             .aggregate(t=Sum("amount"))["t"]
+#             or Decimal("0.00")
+#         )
+
+#     # تجهيز العرض
+#     asc = list(movements.order_by("created_at", "id"))
+#     running = opening
+
+#     for m in asc:
+#         # رقم السند: voucher أولاً ثم invoice.number
+#         voucher = (m.voucher_number or "").strip()
+#         if not voucher and m.invoice and getattr(m.invoice, "number", None):
+#             voucher = str(m.invoice.number).strip()
+#         m.display_voucher = voucher or "—"
+
+#         # مصدر التغطية (عرض فقط) بدون تغيير الوصف الحقيقي
+#         desc = (m.description or "")
+#         if "(مصدر: ميزانية الفرعي)" in desc:
+#             m.cover_source = "محفظة برنامج فرعي"
+#         elif "(مصدر: محفظة المستفيد)" in desc or "محفظة المستفيد" in desc:
+#             m.cover_source = "محفظة مستفيد"
+#         else:
+#             m.cover_source = "صندوق عام"
+
+#         # الرصيد بعد الحركة
+#         running += (m.amount or Decimal("0.00"))
+#         m.balance_after = running
+
+#     rows = list(reversed(asc))  # الأحدث أولاً
+
+#     # Export Excel
+#     if export == "1":
+#         wb = Workbook()
+#         ws = wb.active
+#         ws.title = "Ledger"
+#         ws.append(["رقم السند", "التاريخ", "مصدر التغطية", "نوع الحركة", "الوصف", "المبلغ", "الرصيد بعد الحركة"])
+
+#         for m in rows:
+#             ws.append([
+#                 m.display_voucher,
+#                 timezone.localtime(m.created_at).strftime("%Y-%m-%d"),  # ✅ بدون وقت
+#                 getattr(m, "cover_source", "") or "",
+#                 (m.get_type_display() if hasattr(m, "get_type_display") else (m.type or "")),
+#                 (m.description or "").strip() or "—",  # ✅ الوصف الحقيقي
+#                 float(m.amount or 0),
+#                 float(m.balance_after or 0),
+#             ])
+
+#         resp = HttpResponse(
+#             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#         )
+#         resp["Content-Disposition"] = 'attachment; filename="ledger.xlsx"'
+#         wb.save(resp)
+#         return resp
+
+#     return render(request, "Accounting/ledger.html", {
+#         "title": "سجل الحركات المالية",
+#         "movements": rows,
+#         "filters": {"type": type_filter, "date_from": date_from, "date_to": date_to, "q": q},
+#     })
 @role_required([Profile.Roles.ACCOUNTANT])
 def ledger(request):
     base_qs = (
@@ -1499,7 +1719,6 @@ def ledger(request):
         .order_by("-created_at", "-id")
     )
 
-    # Filters
     type_filter = (request.GET.get("type") or "").strip()
     date_from = (request.GET.get("date_from") or "").strip()
     date_to = (request.GET.get("date_to") or "").strip()
@@ -1508,7 +1727,6 @@ def ledger(request):
 
     movements = base_qs
 
-    # نوع الحركة
     if type_filter:
         if type_filter == "revenue":
             movements = movements.filter(amount__gt=0)
@@ -1517,18 +1735,17 @@ def ledger(request):
         else:
             movements = movements.filter(type=type_filter)
 
-    # فلترة التاريخ
     if date_from:
         movements = movements.filter(created_at__date__gte=date_from)
     if date_to:
         movements = movements.filter(created_at__date__lte=date_to)
 
-    # بحث عام: (وصف + رقم سند voucher + رقم فاتورة invoice + مبلغ)
     if q:
         q_obj = (
             Q(description__icontains=q) |
             Q(voucher_number__icontains=q) |
-            Q(invoice__number__icontains=q)
+            Q(invoice__number__icontains=q) |
+            Q(invoice__notes__icontains=q)
         )
         try:
             q_num = Decimal(q)
@@ -1538,9 +1755,9 @@ def ledger(request):
 
         movements = movements.filter(q_obj)
 
-    # opening balance قبل أول حركة ضمن النتائج
     first = movements.order_by("created_at", "id").values("created_at", "id").first()
     opening = Decimal("0.00")
+
     if first:
         dt0 = first["created_at"]
         id0 = first["id"]
@@ -1551,18 +1768,21 @@ def ledger(request):
             or Decimal("0.00")
         )
 
-    # تجهيز العرض
     asc = list(movements.order_by("created_at", "id"))
     running = opening
 
     for m in asc:
-        # رقم السند: voucher أولاً ثم invoice.number
         voucher = (m.voucher_number or "").strip()
         if not voucher and m.invoice and getattr(m.invoice, "number", None):
             voucher = str(m.invoice.number).strip()
         m.display_voucher = voucher or "—"
 
-        # مصدر التغطية (عرض فقط) بدون تغيير الوصف الحقيقي
+        m.display_notes = (
+            m.invoice.notes.strip()
+            if m.invoice and getattr(m.invoice, "notes", None) and m.invoice.notes.strip()
+            else "—"
+        )
+
         desc = (m.description or "")
         if "(مصدر: ميزانية الفرعي)" in desc:
             m.cover_source = "محفظة برنامج فرعي"
@@ -1571,26 +1791,35 @@ def ledger(request):
         else:
             m.cover_source = "صندوق عام"
 
-        # الرصيد بعد الحركة
         running += (m.amount or Decimal("0.00"))
         m.balance_after = running
 
-    rows = list(reversed(asc))  # الأحدث أولاً
+    rows = list(reversed(asc))
 
-    # Export Excel
     if export == "1":
         wb = Workbook()
         ws = wb.active
         ws.title = "Ledger"
-        ws.append(["رقم السند", "التاريخ", "مصدر التغطية", "نوع الحركة", "الوصف", "المبلغ", "الرصيد بعد الحركة"])
+
+        ws.append([
+            "رقم السند",
+            "التاريخ",
+            "مصدر التغطية",
+            "نوع الحركة",
+            "الوصف",
+            "الملاحظات",
+            "المبلغ",
+            "الرصيد بعد الحركة",
+        ])
 
         for m in rows:
             ws.append([
                 m.display_voucher,
-                timezone.localtime(m.created_at).strftime("%Y-%m-%d"),  # ✅ بدون وقت
+                timezone.localtime(m.created_at).strftime("%Y-%m-%d"),
                 getattr(m, "cover_source", "") or "",
                 (m.get_type_display() if hasattr(m, "get_type_display") else (m.type or "")),
-                (m.description or "").strip() or "—",  # ✅ الوصف الحقيقي
+                (m.description or "").strip() or "—",
+                getattr(m, "display_notes", "—"),
                 float(m.amount or 0),
                 float(m.balance_after or 0),
             ])
@@ -1605,9 +1834,13 @@ def ledger(request):
     return render(request, "Accounting/ledger.html", {
         "title": "سجل الحركات المالية",
         "movements": rows,
-        "filters": {"type": type_filter, "date_from": date_from, "date_to": date_to, "q": q},
+        "filters": {
+            "type": type_filter,
+            "date_from": date_from,
+            "date_to": date_to,
+            "q": q,
+        },
     })
-
 
 # 6) صفحة أرصدة البرامج للمحاسب (Program Balances)
 @role_required([Profile.Roles.ACCOUNTANT])
