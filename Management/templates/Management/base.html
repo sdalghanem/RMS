@@ -49,7 +49,7 @@
   <div class="container">
 
     <!-- الشعار -->
-    <a class="navbar-brand d-flex align-items-center gap-2" href="{% url 'Management:home' %}">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="#">
       <img src="{% static 'Management/images/widelogo.png' %}" alt="RMS">
       <span class="fw-bold">RMS</span>
     </a>
@@ -68,17 +68,38 @@
 
           {# مدير النظام #}
           {% if role == "system_admin" %}
+          <li class="nav-item">
+    <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+       href="{% url 'Management:dashboard' %}">
+        <i class="bi bi-house-door ms-1"></i>
+        الرئيسية
+    </a>
+</li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'users_list' %}active{% endif %}" href="{% url 'Management:users_list' %}"><i class="bi bi-people"></i> حسابات المستخدمين</a></li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'beneficiaries_list' %}active{% endif %}" href="{% url 'Management:beneficiaries_list' %}"><i class="bi bi-person-heart"></i> المستفيدين</a></li>          
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}" href="{% url 'Management:program_list' %}"><i class="bi bi-diagram-3"></i> البرامج</a></li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}" href="{% url 'Management:payment_plan_list' %}"><i class="bi bi-wallet2"></i> إدارة الدفعات</a></li>
+                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}" href="{% url 'Accounting:sponsors_list' %}"><i class="bi bi-person-heart"></i> الكفلاء</a></li>
+<li class="nav-item">
+    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
+        <i class="bi bi-file-earmark-pdf"></i>
+        تقارير الكفالة
+    </a>
+</li>
 
           {# الكاشير #}
           {% elif role == "cashier" %}
+            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}" href="{% url 'Accounting:cashier_home' %}"><i class="bi bi-receipt-cutoff"></i> الرئيسية</a></li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}" href="{% url 'Accounting:cashier_invoices_list' %}"><i class="bi bi-receipt-cutoff"></i> الفواتير</a></li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}" href="{% url 'Accounting:sponsors_list' %}"><i class="bi bi-person-heart"></i> الكفلاء</a></li>
             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_inquiries' %}active{% endif %}" href="{% url 'Accounting:sponsorship_inquiry' %}"><i class="bi bi-search"></i> الاستعلامات</a></li>
              <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}" href="{% url 'Management:payment_plan_list' %}"><i class="bi bi-wallet2"></i> إدارة الدفعات</a></li>
+<li class="nav-item">
+    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
+        <i class="bi bi-file-earmark-pdf"></i>
+        تقارير الكفالة
+    </a>
+</li>
 
 {# المحاسب #}
 {% elif role == "accountant" %}
@@ -135,8 +156,13 @@
     <i class="bi bi-lock-fill"></i> إدارة الحجوزات
   </a>
 </li>
-
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}" href="{% url 'Management:program_list' %}"><i class="bi bi-diagram-3"></i> البرامج</a></li>
+<li class="nav-item">
+    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
+        <i class="bi bi-file-earmark-pdf"></i>
+        تقارير الكفالة
+    </a>
+</li>
+            <!-- <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}" href="{% url 'Management:program_list' %}"><i class="bi bi-diagram-3"></i> البرامج</a></li> -->
 
           {% endif %}
         {% endwith %}

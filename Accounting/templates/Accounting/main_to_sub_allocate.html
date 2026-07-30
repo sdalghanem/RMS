@@ -249,7 +249,19 @@
   const subDetails = document.getElementById("sub-details");
 
   // مساعدات parsing
-  function parseNum(v){ return parseFloat((v||"0").toString().replace(/,/g, '')) || 0; }
+ function parseNum(v) {
+    if (v === null || v === undefined) return 0;
+
+    let s = v.toString().trim();
+
+    if (s.includes(",") && !s.includes(".")) {
+        s = s.replace(",", ".");
+    } else {
+        s = s.replace(/,/g, "");
+    }
+
+    return parseFloat(s) || 0;
+}
 
   function getMainEl(id){
     return document.querySelector(`#main-data .main-prog[data-id="${id}"]`);

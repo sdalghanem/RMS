@@ -35,9 +35,87 @@ from django.utils import timezone
 
 from django.db.models import OuterRef, Subquery
 
+from django.db.models import Sum, Min
+from Management.models import BeneficiarySponsorHistory
+from Accounting.models import FinancialSponsorshipInvoice
+from Management.models import AuditLog
+from Management.utils.audit import log_activity
 
 User = get_user_model()
 
+
+
+
+#@login_required
+def cashier_home(request):
+
+    today = timezone.localdate()
+
+    activities = (
+        AuditLog.objects
+        .filter(user=request.user)
+        .exclude(
+            action__in=[
+                AuditLog.Actions.REQUEST,
+                AuditLog.Actions.LOGIN,
+                AuditLog.Actions.LOGOUT,
+            ]
+        )
+        .only("action", "entity", "entity_id", "extra", "ts")
+        .order_by("-ts")[:10]
+    )
+    donors_count = Profile.objects.filter(
+        role=Profile.Roles.DONOR
+    ).count()
+
+    today = timezone.localdate()
+
+    today_invoices = Invoice.objects.filter(
+        date=today
+    )
+
+    today_invoice_count = today_invoices.count()
+
+    today_income = (
+    FundEntry.objects.filter(
+        created_at__date=today,
+        type__in=[
+            FundEntry.Types.GENERAL_DONATION_INCOME,
+            FundEntry.Types.SPONSORSHIP_INCOME,
+        ]
+        ).aggregate(total=Sum("amount"))["total"] or 0
+    )
+    latest_invoices = (
+        Invoice.objects
+        .select_related(
+            "general_donation",
+            "financial_sponsorship",
+            "financial_sponsorship__sponsor",
+            "financial_sponsorship__sponsor__user",
+        )
+        .order_by("-id")[:10]
+    )
+    context = {
+
+        "today_invoices": 0,
+        "today_amount": 0,
+        "today_sponsors": 0,
+        "pending_invoices": 0,
+        "activities" :activities ,
+        "recent_invoices": [],
+        "donors_count": donors_count,
+        "today_invoice_count": today_invoice_count,
+        "today_income": today_income,
+        "latest_invoices": latest_invoices,
+        "today": timezone.localdate(),
+
+    }
+
+    return render(
+        request,
+        "Accounting/cashier_home.html",
+        context,
+    )
 # def fund_available_balance():
 #     from .models import FundEntry, FundToMainProgramAllocation, BeneficiaryBalanceEntry
 
@@ -540,6 +618,16 @@ def invoice_delete(request, pk):
             # 🧹 حذف الفاتورة
             invoice.delete()
 
+            log_activity(
+                user=request.user,
+                action=AuditLog.Actions.DELETE,
+                entity="Invoice",
+                entity_id=pk,
+                extra={
+                    "invoice_number": invoice.number,
+                },
+            )
+
             messages.success(request, "تم حذف الفاتورة بنجاح.")
 
     except Exception as e:
@@ -596,7 +684,18 @@ def invoice_create_general(request):
                     voucher_number= cleaned["number"] ,
 
                 )
-
+                log_activity(
+                    user=request.user,
+                    action=AuditLog.Actions.CREATE,
+                    entity=f"تبرع عام من {general.supporter_name or 'داعم'} - سند {invoice.number}",
+                    entity_id=invoice.pk,
+                    extra={
+                        "invoice_number": invoice.number,
+                        "amount": str(general.amount),
+                        "supporter": general.supporter_name,
+                        "payment_method": invoice.payment_method,
+                    },
+                )
                 return redirect("Accounting:invoice_detail", pk=invoice.pk)
     else:
         form = GeneralDonationInvoiceForm()
@@ -653,11 +752,26 @@ def invoice_create_sponsorship(request):
                         invoice=invoice,
                         type=FundEntry.Types.SPONSORSHIP_INCOME,
                         amount=sponsorship.total_amount,
-                        voucher_number=invoice.number,  # ✅ مهم للتقارير
+                        voucher_number=invoice.number,
                         description=f"دخل كفالة مالية من السند رقم {invoice.number}",
                         created_by=request.user,
-                        )
+                    )
 
+                    log_activity(
+                        user=request.user,
+                        action=AuditLog.Actions.CREATE,
+                        entity=f"انشاء سند كفالة مالية رقم {invoice.number}",
+                        entity_id=invoice.pk,
+                        extra={
+                            "invoice_number": invoice.number,
+                            "sponsor": str(sponsorship.sponsor),
+                            "beneficiaries_count": sponsorship.allocations.count(),
+                            "amount": str(sponsorship.total_amount),
+                            "payment_method": invoice.payment_method,
+                        },
+                    )
+
+                 
                     messages.success(request, "تم إنشاء سند الكفالة المالية بنجاح.")
                     return redirect("Accounting:invoice_detail", pk=invoice.pk)
     else:
@@ -718,45 +832,56 @@ def sponsorship_inquiry(request):
 
         donor = donor_qs.first()
 
-     
+        if donor:
+            log_activity(
+                user=request.user,
+                action=AuditLog.Actions.OTHER,
+                entity="بحث عن كافل",
+                entity_id=donor.pk,
+                extra={
+                    "donor": donor.user.get_full_name(),
+                },
+            )
         today = date.today()
 
-        # جميع سندات الكفالة المالية لهذا الكافل
-        sponsorships = (
-            FinancialSponsorshipInvoice.objects
-            .filter(sponsor=donor)
-            .select_related("invoice", "payment_plan")
-            .prefetch_related("allocations__beneficiary")
+        histories = (
+            BeneficiarySponsorHistory.objects
+            .filter(donor=donor)
+            .select_related("beneficiary")
             .order_by("-start_date")
         )
 
-        for s in sponsorships:
-            # مدة الكفالة بالأشهر: نستخدم custom_duration_months ثم خطة الدفع كاحتياط
-            duration_months = s.custom_duration_months
-            if duration_months is None and s.payment_plan and hasattr(s.payment_plan, "duration_months"):
-                duration_months = s.payment_plan.duration_months
+        for h in histories:
 
-            # حالة الكفالة (سارية / منتهية / لم تبدأ / غير محددة)
-            if s.start_date and s.end_date:
-                if today < s.start_date:
+            if h.start_date and h.end_date:
+                if today < h.start_date:
                     status = "لم تبدأ بعد"
-                elif today > s.end_date:
+                elif today > h.end_date:
                     status = "منتهية"
                 else:
                     status = "سارية"
+
+            elif h.start_date:
+                status = "سارية"
+
             else:
                 status = "غير محددة"
 
-            for alloc in s.allocations.all():
-                results.append({
-                    "beneficiary": alloc.beneficiary,
-                    "invoice": s.invoice,
-                    "start_date": s.start_date,
-                    "end_date": s.end_date,
-                    "duration_months": duration_months,
-                    "status": status,
-                })
+            results.append({
 
+                "beneficiary": h.beneficiary,
+
+                "invoice": None,
+
+                "start_date": h.start_date,
+
+                "end_date": h.end_date,
+
+                "duration_months": None,
+
+                "status": status,
+
+            })
     context = {
         "title": "استعلام عن الكفالات",
         "query": query,
@@ -790,7 +915,15 @@ def sponsor_quick_create(request):
         for field, field_errors in form.errors.items():
             errors[field] = " ".join(field_errors)
         return JsonResponse({"success": False, "errors": errors}, status=400)
-
+    log_activity(
+        user=request.user,
+        action=AuditLog.Actions.UPDATE,
+        entity="Invoice",
+        entity_id=user.pk,
+        extra={
+            "invoice_number": user.number,
+        },
+    )
     user = form.save()
     profile = user.profile  # لأن عندنا OneToOne user.profile
 
@@ -1061,7 +1194,7 @@ def accountant_home(request):
 #     })
 @role_required([Profile.Roles.ACCOUNTANT])
 def fund_to_main_allocate(request):
-    programs = MainProgram.objects.order_by("name")
+    programs = MainProgram.objects.filter(is_active=True).order_by("name")
 
     # ✅ المتاح الحقيقي بالصندوق بعد الحجوزات (لا تعتمد على FundEntry فقط)
     fund_balance = FundReservation.available_fund()
@@ -1147,9 +1280,18 @@ def fund_to_main_allocate(request):
 # 
 @role_required([Profile.Roles.ACCOUNTANT])
 def main_to_sub_allocate(request):
-    programs = MainProgram.objects.order_by("name")
-    sub_programs = SubProgram.objects.select_related("main_program").order_by("name")
-
+    programs = MainProgram.objects.filter(
+            is_active=True,
+        ).order_by("name")
+    #sub_programs = SubProgram.objects.select_related("main_program").order_by("name")
+    sub_programs = (
+        SubProgram.objects
+        .select_related("main_program")
+        .filter(
+            main_program__is_active=True,
+        )
+        .order_by("name")
+    )
     last_allocs = (
         MainToSubProgramAllocation.objects
         .select_related("main_program", "sub_program")
@@ -1168,8 +1310,13 @@ def main_to_sub_allocate(request):
                 raise ValidationError("أدخل مبلغ صحيح أكبر من صفر.")
 
             mp = MainProgram.objects.get(id=main_program_id)
-            sp = SubProgram.objects.get(id=sub_program_id)
+            #sp = SubProgram.objects.get(id=sub_program_id)
+            sp = get_object_or_404(
+                SubProgram,
+                id=sub_program_id,
 
+                main_program__is_active=True,
+            )
             # ✅ تأكد الفرعي تابع للرئيسي
             if sp.main_program_id != mp.id:
                 raise ValidationError("البرنامج الفرعي لا يتبع البرنامج الرئيسي المختار.")
@@ -1421,8 +1568,13 @@ def main_to_sub_allocate(request):
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def subprogram_disburse_create(request):
-    sub_programs = SubProgram.objects.select_related("main_program").order_by("name")
-
+    #sub_programs = SubProgram.objects.filter(main_program__is_active=True).select_related("main_program").order_by("name")
+    sub_programs = (
+            SubProgram.objects
+            .filter(main_program__is_active=True)
+            .select_related("main_program")
+            .order_by("name")
+        )
     # -------- فلترة المستفيدين + رصيد كل مستفيد --------
     beneficiaries_qs = (
         Beneficiary.objects
@@ -3052,3 +3204,244 @@ def beneficiary_supports_report(request):
         "per_beneficiary": per_beneficiary,
         "latest": latest,
     })
+
+from datetime import date, datetime
+from django.db.models import Sum
+
+from Management.models import (
+    Profile,
+    BeneficiarySponsorHistory,
+)
+
+from Accounting.models import (
+    BeneficiarySupportEntry,
+)
+
+from datetime import date, datetime
+from django.db.models import Q, Sum
+#@login_required
+def sponsorship_report_print(request):
+
+    donor_id = request.GET.get("donor")
+    report_type = request.GET.get("report_type")
+
+    year = int(request.GET.get("year") or date.today().year)
+
+    quarter = request.GET.get("quarter")
+    half = request.GET.get("half")
+
+    from_date = request.GET.get("from_date")
+    to_date = request.GET.get("to_date")
+
+    # -----------------------------------------
+    # تحديد الفترة
+    # -----------------------------------------
+
+    if report_type == "year":
+
+        from_date = date(year, 1, 1)
+        to_date = date(year, 12, 31)
+
+    elif report_type == "quarter":
+
+        q = int(quarter)
+
+        if q == 1:
+            from_date = date(year, 1, 1)
+            to_date = date(year, 3, 31)
+
+        elif q == 2:
+            from_date = date(year, 4, 1)
+            to_date = date(year, 6, 30)
+
+        elif q == 3:
+            from_date = date(year, 7, 1)
+            to_date = date(year, 9, 30)
+
+        else:
+            from_date = date(year, 10, 1)
+            to_date = date(year, 12, 31)
+
+    elif report_type == "half":
+
+        if half == "1":
+
+            from_date = date(year, 1, 1)
+            to_date = date(year, 6, 30)
+
+        else:
+
+            from_date = date(year, 7, 1)
+            to_date = date(year, 12, 31)
+
+    else:
+
+        from_date = datetime.strptime(
+            from_date,
+            "%Y-%m-%d"
+        ).date()
+
+        to_date = datetime.strptime(
+            to_date,
+            "%Y-%m-%d"
+        ).date()
+
+    donor = get_object_or_404(
+        Profile,
+        pk=donor_id
+    )
+
+    sponsor_history = (
+        BeneficiarySponsorHistory.objects
+        .filter(
+            donor=donor,
+            start_date__lte=to_date,
+        )
+        .filter(
+            Q(end_date__isnull=True) |
+            Q(end_date__gte=from_date)
+        )
+        .select_related(
+            "beneficiary"
+        )
+        .order_by(
+            "beneficiary__first_name",
+            "beneficiary__last_name",
+        )
+    )
+
+    beneficiaries = []
+
+    grand_total = 0
+
+    for history in sponsor_history:
+
+        beneficiary = history.beneficiary
+
+        supports = (
+            BeneficiarySupportEntry.objects
+            .filter(
+                beneficiary=beneficiary,
+                created_at__date__range=(
+                    from_date,
+                    to_date,
+                ),
+            )
+            .select_related(
+                "sub_program"
+            )
+            .order_by(
+                "created_at"
+            )
+        )
+
+        beneficiary_total = 0
+
+        program_rows = []
+
+        for support in supports:
+
+            beneficiary_total += support.amount
+
+            program_rows.append({
+
+                "program_name":
+                    support.sub_program.name,
+
+                "description":
+                    support.sub_program.description,
+
+                "amount":
+                    support.amount,
+
+                "date":
+                    support.created_at.date(),
+
+            })
+        beneficiaries.append({
+
+            "beneficiary": beneficiary,
+
+            "history": history,
+
+            "programs": program_rows,
+
+            "total": beneficiary_total,
+
+            "support_count": len(program_rows),
+
+        })
+
+        grand_total += beneficiary_total
+
+    context = {
+
+        "title": "تقرير الكفالة",
+
+        "donor": donor,
+
+        "beneficiaries": beneficiaries,
+
+        "grand_total": grand_total,
+
+        "beneficiary_count": len(beneficiaries),
+
+        "report_type": report_type,
+
+        "year": year,
+
+        "quarter": quarter,
+
+        "half": half,
+
+        "from_date": from_date,
+
+        "to_date": to_date,
+
+        "generated_at": datetime.now(),
+
+    }
+    log_activity(
+        user=request.user,
+        action=AuditLog.Actions.OTHER,
+        entity="تقرير كفالة",
+        entity_id=donor.pk,
+        extra={
+            "report_type": report_type,
+            "from": str(from_date),
+            "to": str(to_date),
+        },
+    )
+    return render(
+
+        request,
+
+        "Accounting/sponsorship_report_print.html",
+
+        context,
+
+    )
+
+    ###################################################################################3
+from Management.models import Profile
+from datetime import datetime
+
+def sponsorship_reports(request):
+
+    donors = Profile.objects.filter(
+    role=Profile.Roles.DONOR
+    ).select_related("user").order_by("user__first_name")
+    context = {
+        "title": "تقارير الكفالة",
+        "donors": donors,
+        "years":range(datetime.now().year,2020,-1),
+
+    }
+
+    return render(
+        request,
+        "Accounting/sponsorship_reports.html",
+        context,
+    )
+
+

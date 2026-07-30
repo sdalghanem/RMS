@@ -191,8 +191,10 @@
 </div>
 
 <script>
-  const fundBalance = parseFloat("{{ fund_balance|default:0 }}") || 0;
-
+  // const fundBalance = parseFloat("{{ fund_balance|default:0 }}") || 0;
+  const fundBalance = parseNum("{{ fund_balance|default:0 }}");
+console.log("fundBalance =", fundBalance);
+console.log("raw fundBalance =", "{{ fund_balance }}");
   const select = document.getElementById("main-program-select");
   const amountInput = document.getElementById("alloc-amount");
   const fundAfter = document.getElementById("fund-after");
@@ -200,8 +202,22 @@
   const submitBtn = document.getElementById("alloc-submit");
   const allocError = document.getElementById("alloc-error");
 
-  function parseNum(v){ return parseFloat((v||"0").toString().replace(/,/g, '')) || 0; }
+  // function parseNum(v){ return parseFloat((v||"0").toString().replace(/,/g, '')) || 0; }
+function parseNum(v) {
+    if (v === null || v === undefined) return 0;
 
+    let s = v.toString().trim();
+
+    // إذا كانت الفاصلة هي الفاصل العشري
+    if (s.includes(",") && !s.includes(".")) {
+        s = s.replace(",", ".");
+    } else {
+        // إذا كان عندك فواصل آلاف
+        s = s.replace(/,/g, "");
+    }
+
+    return parseFloat(s) || 0;
+}
   function updateFundAfter() {
     const val = parseNum(amountInput.value);
     const after = fundBalance - val;
@@ -229,6 +245,8 @@
 
     const name = el.dataset.name;
     const total = parseNum(el.dataset.total);
+    console.log("dataset =", el.dataset.total);
+console.log("parsed =", total);
     const allocated = parseNum(el.dataset.allocated);
     const spent = parseNum(el.dataset.spent);
     const remaining = total - spent;

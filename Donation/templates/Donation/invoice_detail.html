@@ -1,0 +1,130 @@
+{% extends "Donation/base.html" %}
+
+{% block title %}تفاصيل السند{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-receipt text-success"></i>
+            تفاصيل السند
+        </h2>
+
+        <small class="text-muted">
+            معلومات سند الكفالة
+        </small>
+    </div>
+
+    <a href="{% url 'Donation:invoices' %}"
+       class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-right"></i>
+        الرجوع
+    </a>
+
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+            <i class="bi bi-info-circle text-primary"></i>
+            بيانات السند
+        </h5>
+
+    </div>
+
+    <div class="card-body">
+
+        <div class="row g-4">
+
+            <div class="col-md-4">
+
+                <small class="text-muted">رقم السند</small>
+
+                <div class="fw-bold fs-5">
+                    {{ invoice.invoice.number }}
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <small class="text-muted">التاريخ</small>
+
+                <div class="fw-bold">
+                    {{ invoice.invoice.date|date:"Y-m-d" }}
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <small class="text-muted">نوع الكفالة</small>
+
+                <div class="fw-bold">
+
+                    {% if invoice.payment_plan %}
+                        {{ invoice.payment_plan }}
+                    {% else %}
+                        كفالة
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <small class="text-muted">المبلغ</small>
+
+                <div class="fw-bold text-success fs-4">
+
+                    {{ invoice.total_amount|floatformat:2 }} ر.س
+
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <small class="text-muted">طريقة الدفع</small>
+
+                <div class="fw-bold">
+
+                    {{ invoice.invoice.get_payment_method_display|default:"-" }}
+
+                </div>
+
+            </div>
+
+            <div class="col-md-4">
+
+                <small class="text-muted">حالة السند</small>
+
+                <div>
+
+                    <span class="badge bg-success">
+
+                        مكتمل
+
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+
+</div>
+
+{% endblock %}

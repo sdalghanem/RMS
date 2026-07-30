@@ -1,0 +1,646 @@
+{% extends "Management/base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .dashboard-header {
+        background: #fff;
+        border-radius: 22px;
+        padding: 30px 35px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 10px 30px rgba(15, 81, 50, .08);
+        border: 1px solid #eef3ef;
+        margin-bottom: 30px;
+    }
+
+    .dashboard-user {
+        display: flex;
+        align-items: center;
+        gap: 18px;
+    }
+
+    .dashboard-avatar {
+        width: 50px;
+        height: 50px;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #198754, #2E7D32);
+        color: #fff;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 20px;
+        box-shadow: 0 8px 20px rgba(25, 135, 84, .25);
+    }
+
+    .dashboard-user h2 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 700;
+        color: #16351F;
+    }
+
+    .dashboard-user p {
+        margin: 6px 0 0;
+        color: #6c757d;
+        font-size: 16px;
+    }
+
+    .dashboard-date {
+        background: #F4FAF2;
+        border: 1px solid #DDEED9;
+        border-radius: 16px;
+        padding: 15px 22px;
+        text-align: center;
+        min-width: 190px;
+    }
+
+    .dashboard-date .day {
+        font-size: 28px;
+        font-weight: 700;
+        color: #0F5132;
+        line-height: 1;
+    }
+
+    .dashboard-date .date {
+        margin-top: 8px;
+        font-size: 15px;
+        color: #6c757d;
+    }
+
+    /*********************/
+
+    .stat-card {
+        background: #fff;
+        border-radius: 18px;
+        padding: 22px 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, .05);
+        transition: .25s;
+        height: 130px;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-5px);
+    }
+
+    .stat-body h2 {
+        margin: 0;
+        font-size: 42px;
+        font-weight: 700;
+        color: #214E34;
+    }
+
+    .stat-body span {
+        color: #6c757d;
+    }
+
+    .stat-icon {
+        width: 70px;
+        height: 70px;
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 30px;
+    }
+
+    .stat-green {
+        background: #18864B;
+    }
+
+    .stat-orange {
+        background: #DD7A00;
+    }
+
+    .stat-blue {
+        background: #2563EB;
+    }
+
+    .stat-money {
+        background: #0F8CA8;
+    }
+
+    /*********************/
+
+    .dashboard-action {
+        display: block;
+        background: #fff;
+        border-radius: 18px;
+        padding: 35px 25px;
+        text-align: center;
+        text-decoration: none;
+        color: #222;
+        transition: .25s;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, .05);
+        height: 220px;
+    }
+
+    .dashboard-action:hover {
+        transform: translateY(-6px);
+        color: #198754;
+    }
+
+    .dashboard-action i {
+        font-size: 54px;
+        color: #198754;
+    }
+
+    .dashboard-action h5 {
+        margin-top: 18px;
+        font-weight: 700;
+    }
+
+    .dashboard-action span {
+        color: #777;
+    }
+
+    .dashboard-panel {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 8px 25px rgba(0, 0, 0, .05);
+    }
+
+    .dashboard-panel .card-header {
+        background: #fff;
+        font-weight: 700;
+        border-bottom: 1px solid #eee;
+    }
+
+    .activity-list {
+        padding: 15px;
+    }
+
+    .activity-item {
+        display: flex;
+        gap: 15px;
+        padding: 14px 0;
+        border-bottom: 1px solid #edf1f7;
+    }
+
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+
+    .activity-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        flex-shrink: 0;
+        font-size: 18px;
+    }
+
+    .activity-content {
+        flex: 1;
+    }
+
+    .activity-content strong {
+        font-size: 15px;
+    }
+
+    .activity-content small {
+        font-size: 12px;
+    }
+</style>
+
+<div class="container-fluid py-3">
+
+
+    <div class="row g-4 mb-4">
+
+        <div class="col-lg-3">
+
+            <div class="stat-card">
+
+                <div class="stat-icon stat-green">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <!-- المستفيدون -->
+                <div class="stat-body text-end">
+                    <h2>{{ beneficiaries_count|default:0 }}</h2>
+                    <span>المستفيدون</span>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-lg-3">
+
+            <div class="stat-card">
+
+                <div class="stat-icon stat-orange">
+                    <i class="bi bi-person-heart"></i>
+                </div>
+
+                <div class="stat-body text-end">
+                    <h2>{{ sponsors_count|default:0 }}</h2>
+                    <span>الكفلاء</span>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3">
+
+            <div class="stat-card">
+
+                <div class="stat-icon stat-blue">
+                    <i class="bi bi-receipt"></i>
+                </div>
+
+                <div class="stat-body text-end">
+                    <h2>{{ invoices_count|default:0 }}</h2>
+                    <span>الفواتير</span>
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3">
+
+            <div class="stat-card">
+
+                <div class="stat-icon stat-money">
+                    <i class="bi bi-cash-stack"></i>
+                </div>
+
+                <div class="stat-body text-end">
+                    <h2>{{ today_income|default:0 }}</h2>
+                    <span>رصيد الجمعية</span>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="row g-4">
+
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <!-- المستفيدون -->
+<a href="{% url 'Management:beneficiaries_list' %}" class="dashboard-action">
+                <i class="bi bi-people-fill"></i>
+                <h5>المستفيدون</h5>
+                <span>إدارة بيانات المستفيدين</span>
+            </a>
+        </div>
+
+        <div class="col-xl-3 col-lg-6 col-md-6">
+           <a href="{% url 'Accounting:sponsors_list' %}" class="dashboard-action">
+                <i class="bi bi-person-heart"></i>
+                <h5>الكفلاء</h5>
+                <span>إدارة الكفلاء</span>
+            </a>
+        </div>
+
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <!-- البرامج -->
+<a href="{% url 'Management:program_list' %}" class="dashboard-action">
+                <i class="bi bi-diagram-3"></i>
+                <h5>البرامج</h5>
+                <span>إدارة البرامج</span>
+            </a>
+        </div>
+    
+
+        <div class="col-xl-3 col-lg-6 col-md-6">
+            <a href="{% url 'Accounting:sponsorship_reports' %}" class="dashboard-action">
+                <i class="bi bi-file-earmark-bar-graph-fill"></i>
+                <h5>التقارير</h5>
+                <span>التقارير والإحصائيات</span>
+            </a>
+        </div>
+
+        <!-- <div class="col-xl-2 col-lg-4 col-md-6">
+            <a href="#" class="dashboard-action">
+                <i class="bi bi-gear-fill"></i>
+                <h5>الإعدادات</h5>
+                <span>إعدادات النظام</span>
+            </a>
+        </div> -->
+
+    </div>
+
+
+    <!-- ====================================== -->
+    <div class="row mt-5">
+
+        <!-- آخر النشاط -->
+
+
+
+        <!-- آخر العمليات -->
+
+        <div class="col-lg-12">
+
+            <div class="dashboard-panel card">
+
+                <div class="card-header d-flex justify-content-between">
+
+                    <span>
+
+                        <i class="bi bi-receipt ms-2"></i>
+
+                        آخر العمليات
+
+                    </span>
+
+
+                </div>
+
+                <div class="card-body p-0">
+
+                    <table class="table align-middle mb-0">
+
+                        <thead style="background:#F8FAFC;">
+
+                            <tr>
+
+                                <th class="px-4">#</th>
+
+                                <th>الوصف</th>
+
+                                <th class="text-center">المستخدم</th>
+
+                                <th class="text-center">التاريخ</th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for op in latest_operations %}
+
+                            <tr>
+
+                                <td>
+                                    {% if op.voucher_number %}
+                                    {{ op.voucher_number }}
+                                    {% else %}
+                                    -
+                                    {% endif %}
+                                </td>
+
+                                <td>
+
+                                    {% if op.type == op.Types.GENERAL_DONATION_INCOME %}
+
+                                    إنشاء سند تبرع عام
+
+                                    {% elif op.type == op.Types.SPONSORSHIP_INCOME %}
+
+                                    إنشاء كفالة مالية
+
+                                    {% elif op.type == op.Types.PROGRAM_EXPENSE %}
+
+                                    صرف على برنامج
+
+                                    {% elif op.type == op.Types.TRANSFER_TO_BENEFICIARY %}
+
+                                    تحويل إلى مستفيد
+
+                                    {% else %}
+
+                                    {{ op.get_type_display }}
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    {% if op.created_by %}
+
+                                    {{ op.created_by.get_full_name|default:op.created_by.username }}
+
+                                    {% else %}
+
+                                    —
+
+                                    {% endif %}
+
+                                </td>
+
+                                <td>
+
+                                    {{ op.created_at|date:"d / m / Y" }}
+
+                                    <small class="text-muted">{{ op.created_at|time:"H:i" }}</small>
+
+                                </td>
+
+                            </tr>
+
+                            {% empty %}
+
+                            <tr>
+
+                                <td colspan="4" class="text-center text-muted py-5">
+
+                                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+
+                                    لا توجد عمليات.
+
+                                </td>
+
+                            </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ====================================== -->
+
+    <div class="row mt-4">
+
+        <div class="col-12">
+
+            <div class="dashboard-panel card">
+
+                <div class="card-header">
+
+                    <i class="bi bi-bar-chart-fill ms-2"></i>
+
+إيرادات الجمعية خلال آخر 12 شهراً
+<small class="text-muted">يشمل التبرعات العامة والكفالات المالية</small>
+                </div>
+
+                <div class="card-body">
+
+                    <canvas id="monthlyIncomeChart" style="height:320px;">
+                    </canvas>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- ====================================== -->
+
+    <!-- <div class="row mt-4 mb-4">
+
+        <div class="col-12">
+
+            <div class="dashboard-panel card">
+
+                <div class="card-header">
+
+                    <i class="bi bi-bell-fill ms-2"></i>
+
+                    تنبيهات النظام
+
+                </div>
+
+                <div class="card-body">
+
+                    <div class="alert alert-success mb-0">
+
+                        <i class="bi bi-check-circle-fill ms-2"></i>
+
+                        لا توجد تنبيهات حالياً.
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div> -->
+
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+
+const ctx = document.getElementById("monthlyIncomeChart");
+
+const gradient = ctx.getContext("2d").createLinearGradient(0,0,0,400);
+
+gradient.addColorStop(0, "#198754");
+gradient.addColorStop(1, "#42b883");
+new Chart(ctx, {
+
+    type: "bar",
+
+    data: {
+
+        labels: {{ chart_labels|safe }},
+
+        datasets: [{
+
+            label: "الإيرادات",
+
+            data: {{ chart_values|safe }},
+
+            backgroundColor: gradient,
+
+            borderRadius: 10,
+maxBarThickness: 38,
+barPercentage: 0.8,
+categoryPercentage: 0.8,
+hoverBorderRadius: 10,
+
+        }]
+
+    },
+
+    options: {
+
+        responsive: true,
+
+        maintainAspectRatio: false,
+
+        plugins: {
+
+            legend: {
+
+                display: false
+
+            },
+
+            tooltip: {
+
+                callbacks: {
+
+                    label: function (context) {
+
+                        return "الإيرادات : " +
+                            context.parsed.y.toLocaleString() +
+                            " ر.س";
+
+                    }
+
+                }
+
+            }
+
+        },
+
+        scales: {
+
+            y: {
+
+                beginAtZero: true,
+
+                ticks: {
+
+                    callback: function (value) {
+
+                        return value.toLocaleString() + " ر.س";
+
+                    }
+
+                }
+
+            },
+
+            x: {
+
+                grid: {
+
+                    display: false
+
+                }
+
+            }
+
+        }
+
+    }
+
+});
+
+</script>
+{% endblock %}

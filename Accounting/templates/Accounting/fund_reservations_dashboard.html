@@ -24,20 +24,20 @@
       <div class="fs-3 fw-bold text-warning">{{ reserved_total|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
     </div>
   </div>
-  <div class="col-md-4">
+  <!-- <div class="col-md-4">
     <div class="kpi-card p-3 h-100">
       <div class="text-muted small mb-1">المتاح بعد الحجوزات</div>
       <div class="fs-3 fw-bold text-success">{{ available_fund|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
     </div>
-  </div>
+  </div> -->
 </div>
 
 <ul class="nav nav-tabs mb-3" role="tablist">
-  <li class="nav-item" role="presentation">
+  <!-- <li class="nav-item" role="presentation">
     <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-bene" type="button" role="tab">محافظ المستفيدين</button>
-  </li>
+  </li> -->
   <li class="nav-item" role="presentation">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-main" type="button" role="tab">البرامج الرئيسية</button>
+    <button class="nav-link active"  data-bs-toggle="tab" data-bs-target="#tab-main" type="button" role="tab">البرامج الرئيسية</button>
   </li>
   <li class="nav-item" role="presentation">
     <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sub" type="button" role="tab">البرامج الفرعية</button>
@@ -50,7 +50,7 @@
 <div class="tab-content">
 
   <!-- Beneficiaries -->
-  <div class="tab-pane fade show active" id="tab-bene" role="tabpanel">
+  <!-- <div class="tab-pane fade show active" id="tab-bene" role="tabpanel">
     <div class="card shadow-sm border-0">
       <div class="card-body">
         <h6 class="fw-bold mb-3">محافظ المستفيدين</h6>
@@ -113,10 +113,10 @@
         <div class="text-muted small">* يظهر فقط من لديه رصيد محفظة أو حجز.</div>
       </div>
     </div>
-  </div>
+  </div> -->
 
   <!-- Main Programs -->
-  <div class="tab-pane fade" id="tab-main" role="tabpanel">
+  <div class="tab-pane fade show active" id="tab-main" role="tabpanel">
     <div class="card shadow-sm border-0">
       <div class="card-body">
         <h6 class="fw-bold mb-3">ميزانيات البرامج الرئيسية</h6>

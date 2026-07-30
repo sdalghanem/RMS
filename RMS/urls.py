@@ -22,6 +22,6 @@ urlpatterns = [
     path("", include("Management.urls")),  # ✅ هذا هو السطر المهم
     path("accounting/", include("Accounting.urls")),  # ✅ هذا هو السطر المهم
     path("accounts/", include("django.contrib.auth.urls")),  # ← أضف هذا
-
+    path("donation/", include("Donation.urls")), 
 
 ]

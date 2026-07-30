@@ -1,0 +1,221 @@
+{% extends "Management/base.html" %}
+
+
+{% block title %}تقارير الكفالة{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid">
+
+    <div class="mb-4">
+        <h2 class="fw-bold">
+            <i class="bi bi-file-earmark-pdf text-danger"></i>
+            تقارير الكفالة
+        </h2>
+
+        <small class="text-muted">
+            إصدار تقارير الكفالة للمكفولين والكفلاء.
+        </small>
+    </div>
+
+    <div class="card shadow-sm border-0">
+
+        <div class="card-header bg-white">
+
+            <h5 class="mb-0">
+                إعداد التقرير
+            </h5>
+
+        </div>
+
+        <div class="card-body">
+<form method="get"
+      action="{% url 'Accounting:sponsorship_report_print' %}"
+      target="_blank">
+
+    <div class="row g-3">
+
+        <div class="col-md-3">
+
+            <label class="form-label">نوع التقرير</label>
+
+            <select class="form-select"
+                    id="report_type"
+                    name="report_type">
+
+                <option value="quarter">ربع سنوي</option>
+
+                <option value="half">نصف سنوي</option>
+
+                <option value="year">سنوي</option>
+
+                <option value="custom">مخصص</option>
+
+            </select>
+
+        </div>
+
+        <!-- السنة تظهر دائماً -->
+
+        <div class="col-md-3">
+
+            <label class="form-label">السنة</label>
+
+            <select class="form-select"
+                    name="year">
+
+                {% for y in years %}
+
+                    <option value="{{ y }}">
+
+                        {{ y }}
+
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <label class="form-label">الكافل</label>
+
+            <select class="form-select"
+                    name="donor">
+
+                {% for donor in donors %}
+
+                    <option value="{{ donor.id }}">
+
+                        {{ donor }}
+
+                    </option>
+
+                {% endfor %}
+
+            </select>
+
+        </div>
+
+    </div>
+
+    <div class="mt-4">
+
+        <div id="quarter_div">
+
+            <label class="form-label">الربع</label>
+
+            <select class="form-select"
+                    name="quarter">
+
+                <option value="1">الربع الأول (يناير - مارس)</option>
+
+                <option value="2">الربع الثاني (أبريل - يونيو)</option>
+
+                <option value="3">الربع الثالث (يوليو - سبتمبر)</option>
+
+                <option value="4">الربع الرابع (أكتوبر - ديسمبر)</option>
+
+            </select>
+
+        </div>
+
+        <div id="half_div"
+             style="display:none;">
+
+            <label class="form-label">النصف</label>
+
+            <select class="form-select"
+                    name="half">
+
+                <option value="1">النصف الأول</option>
+
+                <option value="2">النصف الثاني</option>
+
+            </select>
+
+        </div>
+
+        <div id="custom_div"
+             style="display:none;">
+
+            <div class="row">
+
+                <div class="col-md-6">
+
+                    <label class="form-label">
+
+                        من تاريخ
+
+                    </label>
+
+                    <input type="date"
+                           class="form-control"
+                           name="from_date">
+
+                </div>
+
+                <div class="col-md-6">
+
+                    <label class="form-label">
+
+                        إلى تاريخ
+
+                    </label>
+
+                    <input type="date"
+                           class="form-control"
+                           name="to_date">
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <hr>
+
+    <button class="btn btn-success">
+
+        <i class="bi bi-printer"></i>
+
+        عرض التقرير
+
+    </button>
+
+</form>
+
+        </div>
+
+    </div>
+
+</div>
+<script>
+const type = document.getElementById("report_type");
+
+function changeType() {
+
+    document.getElementById("quarter_div").style.display = "none";
+    document.getElementById("half_div").style.display = "none";
+    document.getElementById("custom_div").style.display = "none";
+
+    if (type.value === "quarter")
+        document.getElementById("quarter_div").style.display = "block";
+
+    if (type.value === "half")
+        document.getElementById("half_div").style.display = "block";
+
+    if (type.value === "custom")
+        document.getElementById("custom_div").style.display = "block";
+}
+
+type.addEventListener("change", changeType);
+
+changeType();
+
+</script>
+{% endblock %}

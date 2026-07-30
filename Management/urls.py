@@ -3,10 +3,10 @@
 from django.urls import path, reverse_lazy
 from django.contrib.auth.decorators import login_required
 from django.urls import path
-from .views import create_user_with_profile , users_list ,update_user_role ,delete_user , edit_user_contact ,home , login_view , logout_view , accountant_home , donor_home , cashier_home , my_profile
+from .views import dashboard,create_user_with_profile , users_list ,update_user_role ,delete_user , edit_user_contact ,home , login_view , logout_view , accountant_home , donor_home , cashier_home , my_profile
 from django.contrib.auth.views import PasswordChangeView, PasswordChangeDoneView
 from .views import beneficiaries_list, beneficiary_create , beneficiary_update , beneficiary_delete , beneficiaries_import , beneficiaries_bulk_assign , beneficiaries_template , beneficiary_detail , beneficiaries_bulk_change_education
-from .views_programs import ProgramListView, ProgramDetailView , MainProgramCreateView , SubProgramCreateView 
+from .views_programs import ProgramListView, ProgramDetailView , MainProgramCreateView , SubProgramCreateView , program_toggle 
 from . import views_payment_plans # سنضع الفيوز في ملف منفصل منظم
 
 app_name = "Management"
@@ -71,5 +71,12 @@ urlpatterns = [
     path("payment-plans/<int:pk>/delete/", views_payment_plans.payment_plan_delete, name="payment_plan_delete"),
 
 
-
+    path(
+    "programs/<int:pk>/toggle/", program_toggle, name="program_toggle",
+),
+path(
+    "dashboard/",
+    dashboard,
+    name="dashboard",
+),
 ]

@@ -14,6 +14,8 @@ from django.http import HttpResponseRedirect
 from .forms import MainProgramForm, SubProgramForm
 
 from .mixins import RoleRequiredMixin  # 👈 أضف هذا
+from django.shortcuts import get_object_or_404, redirect
+
 
 @method_decorator(login_required, name="dispatch")
 class ProgramListView(RoleRequiredMixin ,ListView):
@@ -37,7 +39,12 @@ class ProgramListView(RoleRequiredMixin ,ListView):
                                    Value(0, output_field=dec12), output_field=dec12),
                 total_cap=Coalesce(F("total_donation_amount"),
                                    Value(0, output_field=dec12), output_field=dec12),
-            )
+                program_status=Case(
+                                    When(is_active=True, then=Value("نشط")),
+                                    default=Value("موقوف"),
+                                    )
+           
+)
         )
 
         if q:
@@ -209,3 +216,18 @@ class SubProgramCreateView(RoleRequiredMixin , CreateView):
 
     def get_success_url(self):
         return reverse("Management:program_detail", kwargs={"pk": self.object.main_program_id})
+
+@login_required
+# @permission_required("Management.change_mainprogram", raise_exception=True)
+def program_toggle(request, pk):
+    program = get_object_or_404(MainProgram, pk=pk)
+
+    program.is_active = not program.is_active
+    program.save(update_fields=["is_active"])
+
+    if program.is_active:
+        messages.success(request, "تم تفعيل البرنامج بنجاح.")
+    else:
+        messages.success(request, "تم إيقاف البرنامج بنجاح.")
+
+    return redirect("Management:program_list")

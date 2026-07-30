@@ -149,11 +149,11 @@
       {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
         <div class="d-flex justify-content-between align-items-center mb-2 no-print">
           <h6 class="fw-bold m-0">بيانات الكفالة المالية</h6>
-          <a href="{% url 'Accounting:sponsorship_allocations_manage' invoice.financial_sponsorship.pk %}"
+          <!-- <a href="{% url 'Accounting:sponsorship_allocations_manage' invoice.financial_sponsorship.pk %}"
              class="btn btn-sm btn-outline-primary">
             <i class="bi bi-people"></i>
             تخصيص مبلغ الكفالة للمستفيدين
-          </a>
+          </a> -->
         </div>
 
         <table class="table invoice-table mb-3">

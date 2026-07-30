@@ -10,6 +10,10 @@ from Management.models import (
     SubProgram,
 )
 from django.db import models, transaction
+import uuid
+from django.db import models
+from django.db.models.functions import Coalesce
+from Management.models import Profile, PaymentPlan  # عدّل المسار لو عندك مختلف
 
 class FundEntry(models.Model):
     """
@@ -25,6 +29,7 @@ class FundEntry(models.Model):
         PROGRAM_EXPENSE = "program_expense", "صرف على برنامج"
         TRANSFER_TO_BENEFICIARY = "transfer_to_beneficiary", "تحويل لرصيد مستفيد"
         ADJUSTMENT = "adjustment", "تعديل رصيد"
+
     voucher_number = models.CharField(
         max_length=30,
         blank=True,
@@ -51,7 +56,6 @@ class FundEntry(models.Model):
         null=True,
     )
 
-    # ✅ البرنامج الرئيسي (اختياري)
     main_program = models.ForeignKey(
         MainProgram,
         verbose_name="البرنامج الرئيسي (إن وجد)",
@@ -61,7 +65,6 @@ class FundEntry(models.Model):
         null=True,
     )
 
-    # ✅ البرنامج الفرعي (الأدق) – عادةً هو اللي بيستخدم في الصرف
     sub_program = models.ForeignKey(
         SubProgram,
         verbose_name="البرنامج الفرعي (إن وجد)",
@@ -77,7 +80,6 @@ class FundEntry(models.Model):
         choices=Types.choices,
     )
 
-    # موجب = دخل للجمعية / سالب = صرف من رصيد الجمعية
     amount = models.DecimalField(
         "المبلغ",
         max_digits=12,
@@ -100,7 +102,10 @@ class FundEntry(models.Model):
         blank=True,
     )
 
-    created_at = models.DateTimeField("تاريخ الحركة", auto_now_add=True)
+    created_at = models.DateTimeField(
+        "تاريخ الحركة",
+        auto_now_add=True
+    )
 
     class Meta:
         verbose_name = "حركة رصيد الجمعية"
@@ -108,24 +113,30 @@ class FundEntry(models.Model):
         ordering = ["-created_at", "-id"]
 
     def __str__(self):
-        sign = "+" if self.amount >= 0 else "-"
-        return f"{sign}{abs(self.amount)} ر.س ({self.get_type_display()})"
+        parts = [self.get_type_display()]
 
-    # 🔹 رصيد الجمعية الإجمالي (كل الحركات)
+        if self.main_program:
+            parts.append(self.main_program.name)
+
+        if self.sub_program:
+            parts.append(self.sub_program.name)
+
+        if self.beneficiary:
+            parts.append(str(self.beneficiary))
+
+        return f"{' | '.join(parts)} | {self.amount:,.2f} ر.س"
+
     @classmethod
     def total_balance(cls) -> Decimal:
         agg = cls.objects.aggregate(total=Sum("amount"))
         return agg["total"] or Decimal("0.00")
 
-    # 🔹 رصيد التبرعات العامة فقط (مفيد للمحاسب لاحقاً)
     @classmethod
     def general_donation_balance(cls) -> Decimal:
         agg = cls.objects.filter(
-            type__in=[cls.Types.GENERAL_DONATION_INCOME]
+            type=cls.Types.GENERAL_DONATION_INCOME
         ).aggregate(total=Sum("amount"))
-        return agg["total"] or Decimal("0.00")
-
-################################################################################################################################
+        return agg["total"] or Decimal("0.00")################################################################################################################################
 
 class Invoice(models.Model):
     """
@@ -153,7 +164,6 @@ class Invoice(models.Model):
         help_text="اكتب رقم السند يدوياً"
     )
 
-
     date = models.DateField("تاريخ السند")
 
     invoice_type = models.CharField(
@@ -169,7 +179,6 @@ class Invoice(models.Model):
         default=ReceiptKinds.RECEIPT,
     )
 
-    # وسيلة القبض تنطبق بشكل أساسي على التبرع العام، لكنها مفيدة أيضًا عمومًا
     payment_method = models.CharField(
         "وسيلة القبض",
         max_length=20,
@@ -196,8 +205,7 @@ class Invoice(models.Model):
         ordering = ["-date", "-id"]
 
     def __str__(self):
-        return f"{self.number} - {self.get_invoice_type_display()}"
-
+        return f"{self.number} | {self.get_invoice_type_display()}"
 
 class GeneralDonationInvoice(models.Model):
     """
@@ -264,8 +272,7 @@ class GeneralDonationInvoice(models.Model):
         verbose_name = "تفاصيل تبرع عام"
         verbose_name_plural = "تفاصيل التبرعات العامة"
 
-    def __str__(self):
-        return f"تفاصيل تبرع عام لسند {self.invoice.number}"
+  
     @classmethod
     def generate_next_number(cls, prefix="INV-"):
         """
@@ -290,13 +297,9 @@ class GeneralDonationInvoice(models.Model):
 
         new_int = last_int + 1
         return f"{prefix}{new_int:04d}"
-
-
-from decimal import Decimal
-from django.db import models
-from django.conf import settings
-
-from Management.models import Profile, PaymentPlan  # عدّل المسار لو عندك مختلف
+    def __str__(self):
+        supporter = self.supporter_name or "متبرع غير مسجل"
+        return f"{self.invoice.number} | {supporter} | {self.amount:,.2f} ر.س"
 
 
 class FinancialSponsorshipInvoice(models.Model):
@@ -378,8 +381,6 @@ class FinancialSponsorshipInvoice(models.Model):
         verbose_name = "تفاصيل كفالة مالية"
         verbose_name_plural = "تفاصيل الكفالات المالية"
 
-    def __str__(self):
-        return f"كفالة مالية بواسطة {self.sponsor} - سند {self.invoice.number}"
 
     # 🔢 المبلغ الإجمالي للكفالة (يُستخدم في التخصيص)
     @property
@@ -410,7 +411,20 @@ class FinancialSponsorshipInvoice(models.Model):
     def remaining_amount(self) -> Decimal:
         return self.total_amount - self.allocated_amount
 
+    def __str__(self):
+        sponsor = (
+            self.sponsor.full_name
+            if self.sponsor and getattr(self.sponsor, "full_name", None)
+            else str(self.sponsor)
+        )
 
+        amount = self.total_amount
+
+        return (
+            f"{self.invoice.number} | "
+            f"{sponsor} | "
+            f"{amount:,.2f} ر.س"
+        )
 ##############################################################################################
 class FinancialSponsorshipAllocation(models.Model):
     """
@@ -580,9 +594,17 @@ class BeneficiaryBalanceEntry(models.Model):
         ordering = ["-created_at", "-id"]
 
     def __str__(self):
-        sign = "+" if self.amount >= 0 else "-"
-        return f"{sign}{abs(self.amount)} ر.س للمستفيد {self.beneficiary}"
+        parts = [
+            str(self.beneficiary),
+            self.get_type_display(),
+        ]
 
+        if self.program:
+            parts.append(self.program.name)
+
+        parts.append(f"{self.amount:,.2f} ر.س")
+
+        return " | ".join(parts)
 ##########################################################################################################################
 
 # ====== NEW MODELS FOR ACCOUNTANT (Policy B) ======
@@ -637,8 +659,11 @@ class FundToMainProgramAllocation(models.Model):
             # تحديث الكائن الحالي (اختياري لتفادي قيم قديمة بالذاكرة)
             self.main_program.refresh_from_db(fields=["total_donation_amount"])
 
-
-
+    def __str__(self):
+        return (
+            f"{self.main_program.name} | "
+            f"{self.amount:,.2f} ر.س"
+        )
 class MainToSubProgramAllocation(models.Model):
     """
     تحويل رصيد من برنامج رئيسي إلى برنامج فرعي (محفظة داخلية).
@@ -663,7 +688,9 @@ class MainToSubProgramAllocation(models.Model):
         ordering = ["-created_at", "-id"]
         verbose_name = "تحويل رئيسي إلى فرعي"
         verbose_name_plural = "تحويلات رئيسي إلى فرعي"
-
+    @property
+    def remaining_main_balance(self):
+        return self.main_program.remaining_balance
     def clean(self):
         super().clean()
 
@@ -715,7 +742,14 @@ class MainToSubProgramAllocation(models.Model):
                 sp.allocated_amount = Decimal("0.00")
             sp.save(update_fields=["allocated_amount"])
 
-
+    def __str__(self):
+        return (
+            f"{self.main_program.name}"
+            f" → "
+            f"{self.sub_program.name}"
+            f" | "
+            f"{self.amount:,.2f} ر.س"
+        )
 class SubProgramDisbursement(models.Model):
     """
     أمر صرف من برنامج فرعي لمستفيد واحد أو أكثر (سياسة B).
@@ -753,9 +787,7 @@ class SubProgramDisbursement(models.Model):
         verbose_name_plural = "أوامر صرف البرامج الفرعية"
         ordering = ["-created_at", "-id"]
 
-    def __str__(self):
-        return f"سند صرف #{self.voucher_number}"
-
+    
     @property
     def total_amount(self):
         return self.lines.aggregate(t=Sum("amount"))["t"] or Decimal("0.00")
@@ -872,117 +904,13 @@ class SubProgramDisbursement(models.Model):
                 description=f"صرف فعلي للمستفيد {bene} تحت برنامج {sp.name} (مصدر: محفظة المستفيد)",
                 created_by=self.created_by,
             )
-
-    # def execute(self):
-    #     """
-    #     التنفيذ الصحيح (Budget Lock):
-
-    #     - المحافظ (الفرعي/المستفيد) = قيود داخلية
-    #     - FundEntry = حركة الصندوق العام الفعلية (Cash Movement)
-    #     - FundReservation = حجز/تحرير داخلي من الصندوق (Availability Lock)
-
-    #     القاعدة:
-    #     ✅ عند الصرف الفعلي من الصندوق (FundEntry سالب) لازم نحرر الحجز المقابل (FundReservation سالب)
-    #     حتى لا ينقص "المتاح" مرتين.
-    #     """
-    #     from django.db.models import Sum as DjSum
-    #     from .models import FundEntry, BeneficiaryBalanceEntry, FundReservation
-
-    #     with transaction.atomic():
-    #         sp = self.sub_program
-    #         total = self.total_amount
-
-    #         if total <= 0:
-    #             raise ValidationError("يجب إضافة مستفيدين ومبالغ قبل التنفيذ.")
-
-    #         # -------- مصدر الصرف: محفظة البرنامج الفرعي --------
-    #         if self.source_type == self.SourceTypes.SUB_PROGRAM:
-    #             if sp.remaining_amount < total:
-    #                 raise ValidationError("رصيد البرنامج الفرعي لا يكفي لهذا الصرف.")
-
-    #             # (1) خصم داخلي: زيادة مصروف الفرعي
-    #             sp.spent_amount = (sp.spent_amount or Decimal("0.00")) + total
-    #             sp.save(update_fields=["spent_amount"])
-
-    #             # (2) حركة فعلية في الصندوق العام
-    #             FundEntry.objects.create(
-    #                 invoice=None,
-    #                 beneficiary=None,
-    #                 main_program=sp.main_program,
-    #                 sub_program=sp,
-    #                 type=FundEntry.Types.PROGRAM_EXPENSE,
-    #                 amount=-total,
-    #                 voucher_number=self.voucher_number,
-    #                 description=f"صرف فعلي لمستفيدين تحت برنامج {sp.name} (مصدر: محفظة الفرعي)",
-    #                 created_by=self.created_by,
-    #             )
-
-    #             # ✅ (3) تحرير الحجز الداخلي المقابل من الصندوق (حتى لا ينقص المتاح مرتين)
-    #             FundReservation.objects.create(
-    #                 source_type=FundReservation.Sources.SUB_PROGRAM,
-    #                 sub_program=sp,
-    #                 amount=-total,  # تحرير
-    #                 reference=str(self.voucher_number),
-    #                 note=f"تحرير حجز بعد صرف فعلي - برنامج فرعي {sp.name}",
-    #                 created_by=self.created_by,
-    #             )
-    #             return
-
-    #         # -------- مصدر الصرف: محفظة المستفيد --------
-    #         lines = list(self.lines.select_related("beneficiary").all())
-    #         if len(lines) != 1:
-    #             raise ValidationError("الصرف من رصيد المستفيد متاح لمستفيد واحد فقط في الأمر.")
-
-    #         line = lines[0]
-    #         bene = line.beneficiary
-    #         amount = line.amount or Decimal("0.00")
-
-    #         if amount <= 0:
-    #             raise ValidationError("مبلغ الصرف يجب أن يكون أكبر من صفر.")
-
-    #         bene_balance = (
-    #             BeneficiaryBalanceEntry.objects
-    #             .filter(beneficiary=bene)
-    #             .aggregate(t=DjSum("amount"))["t"]
-    #             or Decimal("0.00")
-    #         )
-
-    #         if amount > bene_balance:
-    #             raise ValidationError("رصيد المستفيد لا يكفي لهذا الصرف.")
-
-    #         # (1) خصم داخلي من محفظة المستفيد
-    #         BeneficiaryBalanceEntry.objects.create(
-    #             beneficiary=bene,
-    #             amount=-amount,
-    #             type=BeneficiaryBalanceEntry.Types.EXPENSE,
-    #             program=sp,
-    #             description=f"صرف من محفظة المستفيد على برنامج {sp.name} - سند {self.voucher_number}",
-    #             created_by=self.created_by,
-    #         )
-
-    #         # (2) حركة فعلية في الصندوق العام
-    #         FundEntry.objects.create(
-    #             invoice=None,
-    #             beneficiary=bene,
-    #             main_program=sp.main_program,
-    #             sub_program=sp,
-    #             type=FundEntry.Types.PROGRAM_EXPENSE,
-    #             amount=-amount,
-    #             voucher_number=self.voucher_number,
-    #             description=f"صرف فعلي للمستفيد {bene} تحت برنامج {sp.name} (مصدر: محفظة المستفيد)",
-    #             created_by=self.created_by,
-    #         )
-
-    #         # ✅ (3) تحرير الحجز الداخلي المقابل للمستفيد
-    #         FundReservation.objects.create(
-    #             source_type=FundReservation.Sources.BENEFICIARY,
-    #             beneficiary=bene,
-    #             amount=-amount,  # تحرير
-    #             reference=str(self.voucher_number),
-    #             note=f"تحرير حجز بعد صرف فعلي - مستفيد {bene}",
-    #             created_by=self.created_by,
-    #         )
-
+    def __str__(self):
+        return (
+            f"{self.voucher_number} | "
+            f"{self.sub_program.name} | "
+            f"{self.get_source_type_display()} | "
+            f"{self.total_amount:,.2f} ر.س"
+        )   
 
 class SubProgramDisbursementLine(models.Model):
     disbursement = models.ForeignKey(
@@ -999,8 +927,11 @@ class SubProgramDisbursementLine(models.Model):
     def clean(self):
         if self.amount <= 0:
             raise ValidationError("مبلغ الصرف يجب أن يكون أكبر من صفر.")
-
-from django.db.models.functions import Coalesce
+    def __str__(self):
+        return (
+            f"{self.beneficiary} | "
+            f"{self.amount:,.2f} ر.س"
+        )
 
 
 class FundReservation(models.Model):
@@ -1082,6 +1013,22 @@ class FundReservation(models.Model):
         reserved = cls.total_reserved()
         available = fund_total - reserved
         return available if available > 0 else Decimal("0.00")
+
+    def __str__(self):
+        if self.main_program:
+            target = self.main_program.name
+        elif self.sub_program:
+            target = self.sub_program.name
+        elif self.beneficiary:
+            target = str(self.beneficiary)
+        else:
+            target = "الصندوق العام"
+
+        return (
+            f"{self.get_source_type_display()} | "
+            f"{target} | "
+            f"{self.amount:,.2f} ر.س"
+        )
 ##################################################################################################################################
 
 
@@ -1156,4 +1103,52 @@ class BeneficiarySupportEntry(models.Model):
             raise ValidationError("مبلغ الدعم يجب أن يكون أكبر من صفر.")
 
     def __str__(self):
-        return f"{self.amount} دعم للمستفيد {self.beneficiary} ({self.sub_program})"
+        return (
+            f"{self.beneficiary} | "
+            f"{self.sub_program.name} | "
+            f"{self.amount:,.2f} ر.س"
+        )
+    
+
+class SponsorshipReport(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    donor = models.ForeignKey(
+        Profile,
+        on_delete=models.CASCADE,
+        related_name="sponsorship_reports",
+    )
+
+    generated_by = models.ForeignKey(
+            Profile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    from_date = models.DateField()
+
+    to_date = models.DateField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    pdf_file = models.FileField(
+        upload_to="reports/sponsorship/",
+        blank=True,
+        null=True,
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        donor = (
+            self.donor.full_name
+            if getattr(self.donor, "full_name", None)
+            else str(self.donor)
+        )
+
+        return (
+            f"{donor} | "
+            f"{self.from_date} → {self.to_date}"
+        )

@@ -1,0 +1,1353 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>تقرير كفالة الرياحين</title>
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: "Tahoma", sans-serif;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        html,
+        body {
+            font-size: 15px;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #d9d9d9;
+        }
+
+        h1 {
+            font-size: 34px;
+        }
+
+        h2 {
+            font-size: 26px;
+        }
+
+        h3 {
+            font-size: 20px;
+        }
+
+        table {
+            font-size: 14px;
+            border-collapse: collapse;
+        }
+
+        td {
+            padding: 7px;
+        }
+
+        th {
+            padding: 8px;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+
+        .report-page {
+
+            position: relative;
+
+            width: 794px;
+            min-height: 1123px;
+
+            margin: 25px auto;
+
+            background: #F7F7EA;
+
+            overflow: hidden;
+
+            padding: 50px 55px 90px;
+
+            box-shadow: 0 0 15px rgba(0, 0, 0, .15);
+
+        }
+
+        /* ==========================
+   الخلفية
+========================== */
+
+        .page-bg {
+
+            position: absolute;
+
+            inset: 0;
+
+            overflow: hidden;
+
+            pointer-events: none;
+
+            z-index: 0;
+
+            opacity: .28;
+
+        }
+
+        .report-page>* {
+
+            position: relative;
+
+            z-index: 5;
+
+        }
+
+        .header,
+        .section,
+        .summary,
+        table,
+        .cover-content {
+
+            position: relative;
+
+            z-index: 5;
+
+        }
+
+        .curve {
+
+            position: absolute;
+
+            border: 1px solid rgba(147, 145, 115, .35);
+
+            border-radius: 50%;
+
+        }
+
+        .curve1 {
+
+            width: 1450px;
+            height: 900px;
+
+            left: -700px;
+            top: 120px;
+
+        }
+
+        .curve2 {
+
+            width: 1600px;
+            height: 1050px;
+
+            left: -780px;
+            top: 180px;
+
+        }
+
+        .curve3 {
+
+            width: 1100px;
+            height: 650px;
+
+            right: -600px;
+            bottom: -180px;
+
+            transform: rotate(32deg);
+
+        }
+
+        /* ==========================
+   Page Break
+========================== */
+
+        .cover-page,
+        .intro-page {
+
+            break-after: page;
+            page-break-after: always;
+
+        }
+
+        .report-page:last-of-type {
+
+            break-after: auto !important;
+            page-break-after: auto !important;
+
+        }
+
+        /* ==========================
+   Print
+========================== */
+
+        .no-print {
+
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+
+        }
+
+        /* ==========================
+   Header
+========================== */
+
+        .header {
+
+            display: flex;
+
+            justify-content: space-between;
+
+            align-items: flex-start;
+
+            margin-bottom: 35px;
+
+            page-break-inside: avoid;
+
+        }
+
+        .logo {
+
+            width: 130px;
+            height: auto;
+
+        }
+
+        .title-box {
+
+            width: 62%;
+            margin-top: 15px;
+
+        }
+
+        .title {
+
+            background: #5C8B38;
+
+            color: #fff;
+
+            text-align: center;
+
+            font-size: 28px;
+
+            font-weight: bold;
+
+            padding: 14px;
+
+            border-radius: 18px 18px 0 0;
+
+            letter-spacing: .5px;
+
+        }
+
+        .title-line {
+
+            height: 5px;
+
+            background: #5C8B38;
+
+            margin-top: 4px;
+
+        }
+
+        /* ==========================
+   Sections
+========================== */
+
+        .section {
+
+            margin-top: 28px;
+
+            page-break-inside: avoid;
+
+        }
+
+       .section-title{
+
+    width:290px;
+
+    margin-right:0;
+
+    margin-left:auto;
+
+    display:flex;
+
+    justify-content:flex-start;
+
+}
+
+        .section-no {
+
+            background: #73a94b;
+
+            color: #fff;
+
+            font-size: 18px;
+
+            font-weight: 700;
+
+            padding: 6px 16px;
+
+            white-space: nowrap;
+
+        }
+
+        .section-name {
+
+            background: #fff;
+
+            color: #355425;
+
+            font-size: 22px;
+
+            font-weight: 700;
+
+            padding: 6px 20px;
+
+            min-width: 220px;
+
+            text-align: center;
+
+        }
+
+        /* ==========================
+   Info Table
+========================== */
+
+        .info-table {
+
+            width: 100%;
+
+            margin-top: 10px;
+ border-collapse:separate;
+    border-spacing:2px;
+        }
+
+       
+.info-table td{
+
+    padding:7px 10px;
+    height:48px;
+    vertical-align:middle;
+ 
+
+            text-align: center;
+}
+        .label {
+
+            background: #5C8B38;
+
+            color: #fff;
+
+            font-size: 17px;
+
+            font-weight: 700;
+
+           width:14%;
+
+        }
+
+       .value{
+
+    background:#7ead4d;
+    color:#fff;
+    font-size:18px;
+    font-weight:500;
+   width:19%;
+     text-align:center;
+    
+}
+
+        /* ==========================
+   Program Table
+========================== */
+
+        .program-table {
+
+            width: 100%;
+
+            margin-top: 15px;
+
+        }
+
+        .program-table th {
+
+            background: #5C8B38;
+
+            color: #fff;
+
+            padding: 9px;
+
+            border: 2px solid #fff;
+
+            text-align: center;
+
+            font-size: 16px;
+
+            font-weight: 700;
+
+        }
+
+        .program-table td {
+
+            padding: 10px;
+
+            border: 1px solid #ddd;
+
+            text-align: center;
+
+            font-size: 15px;
+
+            line-height: 1.6;
+
+            font-weight: 400;
+
+        }
+
+        .program-table tbody tr:nth-child(even) {
+
+            background: #f7f7f7;
+
+        }
+
+        /* ==========================
+   Summary
+========================== */
+
+        .summary {
+
+            display: flex;
+
+            gap: 20px;
+
+            margin-top: 30px;
+
+            page-break-inside: avoid;
+
+        }
+
+        .summary-box {
+
+            flex: 1;
+
+            background: #5C8B38;
+
+            color: #fff;
+
+            text-align: center;
+
+            padding: 22px;
+
+            border-radius: 18px;
+
+            font-size: 22px;
+
+            font-weight: bold;
+
+        }
+
+        /* ==========================
+   Cover
+========================== */
+
+        .cover-name {
+
+            font-size: 30px;
+
+            font-weight: bold;
+
+            margin-top: 22px;
+
+            margin-bottom: 8px;
+
+        }
+
+        .cover-label {
+
+            font-size: 18px;
+
+            margin: 6px 0;
+
+        }
+
+        .cover-value {
+
+            font-size: 23px;
+
+            font-weight: bold;
+
+            margin-bottom: 18px;
+
+        }
+
+        .cover-footer {
+
+            font-size: 15px;
+
+            color: #666;
+
+            margin-top: 45px;
+
+        }
+.message-box{
+    width:75%;
+    margin:40px auto;
+    text-align:right;
+    font-size:21px;
+line-height:2.2;
+}
+
+.hadith-box{
+    width:70%;
+  margin-top:50px;
+    padding:22px 28px;
+}
+
+.hadith-title{
+
+    color:#5C8B38;
+
+    font-size:20px;
+
+    font-weight:700;
+
+    margin-bottom:18px;
+
+}
+
+.hadith-text{
+    font-size:30px;
+}
+
+.hadith-footer{
+    font-size:20px;
+}
+.page-footer{
+
+    position:absolute;
+
+    bottom:0;
+
+    left:0;
+
+    right:0;
+
+    height:58px;
+
+    background:#76975B;
+
+    color:#fff;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:0 35px;
+
+    font-size:14px;
+
+    font-weight:500;
+
+    direction:rtl;
+
+}
+
+.page-footer .footer-center{
+
+    flex:1;
+
+    text-align:center;
+
+}
+
+.page-footer .footer-left{
+
+    text-align:left;
+
+    direction:ltr;
+
+}
+
+.page-footer .footer-divider{
+
+    width:2px;
+
+    height:38px;
+
+    background:rgba(255,255,255,.85);
+
+    margin:0 25px;
+
+}
+        /* ==========================
+   Print
+========================== */
+
+        @media print {
+
+            html,
+            body {
+
+                background: #fff !important;
+
+                padding: 0;
+
+                margin: 0;
+
+            }
+
+            .no-print {
+
+                display: none !important;
+
+            }
+
+            .report-page {
+
+                width: 210mm;
+
+                min-height: 297mm;
+
+                margin: 0;
+
+                padding: 10mm;
+
+                box-shadow: none;
+
+            }
+
+            .header,
+            .summary {
+
+                page-break-inside: avoid !important;
+
+            }
+
+            table {
+
+                page-break-inside: auto;
+
+            }
+
+            tr {
+
+                page-break-inside: avoid;
+
+            }
+
+            td,
+            th {
+
+                page-break-inside: auto;
+
+            }
+
+            .section {
+
+                page-break-inside: auto;
+
+            }
+
+            .message-box {
+
+                padding: 25px;
+
+                margin: 25px 0;
+
+                line-height: 1.8;
+
+                font-size: 19px;
+
+            }
+
+            .hadith-box {
+
+                padding: 18px;
+
+                margin-top: 18px;
+
+                font-size: 18px;
+
+                line-height: 1.8;
+
+            }
+
+            table {
+
+                direction: rtl;
+
+            }
+
+            td,
+            th {
+
+                vertical-align: middle;
+
+                text-align: center;
+
+            }
+
+            body {
+
+                font-weight: 400;
+
+            }
+    </style>
+
+</head>
+
+<body>
+
+    <button class="btn btn-success no-print" onclick="window.print()">
+
+        طباعة التقرير
+
+    </button>
+    <!-- غلاف الصفحة -->
+    <!-- صفحة الغلاف -->
+    <section class="report-page  intro-page">
+
+        <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+
+
+        <!-- الشعار -->
+        <div style="text-align:center; margin-top:15px;">
+
+            <img src="{% static 'Management/images/widelogo.png' %}" style="width:155px;">
+
+        </div>
+
+        <!-- عنوان التقرير -->
+        <div style="margin-top:235px;">
+
+            <div style="
+            width:72%;
+            margin:auto;
+            background:#5C8B38;
+            color:#fff;
+            text-align:center;
+            font-size:56px;
+            font-weight:bold;
+            padding:28px 20px;
+            border-radius:24px 24px 0 0;
+            line-height:1.3;
+        ">
+
+                تقرير كفالة الرياحين
+
+            </div>
+
+            <div style="
+            width:72%;
+            margin:10px auto 0;
+            background:#5C8B38;
+            color:#fff;
+            text-align:center;
+            font-size:30px;
+            font-weight:bold;
+            padding:14px;
+        ">
+
+                {{ year }}م
+
+            </div>
+
+        </div>
+{% include "Accounting/report_footer.html" %}
+    </section>
+    <!-- صفحة المقدمة -->
+<section class="report-page intro-page">
+   <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+    <div class="page-bg">
+        <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+    </div>
+
+    <!-- Header -->
+    <div class="header">
+
+        <div class="title-box ">
+
+            <div class="title">
+                شكر وتقدير
+            </div>
+
+            <div class="title-line"></div>
+
+        </div>
+
+        <div>
+            <img src="{% static 'Management/images/widelogo.png' %}" class="logo">
+        </div>
+
+    </div>
+
+    <!-- رسالة الشكر -->
+    <div class="message-box">
+
+        <p>
+            نتقدم إليكم بخالص الشكر والتقدير على دعمكم الكريم، والذي كان له أثرٌ طيب
+            في رعاية الأيتام وتمكينهم من الاستفادة من البرامج والخدمات المقدمة لهم.
+        </p>
+
+        <p>
+            إن مساهمتكم تمثل شراكةً حقيقية في صناعة الأثر، وتسهم في توفير حياةٍ أكثر
+            استقرارًا للمستفيدين، وهو ما ينعكس أثره على مستقبلهم بإذن الله.
+        </p>
+
+        <p style="margin-bottom:0;">
+            سائلين الله أن يجعل ما تقدمونه في ميزان حسناتكم، وأن يبارك لكم في
+            أموالكم وأهليكم، ويجزيكم خير الجزاء.
+        </p>
+
+    </div>
+
+    <!-- الحديث -->
+    <div class="hadith-box">
+
+        <div class="hadith-title">
+            قال رسول الله ﷺ
+        </div>
+
+        <div class="hadith-text">
+            "أنا وكافل اليتيم في الجنة هكذا"
+        </div>
+
+        <div class="hadith-footer">
+            وأشار بالسبابة والوسطى.
+        </div>
+
+    </div>
+{% include "Accounting/report_footer.html" %}
+
+</section>
+
+
+
+
+    <!-- فاصل صفحات -->
+
+    {% for row in beneficiaries %}
+
+    <section class="report-page intro-page">
+        <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+        <div class="header">
+
+            <div class="title-box">
+
+                <div class="title">
+
+                    تفاصيل الكفالة
+
+                </div>
+
+                <div class="title-line"></div>
+
+            </div>
+
+            <div>
+
+                <img src="{% static 'Management/images/widelogo.png' %}" class="logo">
+
+            </div>
+
+        </div>
+        <div class="section">
+
+            <div class="section-title">
+                <div class="section-no">
+                    أولاً :
+                </div>
+                <div class="section-name">
+                    معلومات اليتيم
+                </div>
+
+
+
+            </div>
+
+            <table class="info-table">
+
+                <tr>
+
+                    <td class="label">
+
+                        الاسم
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.first_name }}
+                        {{ row.beneficiary.father_name }}
+                        {{ row.beneficiary.last_name }}
+
+                    </td>
+
+                    <td class="label">
+
+                        الجنس
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.get_gender_display }}
+
+                    </td>
+
+                    <td class="label">
+
+                        العمر
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.age_years }}
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td class="label">
+
+                        المرحلة الدراسية
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.get_education_level_display }}
+
+                    </td>
+
+                    <td class="label">
+
+                        السكن
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.get_type_housing_display }}
+
+                    </td>
+
+                    <td class="label">
+
+                        الصحة
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.beneficiary.get_health_status_display|default:"-" }}
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </div>
+
+        <div class="section">
+
+            <div class="section-title">
+                <div class="section-no">
+
+                    ثانياً :
+
+                </div>
+                <div class="section-name">
+
+                    معلومات الكافل
+
+                </div>
+
+
+
+            </div>
+
+            <table class="info-table">
+
+                <tr>
+
+                    <td class="label">
+
+                        الاسم
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ donor.user.get_full_name|default:donor.user.username }}
+
+                    </td>
+
+                    <td class="label">
+
+                        الجوال
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ donor.phone }}
+
+                    </td>
+
+                    <td class="label">
+
+                        رقم الهوية
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ donor.national_number }}
+
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td class="label">
+
+                        بداية الكفالة
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.history.start_date }}
+
+                    </td>
+
+                    <td class="label">
+
+                        نهاية الكفالة
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ row.history.end_date|default:"مستمرة" }}
+
+                    </td>
+
+                    <td class="label">
+
+                        فترة التقرير
+
+                    </td>
+
+                    <td class="value">
+
+                        {{ from_date }} - {{ to_date }}
+
+                    </td>
+
+                </tr>
+
+            </table>
+
+        </div>
+{% include "Accounting/report_footer.html" %}
+
+    </section>
+
+    <section class="report-page intro-page">
+        <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+        <div class="header">
+
+            <div class="title-box">
+
+                <div class="title">
+
+                    تفاصيل الكفالة
+
+                </div>
+
+                <div class="title-line"></div>
+
+            </div>
+
+            <div>
+
+                <img src="{% static 'Management/images/widelogo.png' %}" class="logo">
+
+            </div>
+
+        </div>
+        <div class="section">
+
+            <div class="section-title">
+
+
+                <div class="section-no">
+
+                    ثالثاً :
+
+                </div>
+                <div class="section-name">
+
+                    مصروفات الكفالة
+
+                </div>
+
+            </div>
+
+            <table class="program-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="width:6%">
+
+                            #
+
+                        </th>
+
+                        <th style="width:22%">
+
+                            اسم البرنامج
+
+                        </th>
+
+                        <th style="width:15%">
+
+                            مبلغ الصرف
+
+                        </th>
+
+                        <th>
+
+                            نبذة عن البرنامج
+
+                        </th>
+
+                        <th style="width:18%">
+
+                            تاريخ الصرف
+
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for program in row.programs %}
+
+                    <tr>
+
+                        <td>
+
+                            {{ forloop.counter }}
+
+                        </td>
+
+                        <td>
+
+                            {{ program.program_name }}
+
+                        </td>
+
+                        <td>
+
+                            {{ program.amount }} ريال
+
+                        </td>
+
+                        <td>
+
+                            {{ program.description|default:"-" }}
+
+                        </td>
+
+                        <td>
+
+                            {{ program.date }}
+
+                        </td>
+
+                    </tr>
+
+                    {% empty %}
+
+                    <tr>
+
+                        <td colspan="5">
+
+                            لا توجد مصروفات خلال الفترة المحددة
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+            </div>
+{% include "Accounting/report_footer.html" %}
+
+    </section>
+
+    {% endfor %}
+
+
+    <!-- صفحة النهاية -->
+
+    <!-- صفحة شكراً لدعمكم -->
+    <section class="report-page intro-page">
+
+        <div class="curve curve1"></div>
+        <div class="curve curve2"></div>
+        <div class="curve curve3"></div>
+
+        <!-- الشعار -->
+        <div style="text-align:center;margin-top:10px;">
+            <img src="{% static 'Management/images/widelogo.png' %}" style="width:150px;">
+        </div>
+
+        <!-- العنوان -->
+        <div style="text-align:center;margin-top:65px;">
+            <h1 style="
+            color:#355425;
+            font-size:64px;
+            font-weight:bold;
+            margin:0;
+        ">
+                شكراً لدعمكم
+            </h1>
+        </div>
+
+        <!-- الحسابات -->
+    <!-- الحسابات -->
+<div style="margin-top:55px;">
+
+    <!-- الصف الأول -->
+    <div style="display:flex;gap:35px;justify-content:center;margin-bottom:24px;">
+   <!-- الراجحي العام -->
+        <div style="width:360px;background:#EEF5E4;padding:16px;border-radius:12px;text-align:center;">
+
+            <div style="font-size:24px;font-weight:700;color:#355425;margin-bottom:16px;">
+                
+                <img src="{% static 'Management/images/Rajh.png' %}"
+     style="height:80px;margin-bottom:5px;">الحساب العام
+            </div>
+
+            <div style="background:#355425;color:#fff;padding:12px;font-size:18px;font-weight:700;">
+                SA6680000562608010005007
+            </div>
+
+        </div>
+        <!-- الأهلي -->
+        <div style="width:360px;background:#EEF5E4;padding:16px;border-radius:12px;text-align:center;">
+
+            <div style="font-size:24px;font-weight:700;color:#355425;margin-bottom:16px;">
+                  الحساب العام
+               <img src="{% static 'Management/images/snb.png' %}"
+     style="height:78px;margin-bottom:5px;">
+   
+            </div>
+
+            <div style="background:#355425;color:#fff;padding:12px;font-size:18px;font-weight:700;">
+                SA3810000005800000580607
+            </div>
+
+        </div>
+
+     
+
+    </div>
+
+    <!-- الصف الثاني -->
+    <div style="display:flex;gap:35px;justify-content:center;margin-bottom:24px;">
+       <!-- حساب الكفالة -->
+        <div style="width:360px;background:#EEF5E4;padding:16px;border-radius:12px;text-align:center;">
+
+            <div style="font-size:24px;font-weight:700;color:#355425;margin-bottom:16px;">
+                <img src="{% static 'Management/images/Rajh.png' %}"
+     style="height:80px;margin-bottom:5px;">
+                 حساب الكفالة
+            </div>
+
+            <div style="background:#355425;color:#fff;padding:12px;font-size:18px;font-weight:700;">
+                SA6180000277608010981005
+            </div>
+
+        </div>
+        <!-- بنك البلاد -->
+        <div style="width:360px;background:#EEF5E4;padding:16px;border-radius:12px;text-align:center;">
+
+            <div style="font-size:24px;font-weight:700;color:#355425;margin-bottom:16px;">
+                <img src="{% static 'Management/images/Bank-Albilad-Logo.png' %}"
+     style="height:80px;margin-bottom:5px;">
+               الحساب العام
+            </div>
+
+            <div style="background:#355425;color:#fff;padding:12px;font-size:18px;font-weight:700;">
+                SA3015000999133325910005
+            </div>
+
+        </div>
+
+ 
+
+    </div>
+
+    <!-- الصف الثالث -->
+    <div style="display:flex;justify-content:center;">
+
+        <div style="width:360px;background:#EEF5E4;padding:16px;border-radius:12px;text-align:center;">
+
+            <div style="font-size:24px;font-weight:700;color:#355425;margin-bottom:16px;">
+                <img src="{% static 'Management/images/Rajh.png' %}"
+     style="height:80px;margin-bottom:5px;">
+                 حساب الزكاة
+            </div>
+
+            <div style="background:#355425;color:#fff;padding:12px;font-size:18px;font-weight:700;">
+                SA6180000277608010981005
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+{% include "Accounting/report_footer.html" %}
+
+    </section>
+
+
+</body>
+
+</html>

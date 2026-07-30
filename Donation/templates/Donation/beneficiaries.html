@@ -1,0 +1,161 @@
+{% extends "Donation/base.html" %}
+
+{% block title %}المكفولون{% endblock %}
+{% block content %}
+<div class="card shadow-sm border-0">
+
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+        <div>
+            <h4 class="mb-0">
+                <i class="bi bi-people-fill text-primary"></i>
+                المكفولون
+            </h4>
+
+            <small class="text-muted">
+                جميع المكفولين المرتبطين بحسابك
+            </small>
+        </div>
+
+        <span class="badge bg-primary fs-6">
+            {{ beneficiaries|length }}
+        </span>
+
+    </div>
+
+    <div class="card-body">
+
+        {% if beneficiaries %}
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th>#</th>
+
+                        <th>الاسم</th>
+
+                        <th>العمر</th>
+
+                        <th>الجنس</th>
+
+                        <th>المرحلة الدراسية</th>
+
+                        <th>الحالة الصحية</th>
+
+                        
+
+                        <th></th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                {% for b in beneficiaries %}
+
+                    <tr>
+
+                        <td>{{ forloop.counter }}</td>
+
+                        <td>
+
+                            <strong>
+
+                                <a href="{% url 'Donation:beneficiary_detail' b.id %}"
+   class="text-decoration-none fw-bold">
+    {{ b.first_name }} {{ b.father_name }} 
+</a>
+
+                            </strong>
+
+                        </td>
+
+                        <td>
+
+                            {% if b.age_years %}
+
+                                {{ b.age_years }} سنة
+
+                            {% else %}
+
+                                -
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            {{ b.get_gender_display }}
+
+                        </td>
+
+                        <td>
+
+                            {{ b.get_education_level_display|default:"-" }}
+
+                        </td>
+
+                        <td>
+
+                            {{ b.get_health_status_display|default:"-" }}
+
+                        </td>
+
+                       
+
+                        <td>
+
+                            <a href="{% url 'Donation:beneficiary_detail' b.id %}"
+                               class="btn btn-sm btn-outline-primary">
+
+                                <i class="bi bi-eye"></i>
+
+                                التفاصيل
+
+                            </a>
+
+                        </td>
+
+                    </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="text-center py-5">
+
+            <i class="bi bi-person-x display-3 text-secondary"></i>
+
+            <h5 class="mt-3">
+
+                لا يوجد مكفولون
+
+            </h5>
+
+            <p class="text-muted">
+
+                لم يتم ربط أي مكفول بحسابك حتى الآن.
+
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+ {% endblock %}

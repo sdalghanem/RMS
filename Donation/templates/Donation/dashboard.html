@@ -1,0 +1,359 @@
+{% extends "Donation/base.html" %}
+
+{% block title %}الرئيسية{% endblock %}
+
+{% block content %}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+
+    <div>
+
+        <h2 class="fw-bold mb-1">
+            <i class="bi bi-speedometer2 text-success"></i>
+            لوحة التحكم
+        </h2>
+
+        <small class="text-muted">
+            مرحباً {{ request.user.first_name }}, نسعد بمتابعة مكفوليك من خلال هذه البوابة.
+        </small>
+
+    </div>
+
+</div>
+</div>
+
+</div>
+
+<!-- <div class="alert alert-info border-0 shadow-sm mb-4"> -->
+<div class="alert alert-info auto-dismiss">
+    <i class="bi bi-info-circle-fill me-2"></i>
+
+    <strong>أثر كفالتك:</strong>
+    تعرض هذه الصفحة إجمالي الخدمات والمساعدات التي استفاد منها مكفولوك خلال فترة كفالتهم، وقد تزيد أو تقل قيمة الاستفادة عن مبلغ سند الكفالة بحسب البرامج والخدمات التي تقدمها الجمعية.
+
+</div>
+
+<!-- الإحصائيات -->
+<!-- الإحصائيات -->
+
+<div class="row g-4 mb-4">
+
+    <div class="col-lg-3 col-md-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            عدد المكفولين
+                        </small>
+
+                        <h2 class="fw-bold mt-2">
+                            {{ beneficiaries_count }}
+                        </h2>
+
+                    </div>
+
+                    <i class="bi bi-people-fill text-primary display-6"></i>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                           إجمالي الاستفادة
+                        </small>
+
+                        <h2 class="fw-bold text-success mt-2">
+                            {{ total_support|floatformat:2 }}
+                        </h2>
+
+                        <small>ر.س</small>
+
+                    </div>
+
+                    <i class="bi bi-cash-stack text-success display-6"></i>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            مرات الاستفادة
+                        </small>
+
+                        <h2 class="fw-bold mt-2">
+                            {{ support_count }}
+                        </h2>
+
+                    </div>
+
+                    <i class="bi bi-list-check text-primary display-6"></i>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-lg-3 col-md-6">
+
+        <div class="card border-0 shadow-sm h-100">
+
+            <div class="card-body">
+
+                <div class="d-flex justify-content-between">
+
+                    <div>
+
+                        <small class="text-muted">
+                            البرامج المستفاد منها
+                        </small>
+
+                        <h2 class="fw-bold mt-2">
+                            {{ programs_count }}
+                        </h2>
+
+                    </div>
+
+                    <i class="bi bi-grid-3x3-gap-fill text-warning display-6"></i>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<!-- آخر عمليات الاستفادة -->
+
+<div class="card border-0 shadow-sm mb-4">
+
+    <div class="card-header bg-white">
+
+        <h5 class="mb-0">
+
+            <i class="bi bi-clock-history text-primary"></i>
+
+           آخر البرامج التي استفاد منها مكفولوك
+
+        </h5>
+
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th>التاريخ</th>
+
+                    <th>المكفول</th>
+
+                    <th>البرنامج المستفاد منه</th>
+
+                    <th>قيمة الاستفادة</th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for item in latest_disbursements %}
+
+                <tr>
+
+                    <td>{{ item.created_at|date:"Y-m-d" }}</td>
+
+                    <td>
+
+                        {{ item.beneficiary.first_name }}
+                        {{ item.beneficiary.father_name }}
+
+                    </td>
+
+                    <td>{{ item.sub_program.name }}</td>
+
+                    <td class="fw-bold text-success">
+
+                        {{ item.amount|floatformat:2 }} ر.س
+
+                    </td>
+
+                </tr>
+
+            {% empty %}
+
+                <tr>
+
+                    <td colspan="4"
+                        class="text-center py-4 text-muted">
+
+                       لا توجد برامج استفاد منها مكفولوك خلال فترة الكفالة.
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+</div>
+
+<div class="card-footer bg-white">
+
+    <small class="text-muted">
+
+        <i class="bi bi-info-circle"></i>
+
+        يعرض هذا السجل جميع البرامج والخدمات التي استفاد منها مكفولوك
+        خلال فترة ارتباطهم بك، وليس قيمة سند الكفالة.
+
+    </small>
+
+</div>
+
+</div>
+
+<!-- المكفولون -->
+
+<div class="card border-0 shadow-sm">
+
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+        <h5 class="mb-0">
+
+            <i class="bi bi-people-fill text-primary"></i>
+
+            المكفولون
+
+        </h5>
+
+        <a href="{% url 'Donation:beneficiaries' %}"
+           class="btn btn-outline-primary btn-sm">
+
+            عرض الجميع
+
+        </a>
+
+    </div>
+
+    <div class="table-responsive">
+
+        <table class="table table-hover align-middle mb-0">
+
+            <thead class="table-light">
+
+                <tr>
+
+                    <th>الاسم</th>
+
+                    <th>العمر</th>
+
+                    <th>المرحلة الدراسية</th>
+
+                    <th></th>
+
+                </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for b in beneficiaries %}
+
+                <tr>
+
+                    <td>
+
+                        {{ b.first_name }}
+                        {{ b.father_name }}
+                   
+
+                    </td>
+
+                    <td>{{ b.age_years }} سنة</td>
+
+                    <td>{{ b.get_education_level_display }}</td>
+
+                    <td>
+
+                        <a href="{% url 'Donation:beneficiary_detail' b.id %}"
+                           class="btn btn-sm btn-outline-primary">
+
+                            التفاصيل
+
+                        </a>
+
+                    </td>
+
+                </tr>
+
+            {% empty %}
+
+                <tr>
+
+                    <td colspan="4"
+                        class="text-center py-4 text-muted">
+
+                        لا يوجد مكفولون.
+
+                    </td>
+
+                </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+{% endblock %}

@@ -6,6 +6,7 @@ from django.core.validators import MinValueValidator, RegexValidator
 from datetime import date
 from django.core.exceptions import ValidationError
 from django.db.models import Sum
+from django.utils import timezone
 
 class Profile(models.Model):
     class Roles(models.TextChoices):
@@ -84,7 +85,7 @@ class Profile(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.user.get_full_name() or self.user.username} | {self.role}"
+        return self.user.get_full_name()
 
 
 
@@ -233,6 +234,57 @@ class Beneficiary(models.Model):
 
 
 
+
+
+class BeneficiarySponsorHistory(models.Model):
+    """
+    سجل تاريخ انتقالات الكفيل للمستفيد.
+    يحتفظ بجميع الكفلاء الذين مر عليهم المستفيد.
+    """
+
+    beneficiary = models.ForeignKey(
+        "Beneficiary",
+        on_delete=models.CASCADE,
+        related_name="sponsor_history",
+        verbose_name="المستفيد",
+    )
+
+    donor = models.ForeignKey(
+        "Profile",
+        on_delete=models.PROTECT,
+        related_name="beneficiary_history",
+        limit_choices_to={"role": Profile.Roles.DONOR},
+        verbose_name="الكافل",
+    )
+
+    start_date = models.DateField(
+        verbose_name="بداية الكفالة",
+        default=timezone.now,
+    )
+
+    end_date = models.DateField(
+        verbose_name="نهاية الكفالة",
+        null=True,
+        blank=True,
+    )
+
+    assigned_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        verbose_name="تم الإسناد بواسطة",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-start_date", "-id"]
+        verbose_name = "سجل كفالة"
+        verbose_name_plural = "سجل الكفالات"
+
+    def __str__(self):
+        return f"{self.beneficiary} ← {self.donor}"
 ########   البرامج 
 
 
@@ -241,6 +293,10 @@ class Beneficiary(models.Model):
 class MainProgram(models.Model):
     name = models.CharField(max_length=150, verbose_name="اسم البرنامج الأساسي")
     description = models.TextField(blank=True, null=True, verbose_name="الوصف")
+    is_active = models.BooleanField(
+    default=True,
+    verbose_name="نشط"
+    )
     total_donation_amount = models.DecimalField(
         max_digits=12, decimal_places=2, verbose_name="إجمالي مبلغ التبرع"
     )

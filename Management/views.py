@@ -19,8 +19,13 @@ from .forms import BeneficiaryForm, BeneficiaryFilterForm, BeneficiaryImportForm
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
 import json
+from django.utils import timezone
+from .models import BeneficiarySponsorHistory
 
-
+from django.db.models.functions import TruncMonth
+from django.db.models import Sum
+from decimal import Decimal
+import json
 User = get_user_model()
 
 # -------------------------------------------------------------------
@@ -51,6 +56,17 @@ def _is_system_admin(user):
 
 def _redirect_by_role(user):
     # بعد تسجيل الدخول، الكل يروح إلى الصفحة الرئيسية
+    #return redirect("Management:home")
+    profile = getattr(user, "profile", None)
+    if profile.role == Profile.Roles.SYSTEM_ADMIN:
+        return redirect("Management:dashboard")
+
+    if profile and profile.role == Profile.Roles.DONOR:
+        return redirect("Donation:dashboard")
+    if profile.role == Profile.Roles.ACCOUNTANT:
+        return redirect("Accounting:accountant_home")
+    if profile.role == Profile.Roles.CASHIER:
+        return redirect("Accounting:cashier_home")
     return redirect("Management:home")
 
 # def _redirect_by_role(user):
@@ -449,19 +465,87 @@ def beneficiary_create(request):
         form = BeneficiaryForm()
     return render(request, "Management/beneficiary_form.html", {"form": form, "title": "إضافة مستفيد"})
 
+
 @role_required(_beneficiary_roles())
 def beneficiary_update(request, pk):
     obj = get_object_or_404(Beneficiary, pk=pk)
+
     if request.method == "POST":
         form = BeneficiaryForm(request.POST, instance=obj)
+
         if form.is_valid():
-            form.save()
-            messages.success(request, "تم تعديل بيانات المستفيد.")
-            return redirect("Management:beneficiaries_list")
-        messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
+
+            old_donor = obj.donor
+
+            try:
+                with transaction.atomic():
+
+                    beneficiary = form.save()
+
+                    new_donor = beneficiary.donor
+
+                    # إذا تغير الكافل
+                    if old_donor != new_donor:
+
+                        # إغلاق سجل الكافل السابق
+                        if old_donor:
+                            current_history = (
+                                BeneficiarySponsorHistory.objects
+                                .filter(
+                                    beneficiary=beneficiary,
+                                    donor=old_donor,
+                                    end_date__isnull=True
+                                )
+                                .order_by("-start_date")
+                                .first()
+                            )
+
+                            if current_history:
+                                current_history.end_date = timezone.localdate()
+                                current_history.save(update_fields=["end_date"])
+
+                        # إنشاء سجل جديد للكافل الجديد
+                        if new_donor:
+                            BeneficiarySponsorHistory.objects.create(
+                                beneficiary=beneficiary,
+                                donor=new_donor,
+                                start_date=timezone.localdate(),
+                                assigned_by=request.user,
+                            )
+
+                messages.success(request, "تم تعديل بيانات المستفيد.")
+                return redirect("Management:beneficiaries_list")
+
+            except Exception as e:
+                messages.error(request, f"حدث خطأ أثناء الحفظ: {e}")
+
+        else:
+            messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
+
     else:
         form = BeneficiaryForm(instance=obj)
-    return render(request, "Management/beneficiary_form.html", {"form": form, "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}"})
+
+    return render(
+        request,
+        "Management/beneficiary_form.html",
+        {
+            "form": form,
+            "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}",
+        },
+    )
+# @role_required(_beneficiary_roles())
+# def beneficiary_update(request, pk):
+#     obj = get_object_or_404(Beneficiary, pk=pk)
+#     if request.method == "POST":
+#         form = BeneficiaryForm(request.POST, instance=obj)
+#         if form.is_valid():
+#             form.save()
+#             messages.success(request, "تم تعديل بيانات المستفيد.")
+#             return redirect("Management:beneficiaries_list")
+#         messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
+#     else:
+#         form = BeneficiaryForm(instance=obj)
+#     return render(request, "Management/beneficiary_form.html", {"form": form, "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}"})
 
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
@@ -841,248 +925,22 @@ def beneficiaries_import(request):
     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
 
 
-# @role_required(_beneficiary_roles())
-# def beneficiaries_import(request):
-#     """
-#     يقبل رأس عربي:
-#     الإسم, النوع, العمر, رقم الهوية, الدخل, المرحلة الدراسية, الحالة الصحية, المرض, نوع المرض
-
-#     الحقول التي نملؤها فقط:
-#       - الاسم (تفكيك إلى first_name/father_name/grand_name/last_name)
-#       - الجنس (النوع)
-#       - رقم الهوية
-#       - المرحلة الدراسية (اختياري)
-#       - الحالة الصحية (اختياري)
-#       - المرض (اختياري)
-#       - نوع المرض (اختياري)
-#     والباقي يظل فارغًا ليملؤه المستخدم لاحقًا.
-#     """
-#     if request.method == "POST":
-#         form = BeneficiaryImportForm(request.POST, request.FILES)
-#         if form.is_valid():
-#             file = form.cleaned_data["file"]
-#             import openpyxl
-
-#             # تطبيع القيم
-#             HEALTH_STATUS_MAP = {
-#                 "سليم": "healthy",
-#                 "مريض": "sick",
-#                 # دعم إنجليزي اختياري
-#                 "healthy": "healthy",
-#                 "sick": "sick",
-#             }
-#             GENDER_MAP = {
-#                 "ذكر": "male", "انثى": "female", "أنثى": "female",
-#                 "male": "male", "m": "male", "f": "female", "female": "female",
-#             }
-#             EDUCATION_MAP = {
-#                 # طفل / روضة
-#                 "طفل": "child", "رضيع": "child",
-#                 "روضة": "kg", "رياض اطفال": "kg", "رياض الأطفال": "kg", "kg": "kg", "k.g": "kg",
-
-#                 # ابتدائي
-#                 "اول ابتدائي": "p1", "أول ابتدائي": "p1", "1 ابتدائي": "p1", "الاول ابتدائي": "p1", "grade 1": "p1",
-#                 "ثاني ابتدائي": "p2", "2 ابتدائي": "p2", "grade 2": "p2",
-#                 "ثالث ابتدائي": "p3", "3 ابتدائي": "p3", "grade 3": "p3",
-#                 "رابع ابتدائي": "p4", "4 ابتدائي": "p4", "grade 4": "p4",
-#                 "خامس ابتدائي": "p5", "5 ابتدائي": "p5", "grade 5": "p5",
-#                 "سادس ابتدائي": "p6", "6 ابتدائي": "p6", "grade 6": "p6",
-
-#                 # متوسط
-#                 "اول متوسط": "m1", "أول متوسط": "m1", "1 متوسط": "m1", "grade 7": "m1",
-#                 "ثاني متوسط": "m2", "2 متوسط": "m2", "grade 8": "m2",
-#                 "ثالث متوسط": "m3", "3 متوسط": "m3", "grade 9": "m3",
-
-#                 # ثانوي
-#                 "اول ثانوي": "h1", "أول ثانوي": "h1", "1 ثانوي": "h1", "grade 10": "h1",
-#                 "ثاني ثانوي": "h2", "2 ثانوي": "h2", "grade 11": "h2",
-#                 "ثالث ثانوي": "h3", "3 ثانوي": "h3", "grade 12": "h3",
-#             }
-
-#             HEALTH_MAP = {
-#                 "جيد": "good", "good": "good",
-#                 "متوسط": "fair", "fair": "fair",
-#                 "ضعيف": "poor", "poor": "poor",
-#             }
-#             # بدّل خريطة نوع المرض إلى التالية:
-#             DISEASE_TYPE_MAP = {
-#                 # عربي شائع
-#                 "لا يوجد": "none", "بدون": "none",
-#                 "مزمن": "chronic",
-#                 "مؤقت": "temporary",
-
-#                 # المطلوب الآن:
-#                 "مستعصي": "chronic",
-#                 "غير مستعصي": "temporary",
-
-#                 # إنجليزي ورموز مختصرة
-#                 "none": "none",
-#                 "chronic": "chronic",
-#                 "temporary": "temporary",
-#             }
-          
-
-#             # def norm(map_, val, default=""):
-#             #     if val is None:
-#             #         return default
-#             #     s = str(val).strip()
-#             #     # نحاول المطابقة المباشرة
-#             #     if s in map_: 
-#             #         return map_[s]
-#             #     # نحاول بحروف صغيرة (للإنجليزية)
-#             #     if s.lower() in map_: 
-#             #         return map_[s.lower()]
-#             #     # نحاول إزالة المسافات الزائدة (تفيد "غير مستعصي" لو فيها فراغات مختلفة)
-#             #     s2 = " ".join(s.split())
-#             #     return map_.get(s2, default)
-#             def norm(map_, val, default=""):
-#                 if val is None:
-#                     return default
-#                 s = str(val).strip()
-#                 if s in map_:
-#                     return map_[s]
-#                 if s.lower() in map_:
-#                     return map_[s.lower()]
-#                 s2 = " ".join(s.split())
-#                 return map_.get(s2, default)
-                
-
-#             def split_ar_name(full):
-#                 """
-#                 يحاول تفكيك الاسم العربي إلى 4 أجزاء: أول/أب/جد/عائلة.
-#                 لو أقل من 4 كلمات: يوزّع قدر الإمكان.
-#                 """
-#                 if not full:
-#                     return "", "", "", ""
-#                 parts = [p for p in str(full).strip().split() if p]
-#                 # ضمان 4 خانات
-#                 parts = (parts + ["", "", "", ""])[:4]
-#                 # heuristic: لو 2 كلمات فقط → أول/عائلة
-#                 if parts[2] == "" and parts[3] == "" and len(parts) >= 2:
-#                     return parts[0], "", "", parts[1]
-#                 return parts[0], parts[1], parts[2], parts[3]
-
-#             try:
-#                 wb = openpyxl.load_workbook(file)
-#                 ws = wb.active
-#                 # قراءة الهيدر العربي
-#                 headers = [str(c.value).strip() if c.value is not None else "" for c in next(ws.rows)]
-#                 H = {h: i for i, h in enumerate(headers)}
-
-#                 REQUIRED = ["الإسم", "النوع", "رقم الهوية"]
-#                 missing = [h for h in REQUIRED if h not in H]
-#                 if missing:
-#                     messages.error(request, f"الأعمدة الإلزامية مفقودة: {', '.join(missing)}")
-#                     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
-
-#                 get = lambda row, k: (row[H[k]].value if k in H else None)
-
-#                 created, updated, skipped = 0, 0, 0
-#                 errors = []
-
-#                 for r, row in enumerate(ws.iter_rows(min_row=2), start=2):
-#                     full_name = get(row, "الإسم")
-#                     gender_in = get(row, "النوع")
-#                     nat = get(row, "رقم الهوية")
-
-#                     nat = str(nat or "").strip()
-#                     if not nat or not nat.isdigit() or len(nat) != 10:
-#                         skipped += 1
-#                         errors.append(f"سطر {r}: رقم الهوية غير صحيح.")
-#                         continue
-
-#                     # الحقول الاختيارية
-#                     edu_in = get(row, "المرحلة الدراسية")
-#                     edu = norm(EDUCATION_MAP, edu_in, default="")
-#                     if edu:
-#                         obj.education_level = edu
-#                     # لو ما تطابقت، نتركه فارغًا ليعدّله المستخدم لاحقًا
-#                     health_in = get(row, "الحالة الصحية")
-#                     disease_in = get(row, "المرض")
-#                     disease_type_in = get(row, "نوع المرض")
-
-#                     # ابحث أو أنشئ بحسب رقم الهوية
-#                     obj, is_created = Beneficiary.objects.get_or_create(national_number=nat)
-
-#                     # الاسم
-#                     f, fa, gr, la = split_ar_name(full_name)
-#                     # عبِّئ المتاح فقط؛ اترك الباقي كما هو لو كان موجود سابقًا
-#                     if f:  obj.first_name = str(f)
-#                     if fa: obj.father_name = str(fa)
-#                     if gr: obj.grand_name = str(gr)
-#                     if la: obj.last_name = str(la)
-#                     if not obj.last_name and not la and f:
-#                         # fallback لو الاسم كلمة واحدة
-#                         obj.last_name = obj.last_name or ""
-#                     # بعد get(row, "...") للأعمدة:
-#                     health_in = get(row, "الحالة الصحية")
-
-#                     # قبل obj.save() مباشرة:
-#                     hs = norm(HEALTH_STATUS_MAP, health_in, default="")
-#                     if hs:
-#                         obj.health_status = hs   # يخزن healthy/sick حسب ملف الإكسل (سليم/مريض)
-
-#                     # الجنس
-#                     gnorm = norm(GENDER_MAP, gender_in, default="")
-#                     if gnorm: obj.gender = gnorm  # وإلا اتركه فارغًا ليدخله المستخدم لاحقًا
-
-#                     # المرحلة الدراسية/الصحية/المرض/نوع المرض (اختيارية)
-#                     # edu = norm(EDU_MAP, edu_in, default="")
-#                     # if edu: obj.education_level = edu
-#                     edu = form.cleaned_data.get("education_level") or ""
-#                     if edu:
-#                         qs = qs.filter(education_level=edu)
-
-
-#                     health = norm(HEALTH_MAP, health_in, default="")
-#                     if health: obj.health_status = health
-
-#                     if disease_in is not None:
-#                         obj.disease = str(disease_in).strip()
-
-#                     dtype = norm(DISEASE_TYPE_MAP, disease_type_in, default="")
-#                     if dtype: obj.type_disease = dtype
-
-#                     # لا نملأ: birth_date, type_housing, housing_fee, beneficiary_rank,
-#                     # number_of_beneficiary_in_family, donor ... إلخ
-
-#                     # تحقق أساسي: لا نسمح بسجل بلا اسم أول
-#                     if not obj.first_name:
-#                         errors.append(f"سطر {r}: الاسم غير صالح/فارغ.")
-#                         skipped += 1
-#                         continue
-
-#                     obj.save()
-#                     if is_created: created += 1
-#                     else: updated += 1
-
-#                 msg = f"تم الاستيراد: مضافة {created} / محدثة {updated} / متجاوزة {skipped}."
-#                 if errors:
-#                     msg += f" أخطاء: {len(errors)} (أظهرنا أول 5)\n- " + "\n- ".join(errors[:5])
-#                     messages.warning(request, msg)
-#                 else:
-#                     messages.success(request, msg)
-#                 return redirect("Management:beneficiaries_list")
-
-#             except Exception as e:
-#                 messages.error(request, f"فشل قراءة الملف: {e}")
-#     else:
-#         form = BeneficiaryImportForm()
-#     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
-
-
-
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
 def beneficiaries_bulk_assign(request):
     form = BeneficiariesBulkAssignForm(request.POST)
+
     if form.is_valid():
         donor = form.cleaned_data["donor"]
 
-        # اقرأ المعرّفات من selected_ids (المعبأة via JS)
         ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
+
         try:
-            ids = [int(i) for i in ids_raw.replace("[","").replace("]","").split(",") if str(i).strip().isdigit()]
+            ids = [
+                int(i)
+                for i in ids_raw.replace("[", "").replace("]", "").split(",")
+                if i.strip().isdigit()
+            ]
         except Exception:
             ids = []
 
@@ -1090,13 +948,102 @@ def beneficiaries_bulk_assign(request):
             messages.error(request, "لم يتم تحديد مستفيدين.")
             return redirect("Management:beneficiaries_list")
 
-        updated = Beneficiary.objects.filter(id__in=ids).update(donor=donor)
-        messages.success(request, f"تم إلحاق {updated} مستفيد/ـين بالمتبرع المحدد.")
+        updated = 0
+
+        with transaction.atomic():
+
+            beneficiaries = (
+                Beneficiary.objects
+                .filter(id__in=ids)
+                .select_related("donor")
+            )
+
+            for beneficiary in beneficiaries:
+
+                # إغلاق أي كفالة حالية
+                BeneficiarySponsorHistory.objects.filter(
+                    beneficiary=beneficiary,
+                    end_date__isnull=True,
+                ).update(
+                    end_date=timezone.localdate()
+                )
+
+                # إنشاء سجل الكفالة الجديد
+                BeneficiarySponsorHistory.objects.create(
+                    beneficiary=beneficiary,
+                    donor=donor,
+                    start_date=timezone.localdate(),
+                    assigned_by=request.user,
+                )
+
+                # تحديث الكافل الحالي
+                beneficiary.donor = donor
+                beneficiary.save(update_fields=["donor"])
+
+                updated += 1
+
+        messages.success(
+            request,
+            f"تم إلحاق {updated} مستفيد/ـين بالكافل المحدد."
+        )
         return redirect("Management:beneficiaries_list")
 
-    # لو فيه أخطاء (مثلاً دونر غير مُرسَل)
     messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
     return redirect("Management:beneficiaries_list")
+# @role_required(_beneficiary_roles())
+# @require_http_methods(["POST"])
+# def beneficiaries_bulk_assign(request):
+#     form = BeneficiariesBulkAssignForm(request.POST)
+#     if form.is_valid():
+#         donor = form.cleaned_data["donor"]
+
+#         # اقرأ المعرّفات من selected_ids (المعبأة via JS)
+#         ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
+#         try:
+#             ids = [int(i) for i in ids_raw.replace("[","").replace("]","").split(",") if str(i).strip().isdigit()]
+#         except Exception:
+#             ids = []
+
+#         if not ids:
+#             messages.error(request, "لم يتم تحديد مستفيدين.")
+#             return redirect("Management:beneficiaries_list")
+
+#         #updated = Beneficiary.objects.filter(id__in=ids).update(donor=donor)
+#         updated = 0
+
+#         with transaction.atomic():
+
+#             beneficiaries = Beneficiary.objects.filter(id__in=ids)
+
+#             for beneficiary in beneficiaries:
+
+#                 # إغلاق الكفالة الحالية إن وجدت
+#                 BeneficiarySponsorHistory.objects.filter(
+#                     beneficiary=beneficiary,
+#                     end_date__isnull=True,
+#                 ).update(
+#                     end_date=timezone.now().date()
+#                 )
+
+#                 # إنشاء سجل جديد
+#                 BeneficiarySponsorHistory.objects.create(
+#                     beneficiary=beneficiary,
+#                     donor=donor,
+#                     start_date=timezone.now().date(),
+#                     assigned_by=request.user,
+#                 )
+
+#                 # تحديث الكافل الحالي (للتوافق مع النظام الحالي)
+#                 beneficiary.donor = donor
+#                 beneficiary.save(update_fields=["donor"])
+
+#                 updated += 1
+#                 messages.success(request, f"تم إلحاق {updated} مستفيد/ـين بالمتبرع المحدد.")
+#                 return redirect("Management:beneficiaries_list")
+
+#     # لو فيه أخطاء (مثلاً دونر غير مُرسَل)
+#     messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
+#     return redirect("Management:beneficiaries_list")
 
 
 
@@ -1140,7 +1087,7 @@ def beneficiary_detail(request, pk):
         "title": f"عرض مستفيد — {b.first_name} {b.last_name}",
         "b": b,
     })
-
+from Management.utils.audit import AuditLog
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
 def beneficiaries_bulk_change_education(request):
@@ -1163,3 +1110,236 @@ def beneficiaries_bulk_change_education(request):
 
     messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
     return redirect("Management:beneficiaries_list")
+
+
+# لوحة التحكم 
+from Accounting.models import Invoice, FundEntry
+from django.db.models import Sum
+from datetime import timedelta
+
+@role_required([Profile.Roles.SYSTEM_ADMIN])
+def dashboard(request):
+
+    User = get_user_model()
+
+    today = timezone.localdate()
+
+    beneficiaries_count = Beneficiary.objects.count()
+
+    sponsors_count = Profile.objects.filter(
+        role=Profile.Roles.DONOR
+    ).count()
+
+    users_count = User.objects.count()
+
+    programs_count = MainProgram.objects.count()
+
+    invoices_count = Invoice.objects.count()
+
+    today_income = (
+        FundEntry.objects.filter(
+            created_at__date=today,
+            type__in=[
+                FundEntry.Types.GENERAL_DONATION_INCOME,
+                FundEntry.Types.SPONSORSHIP_INCOME,
+            ],
+        ).aggregate(total=Sum("amount"))["total"] or 0
+    )
+
+    # رصيد الجمعية الحالي
+    balance = FundEntry.total_balance()
+
+    # =====================================================
+    # إحصائيات الإيرادات لآخر 12 شهر
+    # =====================================================
+
+    now = timezone.now()
+
+    start_date = (
+        now.replace(
+            day=1,
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0
+        ) - timedelta(days=330)
+    )
+
+    monthly_income = (
+        FundEntry.objects.filter(
+            created_at__gte=start_date,
+            type__in=[
+                FundEntry.Types.GENERAL_DONATION_INCOME,
+                FundEntry.Types.SPONSORSHIP_INCOME,
+            ],
+        )
+        .annotate(month=TruncMonth("created_at"))
+        .values("month")
+        .annotate(total=Sum("amount"))
+        .order_by("month")
+    )
+
+    income_dict = {
+        row["month"].strftime("%Y-%m"): float(row["total"])
+        for row in monthly_income
+    }
+
+    chart_labels = []
+    chart_values = []
+
+    current = start_date.replace(day=1)
+
+    while current <= now:
+
+        key = current.strftime("%Y-%m")
+
+        chart_labels.append(
+            current.strftime("%m/%Y")
+        )
+
+        chart_values.append(
+            income_dict.get(key, 0)
+        )
+
+        if current.month == 12:
+            current = current.replace(
+                year=current.year + 1,
+                month=1
+            )
+        else:
+            current = current.replace(
+                month=current.month + 1
+            )
+
+    # =====================================================
+
+    latest_operations = (
+        FundEntry.objects
+        .select_related(
+            "created_by",
+            "invoice",
+            "beneficiary",
+            "main_program",
+            "sub_program",
+        )
+        .order_by("-created_at")[:10]
+    )
+
+    latest_activity = (
+        AuditLog.objects
+        .exclude(action=AuditLog.Actions.REQUEST)
+        .exclude(action=AuditLog.Actions.LOGIN)
+        .exclude(action=AuditLog.Actions.LOGOUT)
+        .select_related("user")
+        .order_by("-ts")[:10]
+    )
+
+    context = {
+        "title": "لوحة تحكم مدير النظام",
+
+        "beneficiaries_count": beneficiaries_count,
+        "sponsors_count": sponsors_count,
+        "users_count": users_count,
+        "programs_count": programs_count,
+        "invoices_count": invoices_count,
+
+        "today_income": balance,
+
+        "latest_operations": latest_operations,
+        "latest_activity": latest_activity,
+
+        "chart_labels": json.dumps(chart_labels),
+        "chart_values": json.dumps(chart_values),
+    }
+
+    return render(
+        request,
+        "Management/dashboard.html",
+        context,
+    )
+
+    User = get_user_model()
+
+    today = timezone.localdate()
+
+    beneficiaries_count = Beneficiary.objects.count()
+
+    sponsors_count = Profile.objects.filter(
+        role=Profile.Roles.DONOR
+    ).count()
+
+    users_count = User.objects.count()
+
+    programs_count = MainProgram.objects.count()
+
+    invoices_count = Invoice.objects.count()
+
+    today_income = (
+        FundEntry.objects.filter(
+            created_at__date=today,
+            type__in=[
+                FundEntry.Types.GENERAL_DONATION_INCOME,
+                FundEntry.Types.SPONSORSHIP_INCOME,
+            ],
+        ).aggregate(total=Sum("amount"))["total"] or 0
+    )
+    balance = FundEntry.total_balance()
+    monthly_income = (
+    FundEntry.objects.filter(
+        type__in=[
+            FundEntry.Types.GENERAL_DONATION_INCOME,
+            FundEntry.Types.SPONSORSHIP_INCOME,
+        ]
+    )
+    .annotate(month=TruncMonth("created_at"))
+    .values("month")
+    .annotate(total=Sum("amount"))
+    .order_by("month")
+    )
+
+    chart_labels = []
+    chart_values = []
+
+    for row in monthly_income:
+        chart_labels.append(row["month"].strftime("%m/%Y"))
+        chart_values.append(float(row["total"]))
+
+    latest_operations = (
+    FundEntry.objects
+    .select_related(
+        "created_by",
+        "invoice",
+        "beneficiary",
+        "main_program",
+        "sub_program",
+    )
+    .order_by("-created_at")[:10]
+    )
+
+    latest_activity = (
+    AuditLog.objects
+    .exclude(action=AuditLog.Actions.REQUEST)
+    .exclude(action=AuditLog.Actions.LOGIN)
+    .exclude(action=AuditLog.Actions.LOGOUT)
+    .select_related("user")
+    .order_by("-ts")[:10]
+)
+    context = {
+        "title": "لوحة تحكم مدير النظام",
+        "latest_operations": latest_operations,
+        "beneficiaries_count": beneficiaries_count,
+        "sponsors_count": sponsors_count,
+        "users_count": users_count,
+        "programs_count": programs_count,
+        "invoices_count": invoices_count,
+        "today_income": balance,
+        "latest_activity" :latest_activity,
+        "chart_labels": json.dumps(chart_labels),
+        "chart_values": json.dumps(chart_values),
+    }
+
+    return render(
+        request,
+        "Management/dashboard.html",
+        context,
+    )

@@ -5,7 +5,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.urls import reverse
 from django.utils.html import format_html
 
-from .models import Profile, AuditLog, Beneficiary
+from .models import Profile, AuditLog, Beneficiary , PaymentPlan
 from django.db.models import Sum
 from .models import MainProgram, SubProgram
 from .forms import SubProgramForm, SubProgramInlineFormSet
@@ -206,3 +206,57 @@ class UserAdmin(BaseUserAdmin):
 
 admin.site.unregister(User)
 admin.site.register(User, UserAdmin)
+
+@admin.register(PaymentPlan)
+class PaymentPlanAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "amount",
+        "duration_months",
+        "is_active",
+        "created_at",
+    )
+
+    list_filter = (
+        "is_active",
+        "duration_months",
+    )
+
+    search_fields = (
+    "amount",
+    "duration_months",
+)
+
+    ordering = (
+        "amount",
+    )
+
+    list_per_page = 30
+
+    readonly_fields = (
+        "created_at",
+    )
+
+    fieldsets = (
+        (
+            "بيانات الخطة",
+            {
+                "fields": (
+                    "amount",
+                    "duration_months",
+                    "is_active",
+                )
+            },
+        ),
+        (
+            "بيانات النظام",
+            {
+                "classes": ("collapse",),
+                "fields": (
+                    "created_at",
+                ),
+            },
+        ),
+    )
+
+    

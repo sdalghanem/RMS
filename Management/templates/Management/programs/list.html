@@ -58,7 +58,17 @@
     <div class="card rms shadow-sm border-0 card-hover h-100">
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="mb-1">{{ p.name }}</h6>
+          <h6 class="mb-1">{{ p.name }}   <div class="mt-2">
+            {% if p.is_active %}
+                <span class="badge bg-success">
+                    نشط
+                </span>
+            {% else %}
+                <span class="badge bg-secondary">
+                    موقوف
+                </span>
+            {% endif %}
+          </div></h6>
           <span class="badge badge-soft">فروع: {{ p.sub_programs.count }}</span>
         </div>
         <p class="text-muted small text-truncate-2 mb-3">{{ p.description|default:"—" }}</p>
@@ -76,6 +86,7 @@
             <span>المتبقي</span>
             <strong>{{ total|sub:spent|floatformat:2 }} ر.س</strong>
           </div>
+        
         </div>
 
         <!-- شريط التقدم + النسبة -->
@@ -95,12 +106,30 @@
         <div class="small text-end">
           {% if total > 0 %}{{ pct|floatformat:0 }}%{% else %}—{% endif %}
         </div>
-
+        {% if p.is_active %}
         <div class="d-flex justify-content-end gap-2 mt-3">
           <a class="btn btn-primary btn-sm btn-action" href="{% url 'Management:program_detail' p.pk %}">
             عرض التفاصيل
           </a>
         </div>
+        {% endif %}
+        {% if p.is_active %}
+
+<a href="{% url 'Management:program_toggle' p.pk %}"
+   class="btn btn-outline-warning btn-sm">
+    <i class="bi bi-pause-circle"></i>
+    إيقاف
+</a>
+
+{% else %}
+
+<a href="{% url 'Management:program_toggle' p.pk %}"
+   class="btn btn-outline-success btn-sm">
+    <i class="bi bi-play-circle"></i>
+    تفعيل
+</a>
+
+{% endif %}
       </div>
     </div>
   </div>

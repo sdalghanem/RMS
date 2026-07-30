@@ -23,8 +23,26 @@ from Management.models import Beneficiary, MainProgram, SubProgram
 from django.db.models import Sum
 from .models import FundReservation
 
+from Management.models import (
+    Beneficiary,
+    MainProgram,
+    SubProgram,
+    BeneficiarySponsorHistory,
+    AuditLog,
+)
 
+from .models import (
+    
+    FundReservation,
+    BeneficiarySupportEntry,
+    SponsorshipReport,
+    PaymentPlan,
+)
 
+from .models import Invoice
+
+print("Invoice =", Invoice)
+print("Type =", type(Invoice))
 
 @admin.register(FundReservation)
 class FundReservationAdmin(admin.ModelAdmin):
@@ -75,7 +93,6 @@ class FundReservationAdmin(admin.ModelAdmin):
 
         self.message_user(request, f"تم إنشاء {created} حركة فك حجز بنجاح.")
 
-
 class AccountingCleanupAdmin(admin.ModelAdmin):
     change_list_template = "admin/accounting_cleanup.html"
 
@@ -103,7 +120,13 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
             delete_management = request.POST.get("delete_management") == "on"
 
             with transaction.atomic():
-                # ترتيب الحذف مهم جدًا
+
+                AuditLog.objects.all().delete()
+
+                SponsorshipReport.objects.all().delete()
+
+                BeneficiarySupportEntry.objects.all().delete()
+
                 SubProgramDisbursementLine.objects.all().delete()
                 SubProgramDisbursement.objects.all().delete()
 
@@ -113,14 +136,20 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
                 Invoice.objects.all().delete()
 
                 BeneficiaryBalanceEntry.objects.all().delete()
+
                 MainToSubProgramAllocation.objects.all().delete()
                 FundToMainProgramAllocation.objects.all().delete()
+
+                FundReservation.objects.all().delete()
                 FundEntry.objects.all().delete()
+
+                BeneficiarySponsorHistory.objects.all().delete()
 
                 if delete_management:
                     SubProgram.objects.all().delete()
                     MainProgram.objects.all().delete()
-                    Beneficiary.objects.all().delete()
+                PaymentPlan.objects.all().delete()
+                Beneficiary.objects.all().delete()
 
             messages.success(
                 request,
@@ -133,10 +162,10 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
             "admin/accounting_cleanup.html",
             {"title": "تنظيف بيانات المحاسبة"},
         )
+admin.site.register(FundEntry, AccountingCleanupAdmin)
 
 
 # نسجل Admin وهمي فقط لإظهار الصفحة
-admin.site.register(FundEntry, AccountingCleanupAdmin)
 
 # 🔹 1) صفحة الفاتورة الأساسية Invoice
 @admin.register(Invoice)
@@ -145,14 +174,36 @@ class InvoiceAdmin(admin.ModelAdmin):
         "number",
         "invoice_type",
         "receipt_kind",
-        "date",
         "payment_method",
+        "date",
         "created_by",
     )
-    list_filter = ("invoice_type", "receipt_kind", "payment_method")
-    search_fields = ("number", "notes")
-    ordering = ("-date", "-id")
 
+    list_filter = (
+        "invoice_type",
+        "receipt_kind",
+        "payment_method",
+        "date",
+    )
+
+    search_fields = (
+        "number",
+        "notes",
+    )
+
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
+
+    ordering = (
+        "-date",
+        "-id",
+    )
+
+    date_hierarchy = "date"
+
+    list_per_page = 30
 
 # 🔹 2) صفحة التبرعات العامة
 @admin.register(GeneralDonationInvoice)

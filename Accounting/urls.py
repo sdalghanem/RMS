@@ -4,6 +4,13 @@ from . import views
 app_name = "Accounting"
 
 urlpatterns = [
+    path(
+    "cashier/",
+    views.cashier_home,
+    name="cashier_home",
+    ) ,
+
+
     path("invoices/", views.cashier_invoices_list, name="cashier_invoices_list"),
     path("invoices/create/general/", views.invoice_create_general, name="invoice_create_general"),
     path("invoices/create/sponsorship/", views.invoice_create_sponsorship, name="invoice_create_sponsorship"),
@@ -58,4 +65,15 @@ urlpatterns = [
 
     path("invoices/<int:pk>/edit/", views.invoice_update, name="invoice_update"),
     path("invoices/<int:pk>/delete/", views.invoice_delete, name="invoice_delete"),
+    path(
+    "reports/sponsorship/print/",
+    views.sponsorship_report_print,
+    name="sponsorship_report_print",
+    ),
+    
+    path(
+    "reports/sponsorship/",
+    views.sponsorship_reports,
+    name="sponsorship_reports",
+),
 ]
