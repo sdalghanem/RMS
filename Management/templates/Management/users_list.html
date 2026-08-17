@@ -4,176 +4,775 @@
 {% block title %}{{ title }} - RMS{% endblock %}
 
 {% block content %}
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">{{ title }}</h5>
-    <small class="text-muted">إدارة المستخدمين والصلاحيات</small>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{% url 'Management:create_user_with_profile' %}" class="btn btn-primary btn-rms">
-      + إضافة مستخدم
-    </a>
-  </div>
-</div>
 
-<!-- فلاتر البحث -->
-<div class="card rms mb-3">
-  <div class="card-body rms-filters">
-    <form class="row g-2 align-items-end" method="get">
-      <div class="col-lg-6 col-md-8">
-        <label class="form-label">بحث</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-search"></i></span>
-          <input type="text" name="q" value="{{ q }}" class="form-control" placeholder="ابحث بالاسم، الإيميل، الجوال، الهوية...">
+<div class="container-fluid py-4">
+
+    <!-- رأس الصفحة -->
+    <div class="rms-page-header mb-4">
+        <div>
+            <h1 class="rms-page-title mb-1">
+                قائمة المستخدمين
+            </h1>
+
+            <p class="rms-page-subtitle mb-0">
+                إدارة المستخدمين والصلاحيات وحسابات النظام
+            </p>
         </div>
-      </div>
-      <div class="col-lg-3 col-md-4">
-        <label class="form-label">نوع الحساب</label>
-        <select name="role" class="form-select">
-          <option value="">الكل</option>
-          {% for value,label in roles %}
-            <option value="{{ value }}" {% if role == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-lg-3 col-md-12">
-        <label class="form-label d-none d-lg-block">&nbsp;</label>
-        <button class="btn btn-soft w-100 btn-rms"><i class="bi bi-funnel"></i> تطبيق</button>
-      </div>
-    </form>
-  </div>
-</div>
 
-<!-- الجدول -->
-<div class="card rms">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover rms-table m-0">
-        <thead>
-          <tr>
-            <th style="width:60px;">#</th>
-            <th>الاسم</th>
-            <th>الإيميل (اسم الدخول)</th>
-            <th>نوع الحساب</th>
-            <th>الجوال</th>
-            <th>الهوية</th>
-            <th style="width:220px;" class="text-center">الإجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-        {% if page_obj.object_list %}
-          {% for u in page_obj.object_list %}
-            <tr>
-              <td class="text-muted">{{ forloop.counter0|add:page_obj.start_index }}</td>
-              <td>
-                <div class="fw-semibold">{{ u.first_name }} {{ u.last_name }}</div>
-                {% if u.last_login %}
-                <div class="small text-muted">آخر دخول: {{ u.last_login|date:"Y-m-d H:i" }}</div>
-                {% endif %}
-              </td>
-              <td><code dir="ltr">{{ u.email }}</code></td>
+        <a href="{% url 'Management:create_user_with_profile' %}"
+           class="btn btn-primary btn-rms px-4">
+            <i class="bi bi-person-plus me-1"></i>
+            إضافة مستخدم
+        </a>
+    </div>
 
-              <!-- تغيير نوع الحساب -->
-           <td>
-              <form method="post" action="{% url 'Management:update_user_role' u.id %}" 
-                    class="d-inline-flex align-items-center justify-content-start" 
-                    style="gap: 6px; white-space: nowrap;">
-                {% csrf_token %}
-                <div class="input-group input-group-sm" style="width: 180px;">
-                  <select name="role" class="form-select"
-                          {% if u.id == request.user.id %}disabled{% endif %}>
-                    {% for value,label in roles %}
-                      <option value="{{ value }}" {% if u.profile.role == value %}selected{% endif %}>{{ label }}</option>
+
+    <!-- البحث والفلاتر -->
+    <div class="card rms-card mb-4">
+        <div class="card-body p-3">
+
+            <form method="get">
+
+                <div class="row g-3 align-items-end">
+
+                    <!-- البحث -->
+                    <div class="col-lg-7">
+
+                        <label class="form-label rms-label">
+                            البحث
+                        </label>
+
+                        <div class="input-group">
+
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-search"></i>
+                            </span>
+
+                            <input
+                                type="text"
+                                name="q"
+                                value="{{ q }}"
+                                class="form-control"
+                                placeholder="ابحث بالاسم، البريد الإلكتروني، الجوال أو الهوية..."
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- نوع الحساب -->
+                    <div class="col-lg-3">
+
+                        <label class="form-label rms-label">
+                            نوع الحساب
+                        </label>
+
+                        <select name="role" class="form-select">
+
+                            <option value="">
+                                الكل
+                            </option>
+
+                            {% for value,label in roles %}
+
+                                <option
+                                    value="{{ value }}"
+                                    {% if role == value %}selected{% endif %}
+                                >
+                                    {{ label }}
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- الأزرار -->
+                    <div class="col-lg-2 d-flex gap-2">
+
+                        <button
+                            type="submit"
+                            class="btn btn-primary btn-rms flex-fill"
+                        >
+                            <i class="bi bi-funnel me-1"></i>
+                            تطبيق
+                        </button>
+
+                        {% if q or role %}
+
+                            <a
+                                href="{% url 'Management:users_list' %}"
+                                class="btn btn-light border btn-rms"
+                                title="إعادة ضبط الفلاتر"
+                            >
+                                <i class="bi bi-arrow-counterclockwise"></i>
+                            </a>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+
+    <!-- جدول المستخدمين -->
+    <div class="card rms-card overflow-hidden">
+
+        <!-- رأس الجدول -->
+        <div class="card-header bg-white border-0 px-4 py-3">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+
+                    <h5 class="mb-1 fw-bold">
+                        المستخدمون
+                    </h5>
+
+                    <small class="text-muted">
+                        إدارة حسابات المستخدمين وصلاحياتهم
+                    </small>
+
+                </div>
+
+                <span class="rms-count-badge">
+                    {{ page_obj.paginator.count }} مستخدم
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="table-responsive">
+
+            <table class="table rms-table align-middle mb-0">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="width: 5%;">
+                            #
+                        </th>
+
+                        <th>
+                            المستخدم
+                        </th>
+
+                        <th>
+                            البريد الإلكتروني
+                        </th>
+
+                        <th>
+                            الجوال
+                        </th>
+
+                        <th>
+                            الهوية
+                        </th>
+
+                        <th style="width: 220px;">
+                            نوع الحساب
+                        </th>
+
+                        <th
+                            class="text-center"
+                            style="width: 150px;"
+                        >
+                            الإجراءات
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                {% if page_obj.object_list %}
+
+                    {% for u in page_obj.object_list %}
+
+                    <tr>
+
+                        <!-- الرقم -->
+                        <td class="text-muted fw-semibold">
+
+                            {{ page_obj.start_index|add:forloop.counter0 }}
+
+                        </td>
+
+
+                        <!-- المستخدم -->
+                        <td>
+
+                            <div class="d-flex align-items-center gap-3">
+
+                                <div class="user-avatar">
+
+                                    {% if u.first_name %}
+
+                                        {{ u.first_name|first|upper }}
+
+                                    {% else %}
+
+                                        {{ u.username|first|upper }}
+
+                                    {% endif %}
+
+                                </div>
+
+
+                                <div>
+
+                                    <div class="fw-bold user-name">
+
+                                        {% if u.get_full_name %}
+
+                                            {{ u.get_full_name }}
+
+                                        {% else %}
+
+                                            {{ u.username }}
+
+                                        {% endif %}
+
+                                    </div>
+
+
+                                    {% if u.last_login %}
+
+                                        <small class="text-muted">
+
+                                            آخر دخول:
+                                            {{ u.last_login|date:"H:i d-m-Y" }}
+
+                                        </small>
+
+                                    {% else %}
+
+                                        <small class="text-muted">
+
+                                            لم يسجل الدخول بعد
+
+                                        </small>
+
+                                    {% endif %}
+
+                                </div>
+
+                            </div>
+
+                        </td>
+
+
+                        <!-- البريد -->
+                        <td>
+
+                            {% if u.email %}
+
+                                <span class="user-email">
+                                    {{ u.email }}
+                                </span>
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- الجوال -->
+                        <td>
+
+                            {% if u.profile %}
+
+                                {% if u.profile.phone %}
+
+                                    {{ u.profile.phone }}
+
+                                {% else %}
+
+                                    <span class="text-muted">
+                                        —
+                                    </span>
+
+                                {% endif %}
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- الهوية -->
+                        <td>
+
+                            {% if u.profile %}
+
+                                {% if u.profile.national_number %}
+
+                                    {{ u.profile.national_number }}
+
+                                {% else %}
+
+                                    <span class="text-muted">
+                                        —
+                                    </span>
+
+                                {% endif %}
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- نوع الحساب -->
+                        <td>
+
+                            <form
+                                method="post"
+                                action="{% url 'Management:update_user_role' u.id %}"
+                                class="user-role-form"
+                            >
+
+                                {% csrf_token %}
+
+                                <div class="input-group input-group-sm">
+
+                                    <select
+                                        name="role"
+                                        class="form-select user-role-select"
+                                        {% if u.id == request.user.id %}disabled{% endif %}
+                                    >
+
+                                        {% for value,label in roles %}
+
+                                            <option
+                                                value="{{ value }}"
+                                                {% if u.profile.role == value %}
+                                                    selected
+                                                {% endif %}
+                                            >
+                                                {{ label }}
+                                            </option>
+
+                                        {% endfor %}
+
+                                    </select>
+
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-outline-success role-save-btn"
+                                        title="حفظ الصلاحية"
+                                        {% if u.id == request.user.id %}disabled{% endif %}
+                                    >
+
+                                        <i class="bi bi-check-lg"></i>
+
+                                    </button>
+
+                                </div>
+
+                            </form>
+
+                        </td>
+
+
+                        <!-- الإجراءات -->
+                        <td>
+
+                            <div class="d-flex justify-content-center gap-2">
+
+                                <!-- تعديل -->
+                                <a
+                                    href="{% url 'Management:edit_user_contact' u.id %}"
+                                    class="btn btn-sm btn-outline-primary action-btn"
+                                    title="تعديل المستخدم"
+                                >
+
+                                    <i class="bi bi-pencil"></i>
+
+                                </a>
+
+
+                                <!-- حذف -->
+                                <form
+                                    method="post"
+                                    action="{% url 'Management:delete_user' u.id %}"
+                                    onsubmit="return confirm('متأكد من حذف هذا المستخدم؟');"
+                                    class="m-0"
+                                >
+
+                                    {% csrf_token %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-sm btn-outline-danger action-btn"
+                                        {% if u.id == request.user.id %}disabled{% endif %}
+                                        title="حذف المستخدم"
+                                    >
+
+                                        <i class="bi bi-trash"></i>
+
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
                     {% endfor %}
-                  </select>
-                  <button class="btn btn-outline-secondary btn-rms"
-                          type="submit" title="حفظ" {% if u.id == request.user.id %}disabled{% endif %}>
-                    <i class="bi bi-check2"></i>
-                  </button>
-                </div>
-              </form>
-            </td>
+
+                {% else %}
+
+                    <tr>
+
+                        <td colspan="7">
+
+                            <div class="rms-empty py-5">
+
+                                <div class="empty-icon">
+
+                                    <i class="bi bi-people"></i>
+
+                                </div>
 
 
-              <td>{% if u.profile %}{{ u.profile.phone }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
-              <td>{% if u.profile %}{{ u.profile.national_number }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+                                <h5 class="mt-3 mb-2">
+                                    لا توجد نتائج
+                                </h5>
 
-              <!-- الإجراءات -->
-              <td class="text-center">
-                <div class="d-inline-flex align-items-center gap-1">
-                  <a href="{% url 'Management:edit_user_contact' u.id %}" class="btn btn-sm btn-outline-secondary btn-rms" title="تعديل">
-                    <i class="bi bi-pencil"></i>
-                  </a>
 
-                
+                                <p class="text-muted mb-3">
+                                    لا يوجد مستخدمون مطابقون لمعايير البحث الحالية.
+                                </p>
 
-                  <form method="post" action="{% url 'Management:delete_user' u.id %}" onsubmit="return confirm('متأكد من حذف هذا المستخدم؟');" style="display:inline">
-                    {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-danger btn-rms" {% if u.id == request.user.id %}disabled{% endif %} title="حذف">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-        {% else %}
-          <tr>
-            <td colspan="7">
-              <div class="rms-empty">
-                <span class="emoji">👥</span>
-                لا توجد نتائج مطابقة.
-                <div class="mt-2">
-                  <a href="{% url 'Management:create_user_with_profile' %}" class="btn btn-primary btn-rms">+ إضافة مستخدم</a>
-                </div>
-              </div>
-            </td>
-          </tr>
+
+                                <a
+                                    href="{% url 'Management:create_user_with_profile' %}"
+                                    class="btn btn-primary btn-rms"
+                                >
+
+                                    <i class="bi bi-person-plus me-1"></i>
+                                    إضافة مستخدم
+
+                                </a>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                {% endif %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <!-- الترقيم -->
+        {% if page_obj.paginator.num_pages > 1 %}
+
+        <div class="card-footer bg-white border-0 px-4 py-3">
+
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+                <small class="text-muted">
+
+                    عرض
+
+                    <strong>
+                        {{ page_obj.start_index }}
+                    </strong>
+
+                    –
+
+                    <strong>
+                        {{ page_obj.end_index }}
+                    </strong>
+
+                    من
+
+                    <strong>
+                        {{ page_obj.paginator.count }}
+                    </strong>
+
+                </small>
+
+
+                <nav>
+
+                    <ul class="pagination pagination-sm mb-0">
+
+                        {% if page_obj.has_previous %}
+
+                            <li class="page-item">
+
+                                <a
+                                    class="page-link"
+                                    href="?q={{ q }}&role={{ role }}&page={{ page_obj.previous_page_number }}"
+                                >
+                                    السابق
+                                </a>
+
+                            </li>
+
+                        {% endif %}
+
+
+                        <li class="page-item active">
+
+                            <span class="page-link">
+
+                                {{ page_obj.number }}
+
+                                /
+
+                                {{ page_obj.paginator.num_pages }}
+
+                            </span>
+
+                        </li>
+
+
+                        {% if page_obj.has_next %}
+
+                            <li class="page-item">
+
+                                <a
+                                    class="page-link"
+                                    href="?q={{ q }}&role={{ role }}&page={{ page_obj.next_page_number }}"
+                                >
+                                    التالي
+                                </a>
+
+                            </li>
+
+                        {% endif %}
+
+                    </ul>
+
+                </nav>
+
+            </div>
+
+        </div>
+
         {% endif %}
-        </tbody>
-      </table>
+
     </div>
 
-    <!-- ترقيم الصفحات -->
-    {% if page_obj.paginator.num_pages > 1 %}
-    <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <small class="text-muted">عرض {{ page_obj.start_index }}–{{ page_obj.end_index }} من {{ page_obj.paginator.count }}</small>
-      <nav>
-        <ul class="pagination pagination-sm m-0">
-          {% if page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page=1">الأولى</a></li>
-            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.previous_page_number }}">السابق</a></li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">الأولى</span></li>
-            <li class="page-item disabled"><span class="page-link">السابق</span></li>
-          {% endif %}
-
-          <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
-
-          {% if page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.next_page_number }}">التالي</a></li>
-            <li class="page-item"><a class="page-link" href="?q={{ q }}&role={{ role }}&page={{ page_obj.paginator.num_pages }}">الأخيرة</a></li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">التالي</span></li>
-            <li class="page-item disabled"><span class="page-link">الأخيرة</span></li>
-          {% endif %}
-        </ul>
-      </nav>
-    </div>
-    {% endif %}
-  </div>
 </div>
-{% endblock %}
+
+
+<style>
+
+.rms-page-header {
+    background: #fff;
+    border: 1px solid #e8ecef;
+    border-radius: 16px;
+    padding: 22px 26px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, .025);
+}
+
+.rms-page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #172033;
+}
+
+.rms-page-subtitle {
+    font-size: 14px;
+    color: #7b8492;
+}
+
+.rms-card {
+    border: 1px solid #e8ecef;
+    border-radius: 16px;
+    box-shadow: 0 3px 14px rgba(0, 0, 0, .035);
+}
+
+.rms-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #4b5563;
+}
+
+.btn-rms {
+    border-radius: 9px;
+    font-weight: 600;
+}
+
+.rms-count-badge {
+    background: #eef8f5;
+    color: #078b72;
+    border: 1px solid #d7eee8;
+    border-radius: 20px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.rms-table {
+    font-size: 14px;
+}
+
+.rms-table thead th {
+    background: #f8fafb;
+    color: #374151;
+    font-weight: 700;
+    border-bottom: 1px solid #dfe5e9;
+    padding: 14px 16px;
+    white-space: nowrap;
+}
+
+.rms-table tbody td {
+    padding: 13px 16px;
+    border-color: #edf0f2;
+    color: #374151;
+}
+
+.rms-table tbody tr {
+    transition: background .15s ease;
+}
+
+.rms-table tbody tr:hover {
+    background: #fafcfb;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #eaf7f3;
+    color: #078b72;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.user-name {
+    color: #172033;
+    font-size: 14px;
+}
+
+.user-email {
+    color: #6b7280;
+    font-size: 13px;
+}
+
+.user-role-form {
+    margin: 0;
+}
+
+.user-role-select {
+    min-width: 150px;
+    border-radius: 8px 0 0 8px !important;
+}
+
+.role-save-btn {
+    border-radius: 0 8px 8px 0 !important;
+    width: 42px;
+}
+
+.action-btn {
+    width: 38px;
+    height: 38px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+}
+
+.rms-empty {
+    text-align: center;
+    color: #6b7280;
+}
+
+.empty-icon {
+    width: 64px;
+    height: 64px;
+    margin: auto;
+    border-radius: 18px;
+    background: #f1f5f4;
+    color: #078b72;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+}
+
+.pagination .page-link {
+    border-radius: 8px;
+    margin: 0 3px;
+    border: 1px solid #e2e8ec;
+    color: #374151;
+}
+
+.pagination .page-item.active .page-link {
+    background: #078b72;
+    border-color: #078b72;
+}
+
+@media (max-width: 768px) {
+
+    .rms-page-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .rms-page-title {
+        font-size: 23px;
+    }
+
+    .rms-table {
+        min-width: 1000px;
+    }
+
+}
+
+</style>
 
 {% block extra_js %}
-<script>
-  // تحسين بسيط لزر الحفظ عند النجاح
-  document.querySelectorAll('form[action*="update_user_role"]').forEach(function(form){
-    form.addEventListener('submit', function(){
-      const btn = form.querySelector('button');
-      btn.innerHTML = '<i class="bi bi-check2-circle"></i>';
-      setTimeout(()=>{ btn.innerHTML = 'حفظ'; }, 1500);
-    });
-  });
-</script>
+{% endblock %}
+
 {% endblock %}

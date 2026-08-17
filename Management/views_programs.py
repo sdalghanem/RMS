@@ -139,39 +139,54 @@ class ProgramDetailView(RoleRequiredMixin , DetailView):
 
         return ctx
 
-
 @method_decorator(login_required, name="dispatch")
-@method_decorator(permission_required("Management.add_mainprogram", raise_exception=True), name="dispatch")
-class MainProgramCreateView(RoleRequiredMixin , CreateView):
+@method_decorator(
+    permission_required(
+        "Management.add_mainprogram",
+        raise_exception=True
+    ),
+    name="dispatch"
+)
+class MainProgramCreateView(RoleRequiredMixin, CreateView):
     model = MainProgram
     form_class = MainProgramForm
     template_name = "Management/programs/create.html"
 
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-        # احقِن request داخل الفورم (بدون تمرير kwargs)
+
+        # تمرير request للفورم
         form.request = self.request
-        # أخفِ حقل المبلغ لمدير النظام
+
+        # إخفاء حقل المبلغ لمدير النظام
         if self.request.user.groups.filter(name="system_admin").exists():
             form.fields.pop("total_donation_amount", None)
+
         return form
 
     def form_valid(self, form):
         obj = form.save(commit=False)
+
+        # مدير النظام لا يحدد مبلغ البرنامج
         if self.request.user.groups.filter(name="system_admin").exists():
             obj.total_donation_amount = 0
-            obj.remaining_amount = 0
-        else:
-            obj.remaining_amount = obj.total_donation_amount or 0
+
         obj.save()
 
-        # لا نستدعي super().form_valid لتجنّب save ثانٍ
         self.object = obj
-        messages.success(self.request, "تم إضافة البرنامج الأساسي بنجاح.")
+
+        messages.success(
+            self.request,
+            "تم إضافة البرنامج الأساسي بنجاح."
+        )
+
         return HttpResponseRedirect(self.get_success_url())
 
     def get_success_url(self):
-        return reverse("Management:program_detail", kwargs={"pk": self.object.pk})
+        return reverse(
+            "Management:program_detail",
+            kwargs={"pk": self.object.pk}
+        )
 
 
 @method_decorator(login_required, name="dispatch")

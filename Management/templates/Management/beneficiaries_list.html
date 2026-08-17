@@ -4,259 +4,1478 @@
 {% block title %}{{ title }} - RMS{% endblock %}
 
 {% block extra_head %}
+
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
 <style>
-  /* لمسات خفيفة تكمّل الثيم الموحد */
-  .toolbar-badge{font-size:.875rem}
-  .result-meta{gap:.75rem}
-  .btn-group .btn{font-weight:500;border-radius:.6rem!important;transition:all .18s ease}
-  .btn-group .btn:hover{transform:translateY(-1px)}
-  th[style*="width:36px"] input[type="checkbox"]{transform:scale(1.1)}
-  .table-danger{background-color:#ffeef0!important}
+    .toolbar-badge {
+        font-size: .875rem;
+    }
+
+    .result-meta {
+        gap: .75rem;
+    }
+
+    .btn-group .btn {
+        font-weight: 500;
+        border-radius: .6rem !important;
+        transition: all .18s ease;
+    }
+
+    .btn-group .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    th[style*="width:36px"] input[type="checkbox"] {
+        transform: scale(1.1);
+    }
+
+    .table-danger {
+        background-color: #ffeef0 !important;
+    }
+
+    /* =========================================================
+       نافذة إلحاق المستفيد بسند
+       ========================================================= */
+
+    .sponsorship-modal-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.35rem;
+        background: rgba(13, 110, 253, .10);
+        color: #0d6efd;
+    }
+
+    .selected-beneficiary-box {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 14px 16px;
+    }
+
+    .selected-beneficiary-name {
+        font-weight: 700;
+        font-size: 1rem;
+    }
+
+    .sponsorship-select {
+        min-height: 52px;
+        border-radius: 10px;
+    }
+
+    .sponsorship-help {
+        font-size: .82rem;
+        color: #6c757d;
+        margin-top: 7px;
+    }
+
+    .sponsorship-warning {
+        background: #fff8e1;
+        border: 1px solid #ffe69c;
+        border-radius: 10px;
+        padding: 11px 13px;
+        font-size: .85rem;
+        color: #664d03;
+    }
+
+    .modal-header {
+        border-bottom: 1px solid #eee;
+    }
+
+    .modal-footer {
+        border-top: 1px solid #eee;
+    }
+
+    .sponsorship-info {
+        display: none;
+        margin-top: 14px;
+        border: 1px solid #e9ecef;
+        border-radius: 12px;
+        padding: 14px;
+        background: #fafafa;
+    }
+
+    .sponsorship-info-item {
+        padding: 7px 0;
+    }
+
+    .sponsorship-info-label {
+        color: #6c757d;
+        font-size: .78rem;
+        display: block;
+        margin-bottom: 2px;
+    }
+
+    .sponsorship-info-value {
+        font-weight: 600;
+    }
+
+    /* زر الإلحاق الجديد */
+    .btn-sponsorship {
+        min-width: 42px;
+    }
 </style>
+
 {% endblock %}
+
 
 {% block content %}
 
-<!-- شريط علوي موحّد -->
+<!-- =========================================================
+     الشريط العلوي
+========================================================= -->
+
 <div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">{{ title }}</h5>
-    <div class="text-muted small mt-1 result-meta d-flex flex-wrap">
-      <span><i class="bi bi-list-check me-1"></i> إجمالي النتائج: {{ page_obj.paginator.count }}</span>
-      <span id="selectedCountWrap" class="d-none">
-        • <i class="bi bi-check2-square me-1"></i> المحدَّد: <span id="selectedCount">0</span>
-      </span>
-    </div>
-  </div>
-  <div class="d-flex gap-2">
-    <a class="btn btn-outline-secondary btn-rms" href="{% url 'Management:beneficiaries_import' %}">
-      <i class="bi bi-upload me-1"></i> استيراد Excel
-    </a>
-    <a class="btn btn-primary btn-rms" href="{% url 'Management:beneficiary_create' %}">
-      <i class="bi bi-plus-lg me-1"></i> إضافة مستفيد
-    </a>
-  </div>
-</div>
 
-<!-- فلاتر البحث -->
-<div class="card rms mb-3">
-  <div class="card-body rms-filters pb-2">
-    <form class="row gy-3 gx-3 align-items-end" method="get">
-      <!-- البحث العام -->
-      <div class="col-lg-6 col-md-12">
-        <label class="form-label fw-semibold text-secondary">البحث العام</label>
-        <div class="input-group">
-          <span class="input-group-text"><i class="bi bi-search text-muted"></i></span>
-          <input type="text" name="q" value="{{ form.q.value|default_if_none:'' }}" class="form-control" placeholder="ابحث بالاسم، الهوية، رقم الجوال أو اسم الكافل...">
+    <div>
+
+        <h5 class="m-0 fw-bold">
+            {{ title }}
+        </h5>
+
+        <div class="text-muted small mt-1 result-meta d-flex flex-wrap">
+
+            <span>
+                <i class="bi bi-list-check me-1"></i>
+                إجمالي النتائج:
+                {{ page_obj.paginator.count }}
+            </span>
+
+            <span id="selectedCountWrap" class="d-none">
+
+                •
+                <i class="bi bi-check2-square me-1"></i>
+
+                المحدد:
+                <span id="selectedCount">0</span>
+
+            </span>
+
         </div>
-      </div>
-      <!-- الجنس -->
-      <div class="col-lg-2 col-md-4 col-sm-6">
-        <label class="form-label fw-semibold text-secondary">الجنس</label>
-        {{ form.gender }}
-      </div>
-      <!-- المرحلة الدراسية -->
-      <div class="col-lg-2 col-md-4 col-sm-6">
-        <label class="form-label fw-semibold text-secondary">المرحلة الدراسية</label>
-        {{ form.education_level }}
-      </div>
-      <!-- الكافل -->
-      <div class="col-lg-2 col-md-4 col-sm-6">
-        <label class="form-label fw-semibold text-secondary">الكافل</label>
-        {{ form.donor }}
-      </div>
-      <!-- زر تطبيق -->
-      <div class="col-12 col-md-3 col-lg-2 mt-2">
-        <button class="btn btn-soft w-100 btn-rms">
-          <i class="bi bi-filter me-1"></i> تطبيق
-        </button>
-      </div>
-    </form>
-  </div>
+
+    </div>
+
+
+    <div class="d-flex gap-2">
+
+        <a
+            class="btn btn-outline-secondary btn-rms"
+            href="{% url 'Management:beneficiaries_import' %}"
+        >
+            <i class="bi bi-upload me-1"></i>
+            استيراد Excel
+        </a>
+
+
+        <a
+            class="btn btn-primary btn-rms"
+            href="{% url 'Management:beneficiary_create' %}"
+        >
+            <i class="bi bi-plus-lg me-1"></i>
+            إضافة مستفيد
+        </a>
+
+    </div>
+
 </div>
 
-<!-- الإجراءات الجماعية -->
+
+<!-- =========================================================
+     فلاتر البحث
+========================================================= -->
+
+<div class="card rms mb-3">
+
+    <div class="card-body rms-filters pb-2">
+
+        <form
+            class="row gy-3 gx-3 align-items-end"
+            method="get"
+        >
+
+            <!-- البحث العام -->
+
+            <div class="col-lg-6 col-md-12">
+
+                <label class="form-label fw-semibold text-secondary">
+                    البحث العام
+                </label>
+
+                <div class="input-group">
+
+                    <span class="input-group-text">
+                        <i class="bi bi-search text-muted"></i>
+                    </span>
+
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{ form.q.value|default_if_none:'' }}"
+                        class="form-control"
+                        placeholder="ابحث بالاسم، الهوية، رقم الجوال أو اسم الكافل..."
+                    >
+
+                </div>
+
+            </div>
+
+
+            <!-- الجنس -->
+
+            <div class="col-lg-2 col-md-4 col-sm-6">
+
+                <label class="form-label fw-semibold text-secondary">
+                    الجنس
+                </label>
+
+                {{ form.gender }}
+
+            </div>
+
+
+            <!-- المرحلة الدراسية -->
+
+            <div class="col-lg-2 col-md-4 col-sm-6">
+
+                <label class="form-label fw-semibold text-secondary">
+                    المرحلة الدراسية
+                </label>
+
+                {{ form.education_level }}
+
+            </div>
+
+
+            <!-- الكافل -->
+
+            <div class="col-lg-2 col-md-4 col-sm-6">
+
+                <label class="form-label fw-semibold text-secondary">
+                    الكافل
+                </label>
+
+                {{ form.donor }}
+
+            </div>
+
+
+            <!-- تطبيق -->
+
+            <div class="col-12 col-md-3 col-lg-2 mt-2">
+
+                <button
+                    class="btn btn-soft w-100 btn-rms"
+                    type="submit"
+                >
+                    <i class="bi bi-filter me-1"></i>
+                    تطبيق
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     الإجراءات الجماعية
+========================================================= -->
+
 <div class="row g-3 mb-3">
-  <div class="col-lg-6">
-    <div class="card rms">
-      <div class="card-body">
-        <h6 class="card-title mb-3"><i class="bi bi-people me-1"></i> إلحاق المحددين إلى الكافل</h6>
-        <form method="post" action="{% url 'Management:beneficiaries_bulk_assign' %}" class="row g-2 align-items-end" id="bulkAssignForm">
-          {% csrf_token %}
-          <input type="hidden" name="selected_ids" id="selected_ids_assign">
-          <div class="col-md-8">{{ bulk_form.donor }}</div>
-          <div class="col-md-4">
-            <button type="submit" class="btn btn-success w-100 btn-rms">
-              <i class="bi bi-person-plus me-1"></i> تنفيذ الإلحاق
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
 
-  <div class="col-lg-6">
-    <div class="card rms">
-      <div class="card-body">
-        <h6 class="card-title mb-3"><i class="bi bi-arrow-repeat me-1"></i> تغيير المرحلة الدراسية للمحددين</h6>
-        <form method="post" action="{% url 'Management:beneficiaries_bulk_change_education' %}" class="row g-2 align-items-end" id="bulkEduForm">
-          {% csrf_token %}
-          <input type="hidden" name="selected_ids" id="selected_ids_edu">
-          <div class="col-md-8">{{ bulk_edu_form.education_level }}</div>
-          <div class="col-md-4">
-            <button type="submit" class="btn btn-warning w-100 btn-rms">
-              <i class="bi bi-arrow-up-right-square me-1"></i> تنفيذ التغيير
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
-</div>
 
-<!-- جدول المستفيدين -->
-<div class="card rms">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover rms-table m-0">
-        <thead>
-          <tr>
-            <th style="width:36px"><input type="checkbox" id="checkAll" title="تحديد الكل"></th>
-            <th style="width:70px">#</th>
-            <th>الاسم الكامل</th>
-            <th>الجنس</th>
-            <th>العمر</th>
-            <th>المرحلة الدراسية</th>
-            <th>الهوية</th>
-            <th>الكافل</th>
-            <th style="width:220px" class="text-center">الإجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in page_obj.object_list %}
-            <tr {% if b.age_years is not None and b.age_years >= 18 %}class="table-danger"{% endif %}>
-              <td><input type="checkbox" class="row-check" value="{{ b.id }}" title="تحديد هذا المستفيد"></td>
-              <td class="text-muted">{{ b.id }}</td>
-              <td>
-                <div class="fw-semibold">
-                  {{ b.first_name }}{% if b.father_name %} {{ b.father_name }}{% endif %}{% if b.grand_name %} {{ b.grand_name }}{% endif %} {{ b.last_name }}
-                </div>
-              </td>
-              <td>{{ b.get_gender_display }}</td>
-              <td>
-                {% if b.age_years is not None %}
-                  <span class="badge bg-light text-dark toolbar-badge">{{ b.age_years }}</span>
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td>
-                {% if b.education_level %}
-                  {{ b.get_education_level_display }}
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td>{{ b.national_number|default:"—" }}</td>
-              <td>
-                {% if b.donor %}
-                  {{ b.donor.user.get_full_name|default:b.donor.user.username }}
-                {% else %}
-                  <span class="text-muted">—</span>
-                {% endif %}
-              </td>
-              <td class="text-center">
-                <div class="d-inline-flex align-items-center gap-1">
-                  <a class="btn btn-sm btn-outline-secondary btn-rms"
-                     href="{% url 'Management:beneficiary_update' b.id %}" title="تعديل">
-                    <i class="bi bi-pencil"></i>
-                  </a>
-                  <a class="btn btn-sm btn-soft btn-rms"
-                     href="{% url 'Management:beneficiary_detail' b.id %}" target="_blank" title="عرض التفاصيل">
-                    <i class="bi bi-eye"></i>
-                  </a>
-                  <form method="post" action="{% url 'Management:beneficiary_delete' b.id %}"
-                        style="display:inline" onsubmit="return confirm('حذف هذا المستفيد؟');">
+    <!-- تغيير المرحلة -->
+
+    <div class="col-lg-6">
+
+        <div class="card rms">
+
+            <div class="card-body">
+
+                <h6 class="card-title mb-3">
+
+                    <i class="bi bi-arrow-repeat me-1"></i>
+
+                    تغيير المرحلة الدراسية للمحددين
+
+                </h6>
+
+
+                <form
+                    method="post"
+                    action="{% url 'Management:beneficiaries_bulk_change_education' %}"
+                    class="row g-2 align-items-end"
+                    id="bulkEduForm"
+                >
+
                     {% csrf_token %}
-                    <button class="btn btn-sm btn-outline-danger btn-rms" title="حذف">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </form>
-                </div>
-              </td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="9">
-                <div class="rms-empty">
-                  <span class="emoji">🗂️</span>
-                  لا توجد نتائج.
-                </div>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+
+                    <input
+                        type="hidden"
+                        name="selected_ids"
+                        id="selected_ids_edu"
+                    >
+
+
+                    <div class="col-md-8">
+
+                        {{ bulk_edu_form.education_level }}
+
+                    </div>
+
+
+                    <div class="col-md-4">
+
+                        <button
+                            type="submit"
+                            class="btn btn-warning w-100 btn-rms"
+                        >
+
+                            <i class="bi bi-arrow-up-right-square me-1"></i>
+
+                            تنفيذ التغيير
+
+                        </button>
+
+                    </div>
+
+                </form>
+
+            </div>
+
+        </div>
+
     </div>
 
-    {% if page_obj.paginator.num_pages > 1 %}
-    <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
-      <small class="text-muted">عرض {{ page_obj.start_index }}–{{ page_obj.end_index }} من {{ page_obj.paginator.count }}</small>
-      <nav>
-        <ul class="pagination pagination-sm m-0">
-          {% if page_obj.has_previous %}
-            <li class="page-item"><a class="page-link" href="?page=1{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}">الأولى</a></li>
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}">السابق</a></li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">الأولى</span></li>
-            <li class="page-item disabled"><span class="page-link">السابق</span></li>
-          {% endif %}
 
-          <li class="page-item disabled"><span class="page-link">{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span></li>
+    <!-- معلومات الإلحاق -->
 
-          {% if page_obj.has_next %}
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}">التالي</a></li>
-            <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}">الأخيرة</a></li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">التالي</span></li>
-            <li class="page-item disabled"><span class="page-link">الأخيرة</span></li>
-          {% endif %}
-        </ul>
-      </nav>
+    <div class="col-lg-6">
+
+        <div class="card rms h-100">
+
+            <div class="card-body d-flex align-items-center">
+
+                <div>
+
+                    <h6 class="fw-bold mb-2">
+
+                        <i class="bi bi-link-45deg me-1"></i>
+
+                        إلحاق المستفيد بكفالة
+
+                    </h6>
+
+                    <div class="text-muted small">
+
+                        يتم إلحاق مستفيد واحد بسند كفالة محدد.
+                        لا يمكن تغيير كافله أثناء سريان السند.
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
-    {% endif %}
-  </div>
+
 </div>
 
-<!-- سكربت تحديد الكل + تحديث العدّاد وتمرير IDs -->
-<script>
-(function(){
-  const checkAll = document.getElementById('checkAll');
-  const checks = Array.from(document.querySelectorAll('.row-check'));
-  const assignField = document.getElementById('selected_ids_assign');
-  const eduField = document.getElementById('selected_ids_edu');
-  const selWrap = document.getElementById('selectedCountWrap');
-  const selCount = document.getElementById('selectedCount');
 
-  function updateSelected(){
-    const selected = checks.filter(c => c.checked).map(c => c.value);
-    const ids = selected.join(',');
-    if(assignField) assignField.value = ids;
-    if(eduField) eduField.value = ids;
-    if(selWrap && selCount){
-      selCount.textContent = selected.length;
-      selWrap.classList.toggle('d-none', selected.length === 0);
+<!-- =========================================================
+     جدول المستفيدين
+========================================================= -->
+
+<div class="card rms">
+
+    <div class="card-body p-0">
+
+        <div class="table-responsive">
+
+            <table class="table table-hover rms-table m-0">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="width:36px">
+
+                            <input
+                                type="checkbox"
+                                id="checkAll"
+                                title="تحديد الكل"
+                            >
+
+                        </th>
+
+                        <th style="width:70px">
+                            #
+                        </th>
+
+                        <th>
+                            الاسم الكامل
+                        </th>
+
+                        <th>
+                            الجنس
+                        </th>
+
+                        <th>
+                            العمر
+                        </th>
+
+                        <th>
+                            المرحلة الدراسية
+                        </th>
+
+                        <th>
+                            الهوية
+                        </th>
+
+                        <th>
+                            الكافل
+                        </th>
+
+                        <th
+                            style="width:260px"
+                            class="text-center"
+                        >
+                            الإجراءات
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for b in page_obj.object_list %}
+
+                    <tr
+                        {% if b.age_years is not None and b.age_years >= 18 %}
+                            class="table-danger"
+                        {% endif %}
+                    >
+
+
+                        <!-- checkbox -->
+
+                        <td>
+
+                            <input
+                                type="checkbox"
+                                class="row-check"
+                                value="{{ b.id }}"
+                                title="تحديد هذا المستفيد"
+                            >
+
+                        </td>
+
+
+                        <!-- ID -->
+
+                        <td class="text-muted">
+
+                            {{ b.id }}
+
+                        </td>
+
+
+                        <!-- الاسم -->
+
+                        <td>
+
+                            <div class="fw-semibold">
+
+                                {{ b.first_name }}
+
+                                {% if b.father_name %}
+                                    {{ b.father_name }}
+                                {% endif %}
+
+                                {% if b.grand_name %}
+                                    {{ b.grand_name }}
+                                {% endif %}
+
+                                {{ b.last_name }}
+
+                            </div>
+
+                        </td>
+
+
+                        <!-- الجنس -->
+
+                        <td>
+
+                            {{ b.get_gender_display }}
+
+                        </td>
+
+
+                        <!-- العمر -->
+
+                        <td>
+
+                            {% if b.age_years is not None %}
+
+                                <span
+                                    class="badge bg-light text-dark toolbar-badge"
+                                >
+                                    {{ b.age_years }}
+                                </span>
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- المرحلة -->
+
+                        <td>
+
+                            {% if b.education_level %}
+
+                                {{ b.get_education_level_display }}
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    —
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- الهوية -->
+
+                        <td>
+
+                            {{ b.national_number|default:"—" }}
+
+                        </td>
+
+
+                        <!-- الكافل الحالي -->
+
+                        <td>
+
+                            {% if b.donor %}
+
+                                <span class="fw-semibold">
+
+                                    {{ b.donor.user.get_full_name|default:b.donor.user.username }}
+
+                                </span>
+
+                            {% else %}
+
+                                <span class="text-muted">
+                                    غير مكفول
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+
+                        <!-- الإجراءات -->
+
+                        <td class="text-center">
+
+                            <div class="d-inline-flex align-items-center gap-1">
+
+
+                                <!-- تعديل -->
+
+                                <a
+                                    class="btn btn-sm btn-outline-secondary btn-rms"
+                                    href="{% url 'Management:beneficiary_update' b.id %}"
+                                    title="تعديل"
+                                >
+
+                                    <i class="bi bi-pencil"></i>
+
+                                </a>
+
+
+                                <!-- التفاصيل -->
+
+                                <a
+                                    class="btn btn-sm btn-soft btn-rms"
+                                    href="{% url 'Management:beneficiary_detail' b.id %}"
+                                    target="_blank"
+                                    title="عرض التفاصيل"
+                                >
+
+                                    <i class="bi bi-eye"></i>
+
+                                </a>
+
+
+                                <!-- =====================================================
+                                     زر إلحاق بسند
+                                ====================================================== -->
+
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-outline-primary btn-rms btn-sponsorship"
+                                    title="إلحاق بسند كفالة"
+                                    data-beneficiary-id="{{ b.id }}"
+                                    data-beneficiary-name="{{ b.first_name }}{% if b.father_name %} {{ b.father_name }}{% endif %}{% if b.grand_name %} {{ b.grand_name }}{% endif %} {{ b.last_name }}"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#sponsorshipModal"
+                                >
+
+                                    <i class="bi bi-link-45deg"></i>
+
+                                </button>
+
+
+                                <!-- حذف -->
+
+                                <form
+                                    method="post"
+                                    action="{% url 'Management:beneficiary_delete' b.id %}"
+                                    style="display:inline"
+                                    onsubmit="return confirm('حذف هذا المستفيد؟');"
+                                >
+
+                                    {% csrf_token %}
+
+                                    <button
+                                        type="submit"
+                                        class="btn btn-sm btn-outline-danger btn-rms"
+                                        title="حذف"
+                                    >
+
+                                        <i class="bi bi-trash"></i>
+
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+
+                    {% empty %}
+
+                    <tr>
+
+                        <td colspan="9">
+
+                            <div class="rms-empty">
+
+                                <span class="emoji">
+                                    🗂️
+                                </span>
+
+                                لا توجد نتائج.
+
+                            </div>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <!-- =====================================================
+             Pagination
+        ====================================================== -->
+
+        {% if page_obj.paginator.num_pages > 1 %}
+
+        <div class="p-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+
+
+            <small class="text-muted">
+
+                عرض
+                {{ page_obj.start_index }}
+                –
+                {{ page_obj.end_index }}
+
+                من
+
+                {{ page_obj.paginator.count }}
+
+            </small>
+
+
+            <nav>
+
+                <ul class="pagination pagination-sm m-0">
+
+
+                    {% if page_obj.has_previous %}
+
+                    <li class="page-item">
+
+                        <a
+                            class="page-link"
+                            href="?page=1{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}"
+                        >
+                            الأولى
+                        </a>
+
+                    </li>
+
+
+                    <li class="page-item">
+
+                        <a
+                            class="page-link"
+                            href="?page={{ page_obj.previous_page_number }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}"
+                        >
+                            السابق
+                        </a>
+
+                    </li>
+
+                    {% else %}
+
+                    <li class="page-item disabled">
+                        <span class="page-link">الأولى</span>
+                    </li>
+
+                    <li class="page-item disabled">
+                        <span class="page-link">السابق</span>
+                    </li>
+
+                    {% endif %}
+
+
+                    <li class="page-item disabled">
+
+                        <span class="page-link">
+
+                            {{ page_obj.number }}
+                            /
+                            {{ page_obj.paginator.num_pages }}
+
+                        </span>
+
+                    </li>
+
+
+                    {% if page_obj.has_next %}
+
+                    <li class="page-item">
+
+                        <a
+                            class="page-link"
+                            href="?page={{ page_obj.next_page_number }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}"
+                        >
+                            التالي
+                        </a>
+
+                    </li>
+
+
+                    <li class="page-item">
+
+                        <a
+                            class="page-link"
+                            href="?page={{ page_obj.paginator.num_pages }}{% if form.q.value %}&q={{ form.q.value }}{% endif %}{% if form.gender.value %}&gender={{ form.gender.value }}{% endif %}{% if form.donor.value %}&donor={{ form.donor.value }}{% endif %}{% if form.education_level.value %}&education_level={{ form.education_level.value }}{% endif %}"
+                        >
+                            الأخيرة
+                        </a>
+
+                    </li>
+
+                    {% else %}
+
+                    <li class="page-item disabled">
+                        <span class="page-link">التالي</span>
+                    </li>
+
+                    <li class="page-item disabled">
+                        <span class="page-link">الأخيرة</span>
+                    </li>
+
+                    {% endif %}
+
+                </ul>
+
+            </nav>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     نافذة إلحاق مستفيد بسند كفالة
+========================================================= -->
+
+<div
+    class="modal fade"
+    id="sponsorshipModal"
+    tabindex="-1"
+    aria-labelledby="sponsorshipModalLabel"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow">
+
+
+            <div class="modal-header">
+
+                <div class="d-flex align-items-center gap-3">
+
+                    <div class="sponsorship-modal-icon">
+
+                        <i class="bi bi-link-45deg"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h5
+                            class="modal-title fw-bold"
+                            id="sponsorshipModalLabel"
+                        >
+                            إلحاق مستفيد بسند كفالة
+                        </h5>
+
+                        <div class="text-muted small">
+                            اختر سندًا ماليًا متاحًا للمستفيد.
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="إغلاق"
+                ></button>
+
+            </div>
+
+
+            <form
+                method="post"
+                action="{% url 'Management:beneficiaries_bulk_assign' %}"
+                id="sponsorshipAssignForm"
+            >
+
+                {% csrf_token %}
+
+
+                <div class="modal-body">
+
+
+                    <!-- المستفيد -->
+
+                    <div class="selected-beneficiary-box mb-3">
+
+                        <div class="text-muted small mb-1">
+                            المستفيد المحدد
+                        </div>
+
+                        <div
+                            class="selected-beneficiary-name"
+                            id="selectedBeneficiaryName"
+                        >
+                            —
+                        </div>
+
+                    </div>
+
+
+                    <!-- ID المستفيد -->
+
+                    <input
+                        type="hidden"
+                        name="selected_ids"
+                        id="selected_ids_assign"
+                    >
+
+
+                    <!-- السند -->
+
+                    <div class="mb-3">
+
+                        <label
+                            class="form-label fw-semibold"
+                            for="{{ bulk_form.sponsorship_invoice.id_for_label }}"
+                        >
+                            سند الكفالة
+                        </label>
+
+
+                        {{ bulk_form.sponsorship_invoice }}
+
+
+                        <div class="sponsorship-help">
+
+                            تظهر هنا السندات المتاحة فقط حسب قواعد النظام.
+
+                            السند الواحد لا يمكن ربطه بأكثر من مستفيد.
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- تفاصيل السند -->
+
+                    <div
+                        id="sponsorshipInfo"
+                        class="sponsorship-info"
+                    >
+
+                        <div class="row g-2">
+
+
+                            <div class="col-6">
+
+                                <div class="sponsorship-info-item">
+
+                                    <span class="sponsorship-info-label">
+                                        الكافل
+                                    </span>
+
+                                    <span
+                                        class="sponsorship-info-value"
+                                        id="infoSponsor"
+                                    >
+                                        —
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-6">
+
+                                <div class="sponsorship-info-item">
+
+                                    <span class="sponsorship-info-label">
+                                        مبلغ الكفالة
+                                    </span>
+
+                                    <span
+                                        class="sponsorship-info-value"
+                                        id="infoAmount"
+                                    >
+                                        —
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-6">
+
+                                <div class="sponsorship-info-item">
+
+                                    <span class="sponsorship-info-label">
+                                        بداية الكفالة
+                                    </span>
+
+                                    <span
+                                        class="sponsorship-info-value"
+                                        id="infoStart"
+                                    >
+                                        —
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-6">
+
+                                <div class="sponsorship-info-item">
+
+                                    <span class="sponsorship-info-label">
+                                        نهاية الكفالة
+                                    </span>
+
+                                    <span
+                                        class="sponsorship-info-value"
+                                        id="infoEnd"
+                                    >
+                                        —
+                                    </span>
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- تحذير -->
+
+                    <div class="sponsorship-warning mt-3">
+
+                        <i class="bi bi-info-circle me-1"></i>
+
+                        بعد الإلحاق يصبح المستفيد مرتبطًا بهذا السند طوال
+                        فترة الكفالة، ولا يمكن نقله إلى سند آخر أثناء سريانها.
+
+                    </div>
+
+                </div>
+
+
+                <div class="modal-footer">
+
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-rms"
+                        data-bs-dismiss="modal"
+                    >
+                        إلغاء
+                    </button>
+
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary btn-rms"
+                        id="confirmSponsorshipBtn"
+                        disabled
+                    >
+
+                        <i class="bi bi-check2-circle me-1"></i>
+
+                        تأكيد الإلحاق
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =========================================================
+     JavaScript
+========================================================= -->
+<script>
+
+(function () {
+
+    "use strict";
+
+
+    /* =========================================================
+       تحديد الكل + العدّاد
+    ========================================================= */
+
+    const checkAll = document.getElementById("checkAll");
+
+    const checks = Array.from(
+        document.querySelectorAll(".row-check")
+    );
+
+    const eduField = document.getElementById(
+        "selected_ids_edu"
+    );
+
+    const selWrap = document.getElementById(
+        "selectedCountWrap"
+    );
+
+    const selCount = document.getElementById(
+        "selectedCount"
+    );
+
+
+    function updateSelected() {
+
+        const selected = checks
+            .filter(c => c.checked)
+            .map(c => c.value);
+
+
+        const ids = selected.join(",");
+
+
+        if (eduField) {
+            eduField.value = ids;
+        }
+
+
+        if (selWrap && selCount) {
+
+            selCount.textContent = selected.length;
+
+            selWrap.classList.toggle(
+                "d-none",
+                selected.length === 0
+            );
+
+        }
+
     }
-  }
-  if(checkAll){
-    checkAll.addEventListener('change', ()=>{
-      checks.forEach(c => c.checked = checkAll.checked);
-      updateSelected();
-    });
-  }
-  checks.forEach(c => c.addEventListener('change', updateSelected));
+
+
+    if (checkAll) {
+
+        checkAll.addEventListener(
+            "change",
+            function () {
+
+                checks.forEach(
+                    c => c.checked = checkAll.checked
+                );
+
+                updateSelected();
+
+            }
+        );
+
+    }
+
+
+    checks.forEach(
+        c => c.addEventListener(
+            "change",
+            updateSelected
+        )
+    );
+
+
+    /* =========================================================
+       نافذة إلحاق السند
+    ========================================================= */
+
+    const sponsorshipModal =
+        document.getElementById("sponsorshipModal");
+
+
+    const selectedBeneficiaryName =
+        document.getElementById(
+            "selectedBeneficiaryName"
+        );
+
+
+    const selectedIdsAssign =
+        document.getElementById(
+            "selected_ids_assign"
+        );
+
+
+    const sponsorshipSelect =
+        document.getElementById(
+            "{{ bulk_form.sponsorship_invoice.id_for_label }}"
+        );
+
+
+    const confirmButton =
+        document.getElementById(
+            "confirmSponsorshipBtn"
+        );
+
+
+    const sponsorshipInfo =
+        document.getElementById(
+            "sponsorshipInfo"
+        );
+
+
+    const infoSponsor =
+        document.getElementById(
+            "infoSponsor"
+        );
+
+
+    const infoAmount =
+        document.getElementById(
+            "infoAmount"
+        );
+
+
+    const infoStart =
+        document.getElementById(
+            "infoStart"
+        );
+
+
+    const infoEnd =
+        document.getElementById(
+            "infoEnd"
+        );
+
+
+    /* =========================================================
+       عند الضغط على زر الإلحاق
+    ========================================================= */
+
+    document
+        .querySelectorAll(".btn-sponsorship")
+        .forEach(function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const beneficiaryId =
+                        this.dataset.beneficiaryId;
+
+
+                    const beneficiaryName =
+                        this.dataset.beneficiaryName;
+
+
+                    if (selectedIdsAssign) {
+
+                        selectedIdsAssign.value =
+                            beneficiaryId;
+
+                    }
+
+
+                    if (selectedBeneficiaryName) {
+
+                        selectedBeneficiaryName.textContent =
+                            beneficiaryName;
+
+                    }
+
+
+                    if (sponsorshipSelect) {
+
+                        sponsorshipSelect.value = "";
+
+                    }
+
+
+                    resetSponsorshipInfo();
+
+                }
+            );
+
+        });
+
+
+    /* =========================================================
+       تغيير السند
+    ========================================================= */
+
+    if (sponsorshipSelect) {
+
+        sponsorshipSelect.addEventListener(
+            "change",
+            function () {
+
+                const option =
+                    this.options[this.selectedIndex];
+
+
+                if (
+                    !this.value ||
+                    !option ||
+                    !option.value
+                ) {
+
+                    resetSponsorshipInfo();
+
+                    return;
+
+                }
+
+
+                /*
+                 * نتوقع أن تكون بيانات السند موجودة
+                 * في data attributes الخاصة بالـ option.
+                 */
+
+                const sponsor =
+                    option.dataset.sponsor || "—";
+
+                const amount =
+                    option.dataset.amount || "—";
+
+                const start =
+                    option.dataset.start || "—";
+
+                const end =
+                    option.dataset.end || "—";
+
+
+                if (infoSponsor) {
+                    infoSponsor.textContent =
+                        sponsor;
+                }
+
+
+                if (infoAmount) {
+                    infoAmount.textContent =
+                        amount;
+                }
+
+
+                if (infoStart) {
+                    infoStart.textContent =
+                        start;
+                }
+
+
+                if (infoEnd) {
+                    infoEnd.textContent =
+                        end;
+                }
+
+
+                if (sponsorshipInfo) {
+                    sponsorshipInfo.style.display =
+                        "block";
+                }
+
+
+                if (confirmButton) {
+                    confirmButton.disabled = false;
+                }
+
+            }
+        );
+
+    }
+
+
+    /* =========================================================
+       إعادة ضبط معلومات السند
+    ========================================================= */
+
+    function resetSponsorshipInfo() {
+
+        if (infoSponsor) {
+            infoSponsor.textContent = "—";
+        }
+
+        if (infoAmount) {
+            infoAmount.textContent = "—";
+        }
+
+        if (infoStart) {
+            infoStart.textContent = "—";
+        }
+
+        if (infoEnd) {
+            infoEnd.textContent = "—";
+        }
+
+        if (sponsorshipInfo) {
+            sponsorshipInfo.style.display = "none";
+        }
+
+        if (confirmButton) {
+            confirmButton.disabled = true;
+        }
+
+    }
+
+
+    /* =========================================================
+       منع إرسال الفورم بدون مستفيد أو سند
+    ========================================================= */
+
+    const sponsorshipAssignForm =
+        document.getElementById(
+            "sponsorshipAssignForm"
+        );
+
+
+    if (sponsorshipAssignForm) {
+
+        sponsorshipAssignForm.addEventListener(
+            "submit",
+            function (event) {
+
+                if (
+                    !selectedIdsAssign ||
+                    !selectedIdsAssign.value
+                ) {
+
+                    event.preventDefault();
+
+                    alert(
+                        "لم يتم تحديد المستفيد."
+                    );
+
+                    return;
+
+                }
+
+
+                if (
+                    !sponsorshipSelect ||
+                    !sponsorshipSelect.value
+                ) {
+
+                    event.preventDefault();
+
+                    alert(
+                        "يرجى اختيار سند الكفالة."
+                    );
+
+                    return;
+
+                }
+
+            }
+        );
+
+    }
+
+
 })();
+
 </script>
 
 {% endblock %}

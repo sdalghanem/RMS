@@ -1,0 +1,1000 @@
+{% extends "Management/base.html" %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-4" dir="rtl">
+
+    <!-- =========================================
+         رأس الصفحة
+    ========================================== -->
+
+    <div class="d-flex justify-content-between align-items-start mb-4">
+
+        <div>
+
+            <div class="text-muted small mb-2">
+
+                <a href="{% url 'Accounting:sponsors_list' %}"
+                   class="text-muted text-decoration-none">
+
+                    الكفلاء
+
+                </a>
+
+                <span class="mx-2">/</span>
+
+                ملف الكافل
+
+            </div>
+
+
+            <h2 class="fw-bold mb-1">
+                ملف الكافل
+            </h2>
+
+
+            <p class="text-muted mb-0">
+                بيانات الكافل والمستفيدون المكفولون
+            </p>
+
+        </div>
+
+
+        <!-- =====================================
+             أزرار الإجراءات
+        ====================================== -->
+
+        <div class="d-flex gap-2">
+
+            <!-- استعلام الكفالات -->
+
+            <a href="{% url 'Accounting:sponsorship_inquiry' %}?q={{ sponsor.phone }}"
+               class="btn btn-primary">
+
+                <i class="bi bi-search ms-1"></i>
+
+                استعلام الكفالات
+
+            </a>
+
+
+            <!-- العودة -->
+
+            <a href="{% url 'Accounting:sponsors_list' %}"
+               class="btn btn-outline-secondary">
+
+                <i class="bi bi-arrow-right ms-1"></i>
+
+                العودة للكفلاء
+
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================================
+         بيانات الكافل
+    ========================================== -->
+
+    <div class="card border-0 shadow-sm sponsor-profile-card mb-4">
+
+        <div class="card-body p-4">
+
+            <div class="row align-items-center">
+
+                <!-- هوية الكافل -->
+
+                <div class="col-lg-5">
+
+                    <div class="d-flex align-items-center gap-3">
+
+                        <div class="sponsor-avatar">
+
+                            {{ sponsor.user.first_name|first }}
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="text-muted small mb-1">
+                                الكافل
+                            </div>
+
+
+                            <h4 class="fw-bold mb-2">
+
+                                {{ sponsor.user.first_name }}
+
+                                {% if sponsor.father_name %}
+                                    {{ sponsor.father_name }}
+                                {% endif %}
+
+                                {% if sponsor.grandpa_name %}
+                                    {{ sponsor.grandpa_name }}
+                                {% endif %}
+
+                                {{ sponsor.user.last_name }}
+
+                            </h4>
+
+
+                            <span class="sponsor-badge">
+
+                                <i class="bi bi-check-circle-fill ms-1"></i>
+
+                                كافل
+
+                            </span>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- الجوال -->
+
+                <div class="col-lg-2 mt-4 mt-lg-0">
+
+                    <div class="detail-item">
+
+                        <div class="detail-icon">
+
+                            <i class="bi bi-phone"></i>
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="text-muted small">
+                                رقم الجوال
+                            </div>
+
+
+                            <div class="fw-semibold"
+                                 dir="ltr">
+
+                                {{ sponsor.phone }}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- الهوية -->
+
+                <div class="col-lg-2 mt-4 mt-lg-0">
+
+                    <div class="detail-item">
+
+                        <div class="detail-icon">
+
+                            <i class="bi bi-person-vcard"></i>
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="text-muted small">
+                                رقم الهوية
+                            </div>
+
+
+                            <div class="fw-semibold"
+                                 dir="ltr">
+
+                                {{ sponsor.national_number }}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- البريد -->
+
+                <div class="col-lg-3 mt-4 mt-lg-0">
+
+                    <div class="detail-item">
+
+                        <div class="detail-icon">
+
+                            <i class="bi bi-envelope"></i>
+
+                        </div>
+
+
+                        <div>
+
+                            <div class="text-muted small">
+                                البريد الإلكتروني
+                            </div>
+
+
+                            <div class="fw-semibold text-break"
+                                 dir="ltr">
+
+                                {{ sponsor.user.email }}
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================================
+         إحصائيات الكفالات
+    ========================================== -->
+
+    <div class="row g-3 mb-4">
+
+
+        <!-- إجمالي المكفولين -->
+
+        <div class="col-md-4">
+
+            <div class="stat-card">
+
+                <div class="stat-icon green">
+
+                    <i class="bi bi-people"></i>
+
+                </div>
+
+
+                <div>
+
+                    <div class="text-muted small">
+                        إجمالي المكفولين
+                    </div>
+
+
+                    <div class="stat-number">
+
+                        {{ results|length }}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- الكفالات السارية -->
+
+        <div class="col-md-4">
+
+            <div class="stat-card">
+
+                <div class="stat-icon blue">
+
+                    <i class="bi bi-shield-check"></i>
+
+                </div>
+
+
+                <div>
+
+                    <div class="text-muted small">
+                        الكفالات السارية
+                    </div>
+
+
+                    <div class="stat-number">
+
+                        {{ active_count }}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- الكفالات المنتهية -->
+
+        <div class="col-md-4">
+
+            <div class="stat-card">
+
+                <div class="stat-icon gray">
+
+                    <i class="bi bi-clock-history"></i>
+
+                </div>
+
+
+                <div>
+
+                    <div class="text-muted small">
+                        الكفالات المنتهية
+                    </div>
+
+
+                    <div class="stat-number">
+
+                        {{ expired_count }}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- =========================================
+         المستفيدون المكفولون
+    ========================================== -->
+
+    <div class="card border-0 shadow-sm">
+
+
+        <!-- عنوان القسم -->
+
+        <div class="card-header bg-white border-0 p-4">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+
+                    <h5 class="fw-bold mb-1">
+
+                        المستفيدون المكفولون
+
+                    </h5>
+
+
+                    <div class="text-muted small">
+
+                        جميع المستفيدين المرتبطين بهذا الكافل
+
+                    </div>
+
+                </div>
+
+
+                <span class="results-count">
+
+                    {{ results|length }}
+
+                    مستفيد
+
+                </span>
+
+            </div>
+
+        </div>
+
+
+        {% if results %}
+
+
+            <!-- =================================
+                 الجدول
+            ================================== -->
+
+            <div class="table-responsive">
+
+                <table class="table align-middle mb-0">
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                #
+                            </th>
+
+
+                            <th>
+                                المستفيد
+                            </th>
+
+
+                            <th>
+                                رقم سند الكفالة
+                            </th>
+
+
+                            <th>
+                                تاريخ البداية
+                            </th>
+
+
+                            <th>
+                                تاريخ النهاية
+                            </th>
+
+
+                            <th>
+                                المدة
+                            </th>
+
+
+                            <th>
+                                الحالة
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for row in results %}
+
+                        <tr>
+
+
+                            <td class="text-muted">
+
+                                {{ forloop.counter }}
+
+                            </td>
+
+
+                            <td>
+
+                                <div class="fw-semibold">
+
+                                    {{ row.beneficiary.first_name }}
+
+                                    {{ row.beneficiary.father_name }}
+
+                                </div>
+
+                            </td>
+
+
+                            <td>
+
+                                {% if row.invoice %}
+
+                                    <a href="{% url 'Accounting:invoice_detail' row.invoice.pk %}"
+                                       class="text-decoration-none">
+
+                                        {{ row.invoice.number }}
+
+                                    </a>
+
+                                {% else %}
+
+                                    —
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if row.start_date %}
+
+                                    {{ row.start_date|date:"Y-m-d" }}
+
+                                {% else %}
+
+                                    —
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if row.end_date %}
+
+                                    {{ row.end_date|date:"Y-m-d" }}
+
+                                {% else %}
+
+                                    مستمرة
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if row.duration_months %}
+
+                                    {{ row.duration_months }}
+                                    شهر
+
+                                {% else %}
+
+                                    —
+
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+
+                                {% if row.status == "سارية" %}
+
+                                    <span class="status-badge active">
+
+                                        <i class="bi bi-check-circle-fill ms-1"></i>
+
+                                        سارية
+
+                                    </span>
+
+
+                                {% elif row.status == "منتهية" %}
+
+                                    <span class="status-badge expired">
+
+                                        <i class="bi bi-x-circle-fill ms-1"></i>
+
+                                        منتهية
+
+                                    </span>
+
+
+                                {% elif row.status == "لم تبدأ بعد" %}
+
+                                    <span class="status-badge pending">
+
+                                        <i class="bi bi-clock-fill ms-1"></i>
+
+                                        لم تبدأ بعد
+
+                                    </span>
+
+
+                                {% else %}
+
+                                    <span class="status-badge unknown">
+
+                                        غير محددة
+
+                                    </span>
+
+                                {% endif %}
+
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+
+        {% else %}
+
+
+            <!-- =================================
+                 لا توجد كفالات
+            ================================== -->
+
+            <div class="empty-state">
+
+                <div class="empty-icon">
+
+                    <i class="bi bi-people"></i>
+
+                </div>
+
+
+                <h5 class="fw-bold">
+
+                    لا توجد كفالات
+
+                </h5>
+
+
+                <p class="text-muted mb-3">
+
+                    لا توجد كفالات مسجلة لهذا الكافل حتى الآن.
+
+                </p>
+
+
+              
+            </div>
+
+
+        {% endif %}
+
+
+    </div>
+
+</div>
+
+
+<style>
+
+/* =========================================
+   بطاقة الكافل
+========================================= */
+
+.sponsor-profile-card {
+    border-radius: 16px;
+}
+
+
+/* =========================================
+   صورة / حرف الكافل
+========================================= */
+
+.sponsor-avatar {
+
+    width: 70px;
+    height: 70px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 18px;
+
+    background: #e9f7f4;
+
+    color: #009b84;
+
+    font-size: 28px;
+
+    font-weight: 700;
+
+}
+
+
+/* =========================================
+   حالة الكافل
+========================================= */
+
+.sponsor-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 5px 12px;
+
+    border-radius: 20px;
+
+    background: #e8f7ef;
+
+    color: #188653;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+}
+
+
+/* =========================================
+   تفاصيل الكافل
+========================================= */
+
+.detail-item {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 12px;
+
+}
+
+
+.detail-icon {
+
+    width: 42px;
+    height: 42px;
+
+    min-width: 42px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 11px;
+
+    background: #f4f7f8;
+
+    color: #009b84;
+
+}
+
+
+/* =========================================
+   الإحصائيات
+========================================= */
+
+.stat-card {
+
+    background: #fff;
+
+    border-radius: 14px;
+
+    padding: 20px;
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 15px;
+
+    box-shadow:
+        0 2px 10px rgba(0,0,0,.04);
+
+}
+
+
+.stat-icon {
+
+    width: 50px;
+    height: 50px;
+
+    min-width: 50px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 14px;
+
+    font-size: 22px;
+
+}
+
+
+.stat-icon.green {
+
+    background: #e9f7f4;
+
+    color: #009b84;
+
+}
+
+
+.stat-icon.blue {
+
+    background: #edf4ff;
+
+    color: #367bd6;
+
+}
+
+
+.stat-icon.gray {
+
+    background: #f2f4f5;
+
+    color: #6c757d;
+
+}
+
+
+.stat-number {
+
+    font-size: 25px;
+
+    font-weight: 700;
+
+    color: #16283d;
+
+}
+
+
+/* =========================================
+   عدد النتائج
+========================================= */
+
+.results-count {
+
+    padding: 7px 13px;
+
+    border-radius: 20px;
+
+    background: #eef8f6;
+
+    color: #008e7b;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+}
+
+
+/* =========================================
+   الجدول
+========================================= */
+
+.table thead th {
+
+    background: #f7faf9;
+
+    border-bottom: 1px solid #e5e9e8;
+
+    color: #34495e;
+
+    font-size: 13px;
+
+    padding: 15px;
+
+}
+
+
+.table tbody td {
+
+    padding: 16px 15px;
+
+    border-bottom: 1px solid #f0f2f2;
+
+}
+
+
+.table tbody tr:last-child td {
+
+    border-bottom: 0;
+
+}
+
+
+.table tbody tr:hover {
+
+    background: #fbfdfc;
+
+}
+
+
+/* =========================================
+   حالات الكفالة
+========================================= */
+
+.status-badge {
+
+    display: inline-flex;
+
+    align-items: center;
+
+    padding: 6px 11px;
+
+    border-radius: 20px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+
+}
+
+
+.status-badge.active {
+
+    background: #e8f7ef;
+
+    color: #16824f;
+
+}
+
+
+.status-badge.expired {
+
+    background: #fdecec;
+
+    color: #c83b3b;
+
+}
+
+
+.status-badge.pending {
+
+    background: #fff5dc;
+
+    color: #a66a00;
+
+}
+
+
+.status-badge.unknown {
+
+    background: #f0f1f2;
+
+    color: #6c757d;
+
+}
+
+
+/* =========================================
+   الحالة الفارغة
+========================================= */
+
+.empty-state {
+
+    text-align: center;
+
+    padding: 70px 20px;
+
+}
+
+
+.empty-icon {
+
+    width: 70px;
+    height: 70px;
+
+    margin: 0 auto 18px;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #f0f6f5;
+
+    color: #009b84;
+
+    font-size: 30px;
+
+}
+
+
+/* =========================================
+   الأزرار
+========================================= */
+
+.btn {
+
+    border-radius: 10px;
+
+}
+
+</style>
+
+{% endblock %}

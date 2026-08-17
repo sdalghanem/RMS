@@ -4,12 +4,29 @@ from . import views
 app_name = "Accounting"
 
 urlpatterns = [
+
+    path(
+    "disbursement/<int:pk>/reverse/",
+    views.reverse_subprogram_disbursement_view,
+    name="reverse_subprogram_disbursement",
+    ),
+    
     path(
     "cashier/",
     views.cashier_home,
     name="cashier_home",
     ) ,
 
+path(
+    "sponsors/create/",
+    views.sponsor_create_page,
+    name="sponsor_create_page",
+),
+path(
+    "sponsors/<int:pk>/",
+    views.sponsor_detail,
+    name="sponsor_detail",
+),
 
     path("invoices/", views.cashier_invoices_list, name="cashier_invoices_list"),
     path("invoices/create/general/", views.invoice_create_general, name="invoice_create_general"),
@@ -75,5 +92,45 @@ urlpatterns = [
     "reports/sponsorship/",
     views.sponsorship_reports,
     name="sponsorship_reports",
+),
+
+path(
+    "ajax/beneficiaries/search/",
+    views.ajax_beneficiary_search,
+    name="ajax_beneficiary_search",
+),
+
+
+
+
+
+path(
+    "fund-to-main/",
+    views.fund_to_main_allocate,
+    name="fund_to_main_allocate",
+),
+
+path(
+    "main-to-sub/",
+    views.main_to_sub_allocate,
+    name="main_to_sub_allocate",
+),
+
+path(
+    "release-main/",
+    views.release_main_program,
+    name="release_main_program",
+),
+
+path(
+    "release-sub/",
+    views.release_sub_program,
+    name="release_sub_program",
+),
+
+path(
+    "allocations/",
+    views.fund_reservations_dashboard,
+    name="fund_reservations_dashboard",
 ),
 ]

@@ -288,73 +288,154 @@ class BeneficiarySponsorHistory(models.Model):
 ########   البرامج 
 
 
+from decimal import Decimal
+from django.core.exceptions import ValidationError
+from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
 
 class MainProgram(models.Model):
     name = models.CharField(max_length=150, verbose_name="اسم البرنامج الأساسي")
     description = models.TextField(blank=True, null=True, verbose_name="الوصف")
+
     is_active = models.BooleanField(
-    default=True,
-    verbose_name="نشط"
+        default=True,
+        verbose_name="نشط",
     )
+
     total_donation_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, verbose_name="إجمالي مبلغ التبرع"
+        max_digits=12,
+        decimal_places=2,
+        verbose_name="إجمالي مبلغ التبرع",
     )
-    remaining_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, verbose_name="المبلغ المتبقي", default=0
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإنشاء",
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
 
     class Meta:
         verbose_name = "برنامج أساسي"
         verbose_name_plural = "البرامج الأساسية"
-        ordering = ['-created_at']
+        ordering = ["-created_at"]
 
     def clean(self):
-        # في الإنشاء الأول لا يوجد PK؛ لا تستخدم العلاقات هنا
         if not self.pk:
             return
 
-        # تحقق: مجموع المخصص للفروع لا يتجاوز سقف البرنامج
-        allocated_sum = self.sub_programs.aggregate(s=Sum("allocated_amount"))["s"] or 0
-        if allocated_sum > (self.total_donation_amount or 0):
-            raise ValidationError("مجموع المبالغ المخصصة للبرامج الفرعية يتجاوز سقف البرنامج الأساسي.")
+        allocated_sum = (
+            self.sub_programs.aggregate(
+                total=Coalesce(
+                    Sum("allocated_amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
+
+        if allocated_sum > self.total_donation_amount:
+            raise ValidationError(
+                "مجموع المبالغ المخصصة للبرامج الفرعية يتجاوز ميزانية البرنامج الرئيسي."
+            )
+
+    @property
+    def allocated_amount(self):
+        return (
+            self.sub_programs.aggregate(
+                total=Coalesce(
+                    Sum("allocated_amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
+
+    @property
+    def remaining_amount(self):
+        return self.total_donation_amount - self.allocated_amount
 
     def __str__(self):
         return self.name
 
 
-
 class SubProgram(models.Model):
     main_program = models.ForeignKey(
-        MainProgram, on_delete=models.CASCADE, related_name="sub_programs",
-        verbose_name="البرنامج الأساسي"
+        MainProgram,
+        on_delete=models.CASCADE,
+        related_name="sub_programs",
+        verbose_name="البرنامج الرئيسي",
     )
-    name = models.CharField(max_length=150, verbose_name="اسم البرنامج الفرعي")
-    description = models.TextField(blank=True, null=True, verbose_name="الوصف")
+
+    name = models.CharField(
+        max_length=150,
+        verbose_name="اسم البرنامج الفرعي",
+    )
+
+    description = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name="الوصف",
+    )
+
     allocated_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, verbose_name="المبلغ المخصص"
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        verbose_name="المبلغ المخصص",
     )
+
     spent_amount = models.DecimalField(
-        max_digits=12, decimal_places=2, verbose_name="المبلغ المصروف", default=0 , blank=True
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal("0.00"),
+        verbose_name="المبلغ المصروف",
     )
-    created_at = models.DateTimeField(auto_now_add=True, verbose_name="تاريخ الإنشاء")
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="تاريخ الإنشاء",
+    )
 
     class Meta:
         verbose_name = "برنامج فرعي"
         verbose_name_plural = "البرامج الفرعية"
-        ordering = ['-created_at']
-
-    def __str__(self):
-        return f"{self.name} ({self.main_program.name})"
+        ordering = ["-created_at"]
 
     def clean(self):
-        if (self.spent_amount or 0) > (self.allocated_amount or 0):
-            raise ValidationError("المبلغ المصروف لا يمكن أن يتجاوز المبلغ المخصص.")
-        
+        if self.allocated_amount < 0:
+            raise ValidationError(
+                "المبلغ المخصص لا يمكن أن يكون سالبًا."
+            )
+
+        if self.spent_amount < 0:
+            raise ValidationError(
+                "المبلغ المصروف لا يمكن أن يكون سالبًا."
+            )
+
+        if self.spent_amount > self.allocated_amount:
+            raise ValidationError(
+                "المبلغ المصروف لا يمكن أن يتجاوز المبلغ المخصص."
+            )
+
     @property
     def remaining_amount(self):
         return self.allocated_amount - self.spent_amount
+
+    @property
+    def utilization_percentage(self):
+        if self.allocated_amount <= 0:
+            return Decimal("0.00")
+
+        return (
+            self.spent_amount
+            / self.allocated_amount
+        ) * Decimal("100")
+
+    @property
+    def is_fully_spent(self):
+        return self.remaining_amount <= 0
+
+    def __str__(self):
+        return f"{self.main_program.name} / {self.name}"
+
 
 
 class PaymentPlan(models.Model):

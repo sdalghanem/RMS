@@ -1,231 +1,1154 @@
 {% load static %}
 <!doctype html>
 <html lang="ar" dir="rtl">
+
 <head>
-  <meta charset="utf-8">
-  <title>{% block title %}RMS{% endblock %}</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="utf-8">
 
-  <!-- Icons & Bootstrap -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css" rel="stylesheet">
+    <title>{% block title %}RMS{% endblock %}</title>
 
-  <!-- Base styling -->
-  <style>
-    :root{
-      --rms-primary:#0d6efd;
-      --rms-border:#e5e7eb;
-      --rms-bg:#f8fafc;
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap Icons -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+        rel="stylesheet"
+    >
+
+    <!-- Bootstrap -->
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.rtl.min.css"
+        rel="stylesheet"
+    >
+
+    <!-- RMS UI -->
+    <link
+        rel="stylesheet"
+        href="{% static 'css/rms-ui.css' %}"
+    >
+
+    <style>
+
+        :root {
+            --rms-primary: #008f72;
+            --rms-primary-dark: #00745d;
+            --rms-secondary: #0f172a;
+            --rms-muted: #64748b;
+            --rms-border: #e5e7eb;
+            --rms-bg: #f7f9fb;
+            --rms-white: #ffffff;
+        }
+
+        html,
+        body {
+            min-height: 100%;
+        }
+
+        body {
+            background: var(--rms-bg);
+            padding-top: 76px;
+            padding-bottom: 58px;
+            color: var(--rms-secondary);
+        }
+
+
+        /* =========================================================
+           NAVBAR
+        ========================================================= */
+
+        .rms-navbar {
+            height: 76px;
+            background: rgba(255,255,255,.97);
+            border-bottom: 1px solid var(--rms-border);
+            box-shadow: 0 3px 16px rgba(15,23,42,.05);
+            backdrop-filter: blur(8px);
+        }
+
+        .rms-navbar .container {
+            height: 100%;
+        }
+
+
+        /* =========================================================
+           BRAND
+        ========================================================= */
+
+        .rms-brand {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            text-decoration: none;
+            color: var(--rms-secondary);
+            min-width: 190px;
+        }
+
+        .rms-brand:hover {
+            color: var(--rms-secondary);
+        }
+
+        .rms-brand-logo {
+            width: 46px;
+            height: 46px;
+            object-fit: contain;
+            flex-shrink: 0;
+        }
+
+        .rms-brand-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+
+        .rms-brand-name {
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: .2px;
+        }
+
+        .rms-brand-subtitle {
+            font-size: 11px;
+            color: var(--rms-muted);
+            margin-top: 4px;
+        }
+
+
+        /* =========================================================
+           MAIN NAVIGATION
+        ========================================================= */
+
+        .rms-main-nav {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .rms-nav-link {
+            position: relative;
+
+            display: flex;
+            align-items: center;
+            gap: 6px;
+
+            min-height: 48px;
+
+            padding: 8px 13px;
+
+            color: #475569 !important;
+
+            font-size: 14px;
+            font-weight: 500;
+
+            text-decoration: none;
+
+            border-radius: 9px;
+
+            transition:
+                background .18s ease,
+                color .18s ease;
+        }
+
+        .rms-nav-link i {
+            font-size: 16px;
+        }
+
+        .rms-nav-link:hover {
+            background: #f1f8f6;
+            color: var(--rms-primary) !important;
+        }
+
+        .rms-nav-link.active {
+            color: var(--rms-primary) !important;
+            background: #eef9f6;
+            font-weight: 700;
+        }
+
+        .rms-nav-link.active::after {
+            content: "";
+
+            position: absolute;
+
+            right: 12px;
+            left: 12px;
+            bottom: -1px;
+
+            height: 2px;
+
+            background: var(--rms-primary);
+
+            border-radius: 5px;
+        }
+
+
+        /* =========================================================
+           DROPDOWNS
+        ========================================================= */
+
+        .rms-dropdown-toggle::after {
+            margin-right: 5px;
+            vertical-align: middle;
+        }
+
+        .rms-dropdown-menu {
+            min-width: 235px;
+
+            margin-top: 7px !important;
+
+            padding: 7px;
+
+            border: 1px solid var(--rms-border);
+            border-radius: 12px;
+
+            box-shadow:
+                0 12px 35px rgba(15,23,42,.10);
+
+            background: #fff;
+        }
+
+        .rms-dropdown-title {
+            padding: 7px 11px 6px;
+
+            color: #94a3b8;
+
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .rms-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
+            padding: 9px 11px;
+
+            border-radius: 8px;
+
+            color: #334155;
+
+            font-size: 13px;
+
+            transition:
+                background .15s ease,
+                color .15s ease;
+        }
+
+        .rms-dropdown-item i {
+            width: 18px;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        .rms-dropdown-item:hover {
+            background: #f0f8f6;
+            color: var(--rms-primary);
+        }
+
+        .rms-dropdown-item.active {
+            background: #eaf7f3;
+            color: var(--rms-primary);
+            font-weight: 700;
+        }
+
+
+        /* =========================================================
+           USER MENU
+        ========================================================= */
+
+        .rms-user {
+            margin-right: auto;
+        }
+
+        .rms-user-toggle {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+
+            padding: 7px 10px;
+
+            border-radius: 10px;
+
+            color: #334155;
+
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .rms-user-toggle:hover {
+            background: #f5f7f9;
+        }
+
+        .rms-user-avatar {
+            width: 34px;
+            height: 34px;
+
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            border-radius: 50%;
+
+            background: #eaf7f3;
+            color: var(--rms-primary);
+
+            font-size: 16px;
+        }
+
+        .rms-user-name {
+            max-width: 130px;
+
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+
+        /* =========================================================
+           MOBILE
+        ========================================================= */
+
+        .navbar-toggler {
+            border: 0;
+            box-shadow: none !important;
+        }
+
+        .navbar-toggler:focus {
+            box-shadow: none;
+        }
+
+        @media (max-width: 991.98px) {
+
+            body {
+                padding-top: 70px;
+            }
+
+            .rms-navbar {
+                height: auto;
+                min-height: 70px;
+            }
+
+            .rms-main-nav {
+                display: block;
+                padding: 10px 0;
+            }
+
+            .rms-nav-link {
+                width: 100%;
+                justify-content: flex-start;
+            }
+
+            .rms-nav-link.active::after {
+                display: none;
+            }
+
+            .rms-dropdown-menu {
+                width: 100%;
+                border: 0;
+                box-shadow: none;
+                background: #f8fafc;
+            }
+
+            .rms-user {
+                margin-right: 0;
+                padding-bottom: 10px;
+            }
+
+            .rms-brand {
+                min-width: auto;
+            }
+        }
+
+
+        /* =========================================================
+           FOOTER
+        ========================================================= */
+
+      /* =========================================================
+   FOOTER
+========================================================= */
+
+.rms-footer {
+    position: fixed;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1020;
+
+    background: rgba(255,255,255,.97);
+    border-top: 1px solid var(--rms-border);
+
+    box-shadow: 0 -3px 12px rgba(15,23,42,.03);
+}
+
+.rms-footer-text {
+    min-height: 46px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+
+    color: #94a3b8;
+
+    font-size: 11px;
+    text-align: center;
+}
+
+.rms-footer-text strong {
+    color: #64748b;
+    font-weight: 700;
+}
+
+.rms-footer-divider {
+    color: #cbd5e1;
+}
+
+@media (max-width: 576px) {
+
+    .rms-footer-text {
+        flex-direction: column;
+        gap: 3px;
+        padding: 7px 0;
+        line-height: 1.5;
     }
-    body { background:var(--rms-bg); padding-top: 70px; padding-bottom: 70px; }
-    .navbar { box-shadow: 0 6px 20px rgba(2,2,75,.06); }
-    .navbar-brand img { height: 36px; width:auto; }
-    .navbar-light .navbar-toggler-icon{ filter: grayscale(1) contrast(1.2); }
-    .navbar .nav-link { position: relative; padding-right:.75rem; padding-left:.75rem; }
-    .navbar .nav-link i{ margin-left:.35rem; }
-    .navbar .nav-link.active{ color: var(--rms-primary); font-weight:600; }
-    .navbar .nav-link::after{
-      content:""; position:absolute; right:.75rem; left:.75rem; bottom:-10px; height:2px;
-      background:transparent; transition:all .2s ease;
+
+    .rms-footer-divider {
+        display: none;
     }
-    .navbar .nav-link:hover::after,
-    .navbar .nav-link.active::after{ background: var(--rms-primary); }
-    footer { position: fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--rms-border); }
+}
 
-    /* رسائل النظام */
-    .alert:last-child{ margin-bottom:0; }
 
-    /* مساحة فتات الخبز (اختياري) */
-    .rms-breadcrumbs{ margin-bottom:.5rem; }
-  </style>
+        /* =========================================================
+           SYSTEM MESSAGES
+        ========================================================= */
 
-  <link rel="stylesheet" href="{% static 'css/rms-ui.css' %}">
-  {% block extra_head %}{% endblock %}
+        #rms-messages {
+            position: relative;
+            z-index: 1050;
+        }
+
+        .alert:last-child {
+            margin-bottom: 0;
+        }
+
+
+        /* =========================================================
+           CONTENT
+        ========================================================= */
+
+        main.rms-content {
+            min-height: calc(100vh - 134px);
+        }
+
+        .rms-breadcrumbs {
+            margin-bottom: .5rem;
+        }
+
+    </style>
+
+    {% block extra_head %}{% endblock %}
 </head>
+
 
 <body>
 
-<nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom fixed-top">
-  <div class="container">
 
-    <!-- الشعار -->
-    <a class="navbar-brand d-flex align-items-center gap-2" href="#">
-      <img src="{% static 'Management/images/widelogo.png' %}" alt="RMS">
-      <span class="fw-bold">RMS</span>
-    </a>
+<!-- =========================================================
+     NAVBAR
+========================================================= -->
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+<nav class="navbar navbar-expand-lg fixed-top rms-navbar">
 
-    <div class="collapse navbar-collapse" id="topNav">
+    <div class="container">
 
-      <!-- ======= القائمة اليسار ======= -->
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
 
-      {% if user.is_authenticated and user.profile %}
-        {% with role=user.profile.role %}
+        <!-- =========================
+             BRAND
+        ========================== -->
 
-          {# مدير النظام #}
-          {% if role == "system_admin" %}
-          <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
-       href="{% url 'Management:dashboard' %}">
-        <i class="bi bi-house-door ms-1"></i>
-        الرئيسية
+        <a
+            class="rms-brand"
+            href="{% if user.is_authenticated %}{% url 'Accounting:accountant_home' %}{% else %}{% url 'Management:login' %}{% endif %}"
+        >
+
+            <img
+                src="{% static 'Management/images/logo.svg' %}"
+                alt="جمعية الرياحين"
+                class="rms-brand-logo"
+            >
+
+            <div class="rms-brand-text">
+
+                <span class="rms-brand-name">
+                    KFALAT
+                </span>
+
+                <span class="rms-brand-subtitle">
+                    نظام إدارة الجمعية
+                </span>
+
+            </div>
+
+        </a>
+
+
+        <!-- =========================
+             MOBILE TOGGLER
+        ========================== -->
+
+        <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#topNav"
+            aria-controls="topNav"
+            aria-expanded="false"
+            aria-label="القائمة"
+        >
+            <i class="bi bi-list fs-3"></i>
+        </button>
+
+
+        <!-- =========================
+             NAVIGATION
+        ========================== -->
+
+        <div
+            class="collapse navbar-collapse"
+            id="topNav"
+        >
+
+            {% if user.is_authenticated and user.profile %}
+
+                {% with role=user.profile.role %}
+
+
+                <!-- =================================================
+                     SYSTEM ADMIN
+                ================================================== -->
+
+                {% if role == "system_admin" %}
+
+                <ul class="navbar-nav rms-main-nav me-auto mb-2 mb-lg-0">
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}"
+                            href="{% url 'Management:dashboard' %}"
+                        >
+                            <i class="bi bi-speedometer2"></i>
+                            الرئيسية
+                        </a>
+                    </li>
+
+
+                    <!-- <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'users_list' %}active{% endif %}"
+                            href="{% url 'Management:users_list' %}"
+                        >
+                            <i class="bi bi-people"></i>
+                            المستخدمون
+                        </a>
+                    </li> -->
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'beneficiaries_list' %}active{% endif %}"
+                            href="{% url 'Management:beneficiaries_list' %}"
+                        >
+                            <i class="bi bi-person-heart"></i>
+                            المستفيدون
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}"
+                            href="{% url 'Management:program_list' %}"
+                        >
+                            <i class="bi bi-diagram-3"></i>
+                            البرامج
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}"
+                            href="{% url 'Management:payment_plan_list' %}"
+                        >
+                            <i class="bi bi-wallet2"></i>
+                            الدفعات
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}"
+                            href="{% url 'Accounting:sponsors_list' %}"
+                        >
+                            <i class="bi bi-person-heart"></i>
+                            الكفلاء
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+    <a class="nav-link" href="{% url 'Management:sponsorships_list' %}">
+        <i class="bi bi-shield-check me-2"></i>
+        إدارة الكفالات
     </a>
 </li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'users_list' %}active{% endif %}" href="{% url 'Management:users_list' %}"><i class="bi bi-people"></i> حسابات المستخدمين</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'beneficiaries_list' %}active{% endif %}" href="{% url 'Management:beneficiaries_list' %}"><i class="bi bi-person-heart"></i> المستفيدين</a></li>          
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}" href="{% url 'Management:program_list' %}"><i class="bi bi-diagram-3"></i> البرامج</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}" href="{% url 'Management:payment_plan_list' %}"><i class="bi bi-wallet2"></i> إدارة الدفعات</a></li>
-                        <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}" href="{% url 'Accounting:sponsors_list' %}"><i class="bi bi-person-heart"></i> الكفلاء</a></li>
-<li class="nav-item">
-    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
-        <i class="bi bi-file-earmark-pdf"></i>
-        تقارير الكفالة
-    </a>
-</li>
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link"
+                            href="{% url 'Accounting:sponsorship_reports' %}"
+                        >
+                            <i class="bi bi-file-earmark-bar-graph"></i>
+                            التقارير
+                        </a>
+                    </li>
 
-          {# الكاشير #}
-          {% elif role == "cashier" %}
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}" href="{% url 'Accounting:cashier_home' %}"><i class="bi bi-receipt-cutoff"></i> الرئيسية</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}" href="{% url 'Accounting:cashier_invoices_list' %}"><i class="bi bi-receipt-cutoff"></i> الفواتير</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}" href="{% url 'Accounting:sponsors_list' %}"><i class="bi bi-person-heart"></i> الكفلاء</a></li>
-            <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'cashier_inquiries' %}active{% endif %}" href="{% url 'Accounting:sponsorship_inquiry' %}"><i class="bi bi-search"></i> الاستعلامات</a></li>
-             <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}" href="{% url 'Management:payment_plan_list' %}"><i class="bi bi-wallet2"></i> إدارة الدفعات</a></li>
-<li class="nav-item">
-    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
-        <i class="bi bi-file-earmark-pdf"></i>
-        تقارير الكفالة
-    </a>
-</li>
+                </ul>
 
-{# المحاسب #}
-{% elif role == "accountant" %}
-  <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'accountant_home' %}active{% endif %}"
-      href="{% url 'Accounting:accountant_home' %}">
-      <i class="bi bi-speedometer2"></i> لوحة المحاسب
-    </a>
-  </li>
 
-  <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'fund_to_main_allocate' %}active{% endif %}"
-       href="{% url 'Accounting:fund_to_main_allocate' %}">
-      <i class="bi bi-piggy-bank"></i> تخصيص الصندوق للبرامج
-    </a>
-  </li>
+                <!-- =================================================
+                     CASHIER
+                ================================================== -->
 
-  <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'main_to_sub_allocate' %}active{% endif %}"
-       href="{% url 'Accounting:main_to_sub_allocate' %}">
-      <i class="bi bi-arrow-left-right"></i> تحويل رئيسي → فرعي
-    </a>
-  </li>
+                {% elif role == "cashier" %}
 
-  <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'subprogram_disburse_create' %}active{% endif %}"
-       href="{% url 'Accounting:subprogram_disburse_create' %}">
-      <i class="bi bi-cash-stack"></i> أوامر الصرف
-    </a>
-  </li>
+                <ul class="navbar-nav rms-main-nav me-auto mb-2 mb-lg-0">
 
-  <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'ledger' %}active{% endif %}"
-       href="{% url 'Accounting:ledger' %}">
-      <i class="bi bi-journal-text"></i> سجل الحركات
-    </a>
-  </li>
 
-  <!-- <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'program_balances' %}active{% endif %}"
-       href="{% url 'Accounting:program_balances' %}">
-      <i class="bi bi-diagram-3"></i> أرصدة البرامج
-    </a>
-  </li> -->
-   <li class="nav-item">
-    <a class="nav-link {% if request.resolver_match.url_name == 'program_balances' %}active{% endif %}"
-       href="{% url 'Accounting:beneficiary_supports_report' %}">
-      <i class="bi bi-diagram-3"></i> دعم المستفيدين 
-    </a>
-  </li>
-<li class="nav-item">
-  <a class="nav-link {% if request.resolver_match.url_name == 'fund_reservations_dashboard' %}active{% endif %}"
-     href="{% url 'Accounting:fund_reservations_dashboard' %}">
-    <i class="bi bi-lock-fill"></i> إدارة الحجوزات
-  </a>
-</li>
-<li class="nav-item">
-    <a class="nav-link" href="{% url 'Accounting:sponsorship_reports' %}">
-        <i class="bi bi-file-earmark-pdf"></i>
-        تقارير الكفالة
-    </a>
-</li>
-            <!-- <li class="nav-item"><a class="nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}" href="{% url 'Management:program_list' %}"><i class="bi bi-diagram-3"></i> البرامج</a></li> -->
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'cashier_home' %}active{% endif %}"
+                            href="{% url 'Accounting:cashier_home' %}"
+                        >
+                            <i class="bi bi-speedometer2"></i>
+                            الرئيسية
+                        </a>
+                    </li>
 
-          {% endif %}
-        {% endwith %}
-      {% endif %}
 
-      </ul>
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}"
+                            href="{% url 'Accounting:cashier_invoices_list' %}"
+                        >
+                            <i class="bi bi-receipt"></i>
+                            الفواتير
+                        </a>
+                    </li>
 
-      <!-- ======= القائمة اليمين (المستخدم) ======= -->
-      <ul class="navbar-nav mb-2 mb-lg-0">
-        {% if user.is_authenticated %}
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle fw-semibold" href="#" role="button" data-bs-toggle="dropdown">
-              {{ user.get_full_name|default:user.username }}
-            </a>
-            <ul class="dropdown-menu">
-              <li><a class="dropdown-item" href="{% url 'Management:my_profile' %}"><i class="bi bi-person-circle"></i> الملف الشخصي</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item text-danger" href="{% url 'Management:logout' %}"><i class="bi bi-box-arrow-right"></i> تسجيل الخروج</a></li>
-            </ul>
-          </li>
-        {% else %}
-          <li class="nav-item"><a class="nav-link" href="{% url 'Management:login' %}">تسجيل الدخول</a></li>
-        {% endif %}
-      </ul>
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'sponsors_list' %}active{% endif %}"
+                            href="{% url 'Accounting:sponsors_list' %}"
+                        >
+                            <i class="bi bi-people"></i>
+                            الكفلاء
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'cashier_inquiries' %}active{% endif %}"
+                            href="{% url 'Accounting:sponsorship_inquiry' %}"
+                        >
+                            <i class="bi bi-search"></i>
+                            الاستعلامات
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}"
+                            href="{% url 'Management:payment_plan_list' %}"
+                        >
+                            <i class="bi bi-wallet2"></i>
+                            الدفعات
+                        </a>
+                    </li>
+
+
+                    <li class="nav-item">
+                        <a
+                            class="rms-nav-link"
+                            href="{% url 'Accounting:sponsorship_reports' %}"
+                        >
+                            <i class="bi bi-file-earmark-bar-graph"></i>
+                            التقارير
+                        </a>
+                    </li>
+
+                </ul>
+
+
+                <!-- =================================================
+                     ACCOUNTANT
+                ================================================== -->
+
+                {% elif role == "accountant" %}
+
+                <ul class="navbar-nav rms-main-nav me-auto mb-2 mb-lg-0">
+
+
+                    <!-- لوحة المحاسب -->
+
+                    <li class="nav-item">
+
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'accountant_home' %}active{% endif %}"
+                            href="{% url 'Accounting:accountant_home' %}"
+                        >
+
+                            <i class="bi bi-speedometer2"></i>
+
+                            لوحة المحاسب
+
+                        </a>
+
+                    </li>
+
+
+                    <!-- =================================================
+                         التخصيصات
+                    ================================================== -->
+
+                    <li class="nav-item dropdown">
+
+                        <a
+                            class="rms-nav-link rms-dropdown-toggle dropdown-toggle
+                            {% if request.resolver_match.url_name in 'fund_reservations_dashboard fund_to_main_allocate main_to_sub_allocate' %}
+                                active
+                            {% endif %}"
+                            href="#"
+                            role="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+
+                            <i class="bi bi-diagram-3"></i>
+
+                            التخصيصات
+
+                        </a>
+
+
+                        <ul class="dropdown-menu rms-dropdown-menu">
+
+
+                            <li class="rms-dropdown-title">
+                                إدارة وتوزيع الأرصدة
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'fund_reservations_dashboard' %}active{% endif %}"
+                                    href="{% url 'Accounting:fund_reservations_dashboard' %}"
+                                >
+
+                                    <i class="bi bi-grid-1x2"></i>
+
+                                    إدارة التخصيصات
+
+                                </a>
+
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'fund_to_main_allocate' %}active{% endif %}"
+                                    href="{% url 'Accounting:fund_to_main_allocate' %}"
+                                >
+
+                                    <i class="bi bi-bank"></i>
+
+                                    الصندوق ← البرنامج الرئيسي
+
+                                </a>
+
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'main_to_sub_allocate' %}active{% endif %}"
+                                    href="{% url 'Accounting:main_to_sub_allocate' %}"
+                                >
+
+                                    <i class="bi bi-arrow-left-right"></i>
+
+                                    الرئيسي ← البرنامج الفرعي
+
+                                </a>
+
+                            </li>
+
+                        </ul>
+
+                    </li>
+
+
+                    <!-- =================================================
+                         الصرف والحركات
+                    ================================================== -->
+
+                    <li class="nav-item dropdown">
+
+                        <a
+                            class="rms-nav-link rms-dropdown-toggle dropdown-toggle
+                            {% if request.resolver_match.url_name in 'subprogram_disburse_create ledger' %}
+                                active
+                            {% endif %}"
+                            href="#"
+                            role="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+
+                            <i class="bi bi-arrow-left-right"></i>
+
+                            الصرف والحركات
+
+                        </a>
+
+
+                        <ul class="dropdown-menu rms-dropdown-menu">
+
+
+                            <li class="rms-dropdown-title">
+                                العمليات المالية
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'subprogram_disburse_create' %}active{% endif %}"
+                                    href="{% url 'Accounting:subprogram_disburse_create' %}"
+                                >
+
+                                    <i class="bi bi-cash-stack"></i>
+
+                                    أوامر الصرف
+
+                                </a>
+
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'ledger' %}active{% endif %}"
+                                    href="{% url 'Accounting:ledger' %}"
+                                >
+
+                                    <i class="bi bi-journal-text"></i>
+
+                                    سجل الحركات
+
+                                </a>
+
+                            </li>
+
+                        </ul>
+
+                    </li>
+
+
+                    <!-- =================================================
+                         المستفيدون والتقارير
+                    ================================================== -->
+
+                    <li class="nav-item dropdown">
+
+                        <a
+                            class="rms-nav-link rms-dropdown-toggle dropdown-toggle
+                            {% if request.resolver_match.url_name == 'beneficiary_supports_report' or request.resolver_match.url_name == 'sponsorship_reports' %}
+                                active
+                            {% endif %}"
+                            href="#"
+                            role="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+
+                            <i class="bi bi-file-earmark-bar-graph"></i>
+
+                            التقارير
+
+                        </a>
+
+
+                        <ul class="dropdown-menu rms-dropdown-menu">
+
+
+                            <li class="rms-dropdown-title">
+                                التقارير والاستعلامات
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'beneficiary_supports_report' %}active{% endif %}"
+                                    href="{% url 'Accounting:beneficiary_supports_report' %}"
+                                >
+
+                                    <i class="bi bi-person-vcard"></i>
+
+                                    كشف حساب مستفيد
+
+                                </a>
+
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item
+                                    {% if request.resolver_match.url_name == 'sponsorship_reports' %}active{% endif %}"
+                                    href="{% url 'Accounting:sponsorship_reports' %}"
+                                >
+
+                                    <i class="bi bi-file-earmark-pdf"></i>
+
+                                    تقارير الكفالة
+
+                                </a>
+
+                            </li>
+
+                        </ul>
+
+                    </li>
+
+
+                </ul>
+
+                {% endif %}
+
+
+                <!-- =================================================
+                     USER
+                ================================================== -->
+
+                <ul class="navbar-nav rms-user mb-2 mb-lg-0">
+
+                    <li class="nav-item dropdown">
+
+                        <a
+                            class="nav-link dropdown-toggle rms-user-toggle"
+                            href="#"
+                            role="button"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                        >
+
+                            <span class="rms-user-avatar">
+                                <i class="bi bi-person"></i>
+                            </span>
+
+                            <span class="rms-user-name">
+
+                                {{ user.get_full_name|default:user.username }}
+
+                            </span>
+
+                        </a>
+
+
+                        <ul class="dropdown-menu dropdown-menu-start rms-dropdown-menu">
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item"
+                                    href="{% url 'Management:my_profile' %}"
+                                >
+
+                                    <i class="bi bi-person-circle"></i>
+
+                                    الملف الشخصي
+
+                                </a>
+
+                            </li>
+
+
+                            <li>
+                                <hr class="dropdown-divider">
+                            </li>
+
+
+                            <li>
+
+                                <a
+                                    class="dropdown-item rms-dropdown-item text-danger"
+                                    href="{% url 'Management:logout' %}"
+                                >
+
+                                    <i class="bi bi-box-arrow-right"></i>
+
+                                    تسجيل الخروج
+
+                                </a>
+
+                            </li>
+
+
+                        </ul>
+
+                    </li>
+
+                </ul>
+
+
+                {% endwith %}
+
+            {% endif %}
+
+
+        </div>
 
     </div>
-  </div>
+
 </nav>
 
-<!-- رسائل -->
+
+<!-- =========================================================
+     SYSTEM MESSAGES
+========================================================= -->
+
 <div class="container">
-{% if messages %}
-  <div id="rms-messages" class="mt-2">
-    {% for m in messages %}
-      <div class="alert alert-{{ m.tags }} d-flex justify-content-between" role="alert">
-        <div>{{ m }}</div>
-        <button class="btn-close" data-bs-dismiss="alert"></button>
-      </div>
-    {% endfor %}
-  </div>
-{% endif %}
+
+    {% if messages %}
+
+        <div id="rms-messages" class="mt-2">
+
+            {% for m in messages %}
+
+                <div
+                    class="alert alert-{{ m.tags }} d-flex justify-content-between align-items-center"
+                    role="alert"
+                >
+
+                    <div>
+                        {{ m }}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="alert"
+                        aria-label="إغلاق"
+                    ></button>
+
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+    {% endif %}
+
 </div>
 
-<main class="container py-3">
-  {% block breadcrumbs %}{% endblock %}
-  {% block content %}{% endblock %}
+
+<!-- =========================================================
+     MAIN CONTENT
+========================================================= -->
+
+<main class="container py-3 rms-content">
+
+    {% block breadcrumbs %}
+    {% endblock %}
+
+    {% block content %}
+    {% endblock %}
+
 </main>
 
-<footer class="py-2">
-  <div class="container text-center text-muted small">
-    جميع الحقوق محفوظة لـ جمعية الرياحين لرعاية الأيتام 2025
-  </div>
+
+<!-- =========================================================
+     FOOTER
+========================================================= -->
+
+<footer class="rms-footer">
+    <div class="container">
+        <div class="rms-footer-text">
+            <span>
+                جميع الحقوق محفوظة © جمعية الرياحين لرعاية الأيتام
+                {% now "Y" %}
+            </span>
+
+            <span class="rms-footer-divider">|</span>
+
+            <span>
+                برمجة وتطوير
+                <strong>سعد الغانم</strong>
+            </span>
+        </div>
+    </div>
 </footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script>
-setTimeout(function(){
-  document.querySelectorAll('#rms-messages .alert').forEach(el=>{
-    new bootstrap.Alert(el).close();
-  });
-},6000);
+
+<!-- =========================================================
+     BOOTSTRAP JS
+========================================================= -->
+
+<script
+    src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
 </script>
 
-{% block extra_js %}{% endblock %}
+
+<!-- =========================================================
+     AUTO CLOSE MESSAGES
+========================================================= -->
+
+<script>
+
+    setTimeout(function () {
+
+        document
+            .querySelectorAll('#rms-messages .alert')
+            .forEach(function (el) {
+
+                bootstrap.Alert.getOrCreateInstance(el).close();
+
+            });
+
+    }, 6000);
+
+</script>
+
+
+{% block extra_js %}
+
+{% endblock %}
+
+
 </body>
 </html>

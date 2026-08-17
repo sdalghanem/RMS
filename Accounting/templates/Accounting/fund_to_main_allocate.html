@@ -1,361 +1,1374 @@
 {% extends "Management/base.html" %}
+
 {% block title %}تخصيص الصندوق للبرنامج الرئيسي{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">تخصيص الصندوق للبرنامج الرئيسي</h5>
-    <small class="text-muted">إضافة مبلغ من الصندوق العام إلى برنامج رئيسي.</small>
-  </div>
+<div class="rms-pagebar mb-3">
+
+    <div>
+        <h5 class="m-0 fw-bold">
+            تخصيص الصندوق للبرنامج الرئيسي
+        </h5>
+
+        <small class="text-muted">
+            إضافة مبلغ من الصندوق العام إلى برنامج رئيسي.
+        </small>
+    </div>
+
 </div>
+
 
 <div class="row g-3">
-  <!-- نموذج التخصيص -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">بيانات التخصيص</h6>
 
-        <form method="post" id="alloc-form" class="row g-3">
-          {% csrf_token %}
+    <!-- =========================================================
+         نموذج التخصيص
+    ========================================================== -->
 
-          <div class="col-12">
-            <label class="form-label">البرنامج الرئيسي</label>
-            <select name="main_program" class="form-select" id="main-program-select" required>
-              <option value="">— اختر —</option>
-              {% for p in programs %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-text text-muted">سيتم إضافة الرصيد لهذا البرنامج.</div>
-          </div>
+    <div class="col-lg-6">
 
-          <div class="col-md-6">
-            <label class="form-label">مبلغ التخصيص</label>
-            <input type="number" step="0.01" min="0" name="amount" class="form-control" id="alloc-amount" placeholder="0.00" required>
-            <div id="alloc-error" class="form-text text-danger small d-none">خطأ في المبلغ</div>
-          </div>
+        <div class="card shadow-sm border-0 h-100">
 
-          <div class="col-md-6">
-            <label class="form-label">رصيد الصندوق بعد التخصيص (تقديري)</label>
-            <input type="text" class="form-control bg-light" id="fund-after" readonly value="—">
-          </div>
+            <div class="card-body">
 
-          <div class="col-12">
-            <label class="form-label">ملاحظات</label>
-            <textarea name="notes" class="form-control" rows="3" placeholder="مثال: دعم ميزانية التعليم / إضافة دفعة جديدة"></textarea>
-          </div>
+                <h6 class="fw-bold mb-3">
+                    بيانات التخصيص
+                </h6>
 
-          <div class="col-12 d-flex justify-content-end gap-2">
-            <a href="#" class="btn btn-light">رجوع</a>
-            <button type="button" id="alloc-submit" class="btn btn-primary" disabled>
-              <i class="bi bi-check2-circle"></i> حفظ التخصيص
-            </button>
-          </div>
-        </form>
+                <form
+                    method="post"
+                    id="alloc-form"
+                    class="row g-3"
+                >
 
-      </div>
-    </div>
-  </div>
+                    {% csrf_token %}
 
-  <!-- تفاصيل البرنامج المحدد -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">تفاصيل البرنامج الرئيسي</h6>
+                    <!-- البرنامج الرئيسي -->
 
-        <div id="program-details" class="text-muted small">
-          اختر برنامجًا من القائمة لعرض تفاصيله هنا.
-        </div>
+                    <div class="col-12">
 
-        <!-- نخزن بيانات البرامج في عناصر مخفية -->
-        <div class="d-none" id="program-data">
-          {% for p in program_data %}
-            <div class="prog"
-                 data-id="{{ p.id }}"
-                 data-name="{{ p.name }}"
-                 data-total="{{ p.total }}"
-                 data-allocated="{{ p.allocated }}"
-                 data-spent="{{ p.spent }}">
+                        <label class="form-label">
+                            البرنامج الرئيسي
+                        </label>
+
+                        <select
+                            name="main_program"
+                            class="form-select"
+                            id="main-program-select"
+                            required
+                        >
+
+                            <option value="">
+                                — اختر —
+                            </option>
+
+                            {% for p in programs %}
+
+                                <option value="{{ p.id }}">
+                                    {{ p.name }}
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                        <div class="form-text text-muted">
+                            سيتم إضافة الرصيد لهذا البرنامج.
+                        </div>
+
+                    </div>
+
+
+                    <!-- مبلغ التخصيص -->
+
+                    <div class="col-md-6">
+
+                        <label class="form-label">
+                            مبلغ التخصيص
+                        </label>
+
+                        <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            name="amount"
+                            class="form-control"
+                            id="alloc-amount"
+                            placeholder="0.00"
+                            required
+                        >
+
+                        <div
+                            id="alloc-error"
+                            class="form-text text-danger small d-none"
+                        >
+                            خطأ في المبلغ
+                        </div>
+
+                    </div>
+
+
+                    <!-- الرصيد بعد التخصيص -->
+
+                    <div class="col-md-6">
+
+                        <label class="form-label">
+                            رصيد الصندوق بعد التخصيص
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control bg-light"
+                            id="fund-after"
+                            readonly
+                            value="{{ available_for_allocation|floatformat:2 }} ر.س"
+                        >
+
+                    </div>
+
+
+                    <!-- الملاحظات -->
+
+                    <div class="col-12">
+
+                        <label class="form-label">
+                            ملاحظات
+                        </label>
+
+                        <textarea
+                            name="notes"
+                            class="form-control"
+                            rows="3"
+                            placeholder="مثال: دعم ميزانية التعليم / إضافة دفعة جديدة"
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- الأزرار -->
+
+                    <div class="col-12 d-flex justify-content-end gap-2">
+
+                        <a
+                            href="#"
+                            class="btn btn-light"
+                        >
+                            رجوع
+                        </a>
+
+                        <button
+                            type="button"
+                            id="alloc-submit"
+                            class="btn btn-primary"
+                            disabled
+                        >
+                            <i class="bi bi-check2-circle"></i>
+                            حفظ التخصيص
+                        </button>
+
+                    </div>
+
+                </form>
+
             </div>
-          {% endfor %}
+
         </div>
 
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- Modal تأكيد التخصيص -->
-<div class="modal fade" id="confirmAllocModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold">تأكيد تنفيذ التخصيص</h6>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body small">
-        <div class="row g-2">
-          <div class="col-4 text-muted">البرنامج</div>
-          <div class="col-8 fw-semibold" id="c-program">—</div>
 
-          <div class="col-4 text-muted">المبلغ</div>
-          <div class="col-8 fw-bold" id="c-amount">—</div>
+    <!-- =========================================================
+         تفاصيل البرنامج
+    ========================================================== -->
 
-          <div class="col-4 text-muted">رصيد الصندوق بعد التخصيص</div>
-          <div class="col-8 fw-semibold" id="c-after">—</div>
+    <div class="col-lg-6">
 
-          <div class="col-12 text-muted mt-2">ملاحظات</div>
-          <div class="col-12 fw-semibold" id="c-notes">—</div>
+        <div class="card shadow-sm border-0 h-100">
+
+            <div class="card-body">
+
+                <h6 class="fw-bold mb-3">
+                    تفاصيل البرنامج الرئيسي
+                </h6>
+
+                <div
+                    id="program-details"
+                    class="text-muted small"
+                >
+                    اختر برنامجًا من القائمة لعرض تفاصيله هنا.
+                </div>
+
+
+                <div
+                    class="d-none"
+                    id="program-data"
+                >
+
+                    {% for p in program_data %}
+
+                        <div
+                            class="prog"
+                            data-id="{{ p.id }}"
+                            data-name="{{ p.name }}"
+                            data-available="{{ p.available }}"
+                        ></div>
+
+                    {% endfor %}
+
+                </div>
+
+            </div>
+
         </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
-        <button id="c-confirm" class="btn btn-primary">تأكيد التنفيذ</button>
-      </div>
+
     </div>
-  </div>
+
 </div>
 
-<!-- Modal تفاصيل الحركة -->
-<div class="modal fade" id="moveModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold">تفاصيل الحركة</h6>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body small">
-        <div class="row g-2">
-          <div class="col-4 text-muted">التاريخ</div>
-          <div class="col-8 fw-semibold" id="mv-date">—</div>
 
-          <div class="col-4 text-muted">المبلغ</div>
-          <div class="col-8 fw-bold" id="mv-amount">—</div>
+<!-- =========================================================
+     سجل تخصيصات الصندوق
+========================================================== -->
 
-          <div class="col-4 text-muted">بواسطة</div>
-          <div class="col-8 fw-semibold" id="mv-user">—</div>
+<div class="row g-3 mt-1">
 
-          <div class="col-12 text-muted mt-2">الوصف</div>
-          <div class="col-12 fw-semibold" id="mv-desc">—</div>
+    <div class="col-12">
+
+        <div class="kpi-card p-3">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+
+                    <div class="fw-bold">
+
+                        <i class="bi bi-clock-history"></i>
+
+                        سجل تخصيصات الصندوق
+
+                    </div>
+
+                    <div class="text-muted small mt-1">
+
+                        آخر عمليات تخصيص الصندوق للبرامج الرئيسية.
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            {% if allocation_history %}
+
+                <div
+                    class="table-responsive mt-3"
+                    style="max-height:260px; overflow:auto;"
+                >
+
+                    <table class="table table-sm align-middle m-0">
+
+                        <thead class="table-light sticky-top">
+
+                            <tr>
+
+                                <th>
+                                    التاريخ
+                                </th>
+
+                                <th>
+                                    البرنامج الرئيسي
+                                </th>
+
+                                <th class="text-end">
+                                    المبلغ
+                                </th>
+
+                                <th>
+                                    بواسطة
+                                </th>
+
+                                <th>
+                                    ملاحظات
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for a in allocation_history %}
+
+                                <tr>
+
+                                    <td class="small">
+                                        {{ a.created_at|date:"Y-m-d H:i" }}
+                                    </td>
+
+                                    <td class="small fw-semibold">
+                                        {{ a.to_main_program.name|default:"—" }}
+                                    </td>
+
+                                    <td class="text-end fw-bold text-success">
+                                        {{ a.amount|floatformat:2 }}
+                                        ر.س
+                                    </td>
+
+                                    <td class="small text-muted">
+                                        {{ a.created_by.get_full_name|default:a.created_by.username|default:"—" }}
+                                    </td>
+
+                                    <td class="small text-muted">
+                                        {{ a.note|default:"—" }}
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="text-muted small text-center py-4">
+
+                    لا توجد تخصيصات مسجلة حتى الآن.
+
+                </div>
+
+            {% endif %}
+
+
+            <!-- زر فتح السجل الكامل -->
+
+            {% if allocation_history %}
+
+                <div class="text-center mt-3">
+
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#allocationHistoryModal"
+                    >
+
+                        <i class="bi bi-list-ul"></i>
+
+                        عرض سجل التخصيصات الكامل
+
+                    </button>
+
+                </div>
+
+            {% endif %}
+
         </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
-      </div>
+
     </div>
-  </div>
+
 </div>
 
-<!-- ========== آخر الحركات ========== -->
-<div class="row g-3 mb-3">
-  <div class="col-12">
-    <div class="kpi-card p-3 h-100">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="icon-wrap"><i class="bi bi-clock-history"></i> آخر حركات على الصندوق</div>
-      </div>
 
-      {% if last_fund_moves %}
-        <div class="table-responsive" style="max-height:190px; overflow:auto;">
-          <table class="table table-sm align-middle m-0">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th>التاريخ</th>
-                <th>الوصف</th>
-                <th class="text-end">المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for m in last_fund_moves %}
-              <tr class="move-row" role="button"
-                  data-date="{{ m.created_at|date:'Y-m-d H:i' }}"
-                  data-desc="{{ m.description|default:'—' }}"
-                  data-amount="{{ m.amount|floatformat:2 }}"
-                  data-user="{{ m.created_by.get_full_name|default:m.created_by.username|default:'—' }}">
-                <td class="small">{{ m.created_at|date:"Y-m-d" }}</td>
-                <td class="small text-muted">{{ m.description|default:"—" }}</td>
-                <td class="text-end small fw-bold {% if m.amount < 0 %}text-danger{% else %}text-success{% endif %}">
-                  {{ m.amount|floatformat:2 }}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+<!-- =========================================================
+     MODAL
+     سجل التخصيصات الكامل
+========================================================== -->
+
+<div
+    class="modal fade"
+    id="allocationHistoryModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow">
+
+            <!-- Header -->
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h5 class="modal-title fw-bold">
+
+                        <i class="bi bi-journal-text"></i>
+
+                        سجل تخصيصات الصندوق
+
+                    </h5>
+
+                    <small class="text-muted">
+
+                        جميع عمليات تخصيص الصندوق للبرامج الرئيسية.
+
+                    </small>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="إغلاق"
+                ></button>
+
+            </div>
+
+
+            <!-- Body -->
+
+            <div class="modal-body">
+
+
+                <!-- =================================================
+                     الفلاتر
+                ================================================== -->
+
+                <div class="card border-0 bg-light mb-3">
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+
+                            <!-- البرنامج -->
+
+                            <div class="col-md-4">
+
+                                <label class="form-label small fw-bold">
+                                    البرنامج الرئيسي
+                                </label>
+
+                                <select
+                                    id="history-program-filter"
+                                    class="form-select form-select-sm"
+                                >
+
+                                    <option value="">
+                                        الكل
+                                    </option>
+
+                                    {% for p in programs %}
+
+                                        <option value="{{ p.id }}">
+                                            {{ p.name }}
+                                        </option>
+
+                                    {% endfor %}
+
+                                </select>
+
+                            </div>
+
+
+                            <!-- من تاريخ -->
+
+                            <div class="col-md-4">
+
+                                <label class="form-label small fw-bold">
+                                    من تاريخ
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="history-date-from"
+                                    class="form-control form-control-sm"
+                                >
+
+                            </div>
+
+
+                            <!-- إلى تاريخ -->
+
+                            <div class="col-md-4">
+
+                                <label class="form-label small fw-bold">
+                                    إلى تاريخ
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="history-date-to"
+                                    class="form-control form-control-sm"
+                                >
+
+                            </div>
+
+
+                            <!-- بحث -->
+
+                            <div class="col-md-8">
+
+                                <label class="form-label small fw-bold">
+                                    بحث
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="history-search"
+                                    class="form-control form-control-sm"
+                                    placeholder="ابحث في الملاحظات أو البرنامج أو المستخدم..."
+                                >
+
+                            </div>
+
+
+                            <!-- زر إعادة -->
+
+                            <div class="col-md-4 d-flex align-items-end">
+
+                                <button
+                                    type="button"
+                                    id="history-reset"
+                                    class="btn btn-sm btn-outline-secondary w-100"
+                                >
+
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+
+                                    إعادة تعيين الفلاتر
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- =================================================
+                     الجدول الكامل
+                ================================================== -->
+
+                <div
+                    class="table-responsive"
+                    style="max-height:500px; overflow:auto;"
+                >
+
+                    <table
+                        class="table table-hover table-sm align-middle"
+                        id="allocation-history-table"
+                    >
+
+                        <thead class="table-light sticky-top">
+
+                            <tr>
+
+                                <th>
+                                    #
+                                </th>
+
+                                <th>
+                                    التاريخ
+                                </th>
+
+                                <th>
+                                    البرنامج الرئيسي
+                                </th>
+
+                                <th class="text-end">
+                                    المبلغ
+                                </th>
+
+                                <th>
+                                    بواسطة
+                                </th>
+
+                                <th>
+                                    المرجع
+                                </th>
+
+                                <th>
+                                    الملاحظات
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for a in allocation_history_all %}
+
+                                <tr
+                                    class="history-row"
+                                    data-program="{{ a.to_main_program_id|default:'' }}"
+                                    data-date="{{ a.created_at|date:'Y-m-d' }}"
+                                    data-search="
+                                        {{ a.to_main_program.name|default:'' }}
+                                        {{ a.created_by.get_full_name|default:'' }}
+                                        {{ a.created_by.username|default:'' }}
+                                        {{ a.reference|default:'' }}
+                                        {{ a.note|default:'' }}
+                                    "
+                                >
+
+                                    <td class="text-muted small">
+                                        {{ forloop.counter }}
+                                    </td>
+
+                                    <td class="small">
+
+                                        {{ a.created_at|date:"Y-m-d" }}
+
+                                        <br>
+
+                                        <span class="text-muted">
+                                            {{ a.created_at|date:"H:i" }}
+                                        </span>
+
+                                    </td>
+
+                                    <td class="fw-semibold">
+
+                                        {{ a.to_main_program.name|default:"—" }}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        <span class="fw-bold text-success">
+
+                                            {{ a.amount|floatformat:2 }}
+
+                                            ر.س
+
+                                        </span>
+
+                                    </td>
+
+                                    <td class="small">
+
+                                        {{ a.created_by.get_full_name|default:a.created_by.username|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.reference|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.note|default:"—" }}
+
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+
+                                    <td
+                                        colspan="7"
+                                        class="text-center text-muted py-4"
+                                    >
+
+                                        لا توجد تخصيصات مسجلة.
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- نتيجة الفلترة -->
+
+                <div
+                    id="history-no-results"
+                    class="text-center text-muted py-4 d-none"
+                >
+
+                    لا توجد نتائج مطابقة للفلاتر.
+
+                </div>
+
+            </div>
+
+
+            <!-- Footer -->
+
+            <div class="modal-footer">
+
+                <div class="me-auto small text-muted">
+
+                    عدد العمليات:
+
+                    <span
+                        id="history-count"
+                        class="fw-bold"
+                    >
+                        {{ allocation_history_all|length }}
+                    </span>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    data-bs-dismiss="modal"
+                >
+                    إغلاق
+                </button>
+
+            </div>
+
         </div>
-      {% else %}
-        <div class="text-muted small">لا توجد حركات حتى الآن.</div>
-      {% endif %}
+
     </div>
-  </div>
+
 </div>
+
+
+<!-- =========================================================
+     Modal تأكيد التخصيص
+========================================================== -->
+
+<div
+    class="modal fade"
+    id="confirmAllocModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header">
+
+                <h6 class="modal-title fw-bold">
+                    تأكيد تنفيذ التخصيص
+                </h6>
+
+                <button
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+            <div class="modal-body small">
+
+                <div class="row g-2">
+
+                    <div class="col-4 text-muted">
+                        البرنامج
+                    </div>
+
+                    <div
+                        class="col-8 fw-semibold"
+                        id="c-program"
+                    >
+                        —
+                    </div>
+
+                    <div class="col-4 text-muted">
+                        المبلغ
+                    </div>
+
+                    <div
+                        class="col-8 fw-bold"
+                        id="c-amount"
+                    >
+                        —
+                    </div>
+
+                    <div class="col-4 text-muted">
+                        رصيد الصندوق بعد التخصيص
+                    </div>
+
+                    <div
+                        class="col-8 fw-semibold"
+                        id="c-after"
+                    >
+                        —
+                    </div>
+
+                    <div class="col-12 text-muted mt-2">
+                        ملاحظات
+                    </div>
+
+                    <div
+                        class="col-12 fw-semibold"
+                        id="c-notes"
+                    >
+                        —
+                    </div>
+
+                </div>
+
+            </div>
+
+            <div class="modal-footer">
+
+                <button
+                    class="btn btn-light"
+                    data-bs-dismiss="modal"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    id="c-confirm"
+                    class="btn btn-primary"
+                >
+                    تأكيد التنفيذ
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
 
 <script>
-  // const fundBalance = parseFloat("{{ fund_balance|default:0 }}") || 0;
-  const fundBalance = parseNum("{{ fund_balance|default:0 }}");
-console.log("fundBalance =", fundBalance);
-console.log("raw fundBalance =", "{{ fund_balance }}");
-  const select = document.getElementById("main-program-select");
-  const amountInput = document.getElementById("alloc-amount");
-  const fundAfter = document.getElementById("fund-after");
-  const detailsBox = document.getElementById("program-details");
-  const submitBtn = document.getElementById("alloc-submit");
-  const allocError = document.getElementById("alloc-error");
 
-  // function parseNum(v){ return parseFloat((v||"0").toString().replace(/,/g, '')) || 0; }
+const availableForAllocation =
+    parseNum(
+        "{{ available_for_allocation|default:0 }}"
+    );
+
+const select =
+    document.getElementById(
+        "main-program-select"
+    );
+
+const amountInput =
+    document.getElementById(
+        "alloc-amount"
+    );
+
+const fundAfter =
+    document.getElementById(
+        "fund-after"
+    );
+
+const detailsBox =
+    document.getElementById(
+        "program-details"
+    );
+
+const submitBtn =
+    document.getElementById(
+        "alloc-submit"
+    );
+
+const allocError =
+    document.getElementById(
+        "alloc-error"
+    );
+
+
 function parseNum(v) {
-    if (v === null || v === undefined) return 0;
+
+    if (
+        v === null ||
+        v === undefined
+    ) {
+        return 0;
+    }
 
     let s = v.toString().trim();
 
-    // إذا كانت الفاصلة هي الفاصل العشري
-    if (s.includes(",") && !s.includes(".")) {
+    if (
+        s.includes(",") &&
+        !s.includes(".")
+    ) {
         s = s.replace(",", ".");
     } else {
-        // إذا كان عندك فواصل آلاف
         s = s.replace(/,/g, "");
     }
 
     return parseFloat(s) || 0;
 }
-  function updateFundAfter() {
-    const val = parseNum(amountInput.value);
-    const after = fundBalance - val;
-    fundAfter.value = after.toFixed(2) + " ر.س";
-  }
 
-  function getProgEl(id){
-    return document.querySelector(`#program-data .prog[data-id="${id}"]`);
-  }
 
-  function updateProgramDetails() {
-    const id = select.value;
+function updateFundAfter() {
+
+    const amount =
+        parseNum(
+            amountInput.value
+        );
+
+    const after =
+        availableForAllocation - amount;
+
+    fundAfter.value =
+        Math.max(after, 0).toFixed(2) +
+        " ر.س";
+}
+
+
+function getProgEl(id) {
+
+    return document.querySelector(
+        `#program-data .prog[data-id="${id}"]`
+    );
+
+}
+
+
+function updateProgramDetails() {
+
+    const id =
+        select.value;
+
     if (!id) {
-      detailsBox.innerHTML = "اختر برنامجًا من القائمة لعرض تفاصيله هنا.";
-      checkValidation();
-      return;
+
+        detailsBox.innerHTML =
+            "اختر برنامجًا من القائمة لعرض تفاصيله هنا.";
+
+        checkValidation();
+
+        return;
     }
 
-    const el = getProgEl(id);
+    const el =
+        getProgEl(id);
+
     if (!el) {
-      detailsBox.innerHTML = "لا توجد بيانات لهذا البرنامج.";
-      checkValidation();
-      return;
+
+        detailsBox.innerHTML =
+            "لا توجد بيانات لهذا البرنامج.";
+
+        checkValidation();
+
+        return;
     }
 
-    const name = el.dataset.name;
-    const total = parseNum(el.dataset.total);
-    console.log("dataset =", el.dataset.total);
-console.log("parsed =", total);
-    const allocated = parseNum(el.dataset.allocated);
-    const spent = parseNum(el.dataset.spent);
-    const remaining = total - spent;
+    const name =
+        el.dataset.name;
+
+    const available =
+        parseNum(
+            el.dataset.available
+        );
 
     detailsBox.innerHTML = `
-      <div class="mb-2"><strong>${name}</strong></div>
-      <div class="row g-2">
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">ميزانية البرنامج الحالية</div>
-            <div class="fw-bold">${total.toFixed(2)} ر.س</div>
-          </div>
+
+        <div class="mb-3">
+
+            <strong>
+                ${name}
+            </strong>
+
         </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المخصص للفروع</div>
-            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
-          </div>
+
+        <div class="kpi-card p-4 text-center border border-success">
+
+            <div class="text-muted small mb-2">
+                الرصيد المتاح للتخصيص للفروع
+            </div>
+
+            <div
+                class="fw-bold text-success"
+                style="font-size:2rem;"
+            >
+
+                ${available.toFixed(2)}
+
+                <span class="fs-6">
+                    ر.س
+                </span>
+
+            </div>
+
+            <div class="text-muted small mt-2">
+                الرصيد المتاح حاليًا داخل البرنامج للتوزيع.
+            </div>
+
         </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المصروف</div>
-            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المتبقي بعد الصرف</div>
-            <div class="fw-bold text-success">${remaining.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-      </div>
+
     `;
+
     checkValidation();
-  }
 
-  // ✅ التحقق الصحيح: فقط رصيد الصندوق + مبلغ موجب + برنامج مختار
-  function checkValidation(){
-    const id = select.value;
-    const amount = parseNum(amountInput.value);
-    allocError.classList.add('d-none');
+}
 
-    if (!id || amount <= 0){
-      submitBtn.disabled = true;
-      return false;
+
+function checkValidation() {
+
+    const id =
+        select.value;
+
+    const amount =
+        parseNum(
+            amountInput.value
+        );
+
+    allocError.classList.add(
+        "d-none"
+    );
+
+    if (
+        !id ||
+        amount <= 0
+    ) {
+
+        submitBtn.disabled =
+            true;
+
+        return false;
     }
 
-    if (amount > fundBalance){
-      allocError.innerText = "المبلغ أكبر من رصيد الصندوق العام.";
-      allocError.classList.remove('d-none');
-      submitBtn.disabled = true;
-      return false;
+    if (
+        amount >
+        availableForAllocation
+    ) {
+
+        allocError.innerText =
+            "المبلغ أكبر من الرصيد المتاح للتخصيص.";
+
+        allocError.classList.remove(
+            "d-none"
+        );
+
+        submitBtn.disabled =
+            true;
+
+        return false;
     }
 
-    submitBtn.disabled = false;
+    submitBtn.disabled =
+        false;
+
     return true;
-  }
 
-  submitBtn.addEventListener('click', function(){
-    if (!checkValidation()) return;
+}
 
-    const id = select.value;
-    const el = getProgEl(id);
-    const programName = el ? el.dataset.name : '—';
-    const amount = parseNum(amountInput.value).toFixed(2) + " ر.س";
-    const after = (fundBalance - parseNum(amountInput.value)).toFixed(2) + " ر.س";
-    const notes = document.querySelector('textarea[name="notes"]').value || '—';
 
-    document.getElementById('c-program').innerText = programName;
-    document.getElementById('c-amount').innerText = amount;
-    document.getElementById('c-after').innerText = after;
-    document.getElementById('c-notes').innerText = notes;
+submitBtn.addEventListener(
+    "click",
+    function () {
 
-    const modal = new bootstrap.Modal(document.getElementById('confirmAllocModal'));
-    modal.show();
-  });
+        if (
+            !checkValidation()
+        ) {
+            return;
+        }
 
-  document.getElementById('c-confirm').addEventListener('click', function(){
-    document.getElementById('alloc-form').submit();
-  });
+        const id =
+            select.value;
 
-  select.addEventListener("change", function(){
-    updateProgramDetails();
-    updateFundAfter();
-  });
+        const el =
+            getProgEl(id);
 
-  amountInput.addEventListener("input", function(){
-    updateFundAfter();
-    checkValidation();
-  });
+        const programName =
+            el
+                ? el.dataset.name
+                : "—";
 
-  document.addEventListener('click', function(e){
-    const row = e.target.closest('.move-row');
-    if (!row) return;
+        const amountValue =
+            parseNum(
+                amountInput.value
+            );
 
-    document.getElementById('mv-date').innerText = row.dataset.date || '—';
-    document.getElementById('mv-amount').innerText = row.dataset.amount || '—';
-    document.getElementById('mv-desc').innerText = row.dataset.desc || '—';
-    document.getElementById('mv-user').innerText = row.dataset.user || '—';
+        const amount =
+            amountValue.toFixed(2) +
+            " ر.س";
 
-    const modal = new bootstrap.Modal(document.getElementById('moveModal'));
-    modal.show();
-  });
+        const after =
+            Math.max(
+                availableForAllocation -
+                amountValue,
+                0
+            ).toFixed(2) +
+            " ر.س";
 
-  document.addEventListener('DOMContentLoaded', function(){
-    if (select.value) updateProgramDetails();
-    updateFundAfter();
-    checkValidation();
-  });
+        const notes =
+            document.querySelector(
+                'textarea[name="notes"]'
+            ).value ||
+            "—";
+
+        document.getElementById(
+            "c-program"
+        ).innerText =
+            programName;
+
+        document.getElementById(
+            "c-amount"
+        ).innerText =
+            amount;
+
+        document.getElementById(
+            "c-after"
+        ).innerText =
+            after;
+
+        document.getElementById(
+            "c-notes"
+        ).innerText =
+            notes;
+
+        const modal =
+            new bootstrap.Modal(
+                document.getElementById(
+                    "confirmAllocModal"
+                )
+            );
+
+        modal.show();
+
+    }
+);
+
+
+document.getElementById(
+    "c-confirm"
+).addEventListener(
+    "click",
+    function () {
+
+        document.getElementById(
+            "alloc-form"
+        ).submit();
+
+    }
+);
+
+
+select.addEventListener(
+    "change",
+    function () {
+
+        updateProgramDetails();
+        updateFundAfter();
+
+    }
+);
+
+
+amountInput.addEventListener(
+    "input",
+    function () {
+
+        updateFundAfter();
+        checkValidation();
+
+    }
+);
+
+
+/* =========================================================
+   فلترة سجل التخصيصات
+========================================================= */
+
+const programFilter =
+    document.getElementById(
+        "history-program-filter"
+    );
+
+const dateFrom =
+    document.getElementById(
+        "history-date-from"
+    );
+
+const dateTo =
+    document.getElementById(
+        "history-date-to"
+    );
+
+const searchInput =
+    document.getElementById(
+        "history-search"
+    );
+
+const resetBtn =
+    document.getElementById(
+        "history-reset"
+    );
+
+const historyRows =
+    document.querySelectorAll(
+        ".history-row"
+    );
+
+const historyCount =
+    document.getElementById(
+        "history-count"
+    );
+
+const noResults =
+    document.getElementById(
+        "history-no-results"
+    );
+
+
+function filterHistory() {
+
+    const program =
+        programFilter.value;
+
+    const from =
+        dateFrom.value;
+
+    const to =
+        dateTo.value;
+
+    const search =
+        searchInput.value
+            .trim()
+            .toLowerCase();
+
+    let visibleCount = 0;
+
+
+    historyRows.forEach(
+        function(row) {
+
+            const rowProgram =
+                row.dataset.program || "";
+
+            const rowDate =
+                row.dataset.date || "";
+
+            const rowSearch =
+                (
+                    row.dataset.search || ""
+                )
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+
+
+            let show = true;
+
+
+            if (
+                program &&
+                rowProgram !== program
+            ) {
+
+                show = false;
+
+            }
+
+
+            if (
+                from &&
+                rowDate < from
+            ) {
+
+                show = false;
+
+            }
+
+
+            if (
+                to &&
+                rowDate > to
+            ) {
+
+                show = false;
+
+            }
+
+
+            if (
+                search &&
+                !rowSearch.includes(search)
+            ) {
+
+                show = false;
+
+            }
+
+
+            row.style.display =
+                show
+                    ? ""
+                    : "none";
+
+
+            if (show) {
+                visibleCount++;
+            }
+
+        }
+    );
+
+
+    historyCount.innerText =
+        visibleCount;
+
+
+    noResults.classList.toggle(
+        "d-none",
+        visibleCount > 0
+    );
+
+}
+
+
+programFilter.addEventListener(
+    "change",
+    filterHistory
+);
+
+dateFrom.addEventListener(
+    "change",
+    filterHistory
+);
+
+dateTo.addEventListener(
+    "change",
+    filterHistory
+);
+
+searchInput.addEventListener(
+    "input",
+    filterHistory
+);
+
+
+resetBtn.addEventListener(
+    "click",
+    function () {
+
+        programFilter.value = "";
+        dateFrom.value = "";
+        dateTo.value = "";
+        searchInput.value = "";
+
+        filterHistory();
+
+    }
+);
+
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function () {
+
+        updateFundAfter();
+        checkValidation();
+
+    }
+);
+
 </script>
 
 {% endblock %}

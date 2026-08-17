@@ -1,260 +1,992 @@
 {% extends "Management/base.html" %}
+
 {% block title %}تحويل من برنامج رئيسي إلى فرعي{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">تحويل رصيد من برنامج رئيسي إلى فرعي</h5>
-    <small class="text-muted">توزيع ميزانية البرنامج الرئيسي على فروعه .</small>
-  </div>
-</div>
+<div class="rms-pagebar mb-3">
 
+    <div>
+
+        <h5 class="m-0 fw-bold">
+            تحويل من برنامج رئيسي إلى فرعي
+        </h5>
+
+        <small class="text-muted">
+            توزيع ميزانية البرنامج الرئيسي على فروعه.
+        </small>
+
+    </div>
+
+</div>
 
 
 <div class="row g-3">
-  <!-- نموذج التحويل -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">بيانات التحويل</h6>
 
-        <form method="post" id="alloc-form" class="row g-3">
-          {% csrf_token %}
+    <!-- =====================================================
+         بيانات التحويل
+    ====================================================== -->
 
-          <div class="col-12">
-            <label class="form-label">البرنامج الرئيسي</label>
-            <select name="main_program" class="form-select" id="main-program-select" required>
-              <option value="">— اختر —</option>
-              {% for p in programs %}
-                <option value="{{ p.id }}">{{ p.name }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-text text-muted">سيتم الخصم من هذا الرئيسي.</div>
-          </div>
+    <div class="col-lg-6">
 
-          <div class="col-12">
-            <label class="form-label">البرنامج الفرعي (يظهر حسب الرئيسي)</label>
-            <select name="sub_program" class="form-select" id="sub-program-select" disabled required>
-              <option value="">— اختر برنامج رئيسي أولاً —</option>
-            </select>
-          </div>
+        <div class="card shadow-sm border-0 h-100">
 
-          <div class="col-md-6">
-            <label class="form-label">مبلغ التحويل</label>
-            <input type="number" step="0.01" min="0" name="amount"
-                   class="form-control" id="alloc-amount" placeholder="0.00" disabled required>
-            <div id="alloc-error" class="form-text text-danger small d-none">المبلغ غير صالح.</div>
-          </div>
+            <div class="card-body">
 
-          <div class="col-md-6">
-            <label class="form-label">المتاح في الرئيسي (تقديري)</label>
-            <input type="text" class="form-control bg-light" id="main-available" readonly value="—">
-          </div>
-
-          <div class="col-12">
-            <label class="form-label">ملاحظات</label>
-            <textarea name="notes" class="form-control" rows="3"
-                      placeholder="مثال: توزيع ميزانية التعليم على جوائز التفوق"></textarea>
-          </div>
-
-          <div class="col-12 d-flex justify-content-end gap-2">
-            <a href="#" class="btn btn-light">رجوع</a>
-            <button type="button" class="btn btn-primary" id="submit-btn" disabled>
-              <i class="bi bi-check2-circle"></i> تنفيذ التحويل
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  </div>
+                <h6 class="fw-bold mb-3">
+                    بيانات التحويل
+                </h6>
 
 
-  <!-- تفاصيل الرئيسي + تفاصيل الفرعي -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">تفاصيل البرامج</h6>
+                <form
+                    method="post"
+                    id="transfer-form"
+                >
 
-        <div id="main-details" class="text-muted small mb-3">
-          اختر برنامجًا رئيسيًا لعرض تفاصيله.
-        </div>
+                    {% csrf_token %}
 
-        <div id="sub-details" class="text-muted small">
-          اختر برنامجًا فرعيًا لعرض تفاصيله.
-        </div>
 
-        <!-- بيانات مخفية للرئيسية -->
-        <div class="d-none" id="main-data">
-          {% for p in program_data %}
-            <div class="main-prog"
-                 data-id="{{ p.id }}"
-                 data-name="{{ p.name }}"
-                 data-total="{{ p.total }}"
-                 data-allocated="{{ p.allocated }}"
-                 data-spent="{{ p.spent }}"
-                 data-available="{{ p.available }}">
+                    <!-- البرنامج الرئيسي -->
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            البرنامج الرئيسي
+                        </label>
+
+                        <select
+                            name="main_program"
+                            id="main-program-select"
+                            class="form-select"
+                            required
+                        >
+
+                            <option value="">
+                                — اختر البرنامج الرئيسي —
+                            </option>
+
+                            {% for p in programs %}
+
+                                <option value="{{ p.id }}">
+                                    {{ p.name }}
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                        <div class="form-text">
+                            سيتم الخصم من رصيد هذا البرنامج الرئيسي.
+                        </div>
+
+                    </div>
+
+
+                    <!-- البرنامج الفرعي -->
+
+                    <div class="mb-3">
+
+                        <label class="form-label">
+                            البرنامج الفرعي
+                        </label>
+
+                        <select
+                            name="sub_program"
+                            id="sub-program-select"
+                            class="form-select"
+                            required
+                            disabled
+                        >
+
+                            <option value="">
+                                — اختر الفرعي —
+                            </option>
+
+                            {% for sp in sub_programs %}
+
+                                <option
+                                    value="{{ sp.id }}"
+                                    data-main="{{ sp.main_program_id }}"
+                                >
+                                    {{ sp.name }}
+                                </option>
+
+                            {% endfor %}
+
+                        </select>
+
+                    </div>
+
+
+                    <!-- المبلغ -->
+
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+
+                            <label class="form-label">
+                                مبلغ التحويل
+                            </label>
+
+                            <input
+                                type="number"
+                                name="amount"
+                                id="transfer-amount"
+                                class="form-control"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                required
+                            >
+
+                            <div
+                                id="transfer-error"
+                                class="form-text text-danger d-none"
+                            ></div>
+
+                        </div>
+
+
+                        <div class="col-md-6">
+
+                            <label class="form-label">
+                                المتاح بعد التحويل (تقديري)
+                            </label>
+
+                            <input
+                                type="text"
+                                id="main-after"
+                                class="form-control bg-light"
+                                value="—"
+                                readonly
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- الملاحظات -->
+
+                    <div class="mt-3">
+
+                        <label class="form-label">
+                            ملاحظات
+                        </label>
+
+                        <textarea
+                            name="notes"
+                            class="form-control"
+                            rows="3"
+                            placeholder="مثال: توزيع ميزانية التعليم على الفرع"
+                        ></textarea>
+
+                    </div>
+
+
+                    <!-- الأزرار -->
+
+                    <div class="d-flex justify-content-end gap-2 mt-3">
+
+                        <a
+                            href="#"
+                            class="btn btn-light"
+                        >
+                            رجوع
+                        </a>
+
+                        <button
+                            type="button"
+                            id="transfer-submit"
+                            class="btn btn-primary"
+                            disabled
+                        >
+
+                            <i class="bi bi-check2-circle"></i>
+
+                            تنفيذ التحويل
+
+                        </button>
+
+                    </div>
+
+                </form>
+
             </div>
-          {% endfor %}
+
         </div>
 
-        <!-- بيانات مخفية للفروع -->
-        <div class="d-none" id="sub-data">
-          {% for sp in sub_program_data %}
-            <div class="sub-prog"
-                 data-id="{{ sp.id }}"
-                 data-name="{{ sp.name }}"
-                 data-main="{{ sp.main_id }}"
-                 data-allocated="{{ sp.allocated }}"
-                 data-spent="{{ sp.spent }}">
+    </div>
+
+
+    <!-- =====================================================
+         تفاصيل البرامج
+    ====================================================== -->
+
+    <div class="col-lg-6">
+
+        <div class="card shadow-sm border-0 h-100">
+
+            <div class="card-body">
+
+                <h6 class="fw-bold mb-3">
+                    تفاصيل البرامج
+                </h6>
+
+
+                <div id="program-details">
+
+                    <div class="text-muted small">
+
+                        اختر برنامجًا رئيسيًا ثم برنامجًا فرعيًا لعرض التفاصيل.
+
+                    </div>
+
+                </div>
+
+
+                <!-- بيانات البرامج الرئيسية -->
+
+                <div
+                    id="program-data"
+                    class="d-none"
+                >
+
+                    {% for p in program_data %}
+
+                        <div
+                            class="main-program-data"
+                            data-id="{{ p.id }}"
+                            data-name="{{ p.name }}"
+                            data-available="{{ p.available }}"
+                        ></div>
+
+                    {% endfor %}
+
+                </div>
+
+
+                <!-- بيانات البرامج الفرعية -->
+
+                <div
+                    id="sub-program-data"
+                    class="d-none"
+                >
+
+                    {% for sp in sub_program_data %}
+
+                        <div
+                            class="sub-program-data"
+                            data-id="{{ sp.id }}"
+                            data-main="{{ sp.main_id }}"
+                            data-name="{{ sp.name }}"
+                            data-allocated="{{ sp.allocated }}"
+                            data-spent="{{ sp.spent }}"
+                            data-available="{{ sp.available }}"
+                        ></div>
+
+                    {% endfor %}
+
+                </div>
+
             </div>
-          {% endfor %}
+
         </div>
 
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- Modal تأكيد التحويل -->
-<div class="modal fade" id="confirmAllocModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold">تأكيد تنفيذ التحويل</h6>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body small">
-        <div class="row g-2">
-          <div class="col-4 text-muted">من (رئيسي)</div>
-          <div class="col-8 fw-semibold" id="c-main">—</div>
-
-          <div class="col-4 text-muted">إلى (فرعي)</div>
-          <div class="col-8 fw-semibold" id="c-sub">—</div>
-
-          <div class="col-4 text-muted">المبلغ</div>
-          <div class="col-8 fw-bold" id="c-amount">—</div>
-
-          <div class="col-4 text-muted">المتبقي في الرئيسي بعد التحويل</div>
-          <div class="col-8 fw-semibold" id="c-after">—</div>
-
-          <div class="col-12 text-muted mt-2">ملاحظات</div>
-          <div class="col-12 fw-semibold" id="c-notes">—</div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">إلغاء</button>
-        <button id="c-confirm" class="btn btn-primary">تأكيد التحويل</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Modal تفاصيل تحويل من السجل -->
-<div class="modal fade" id="allocModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
-      <div class="modal-header">
-        <h6 class="modal-title fw-bold">تفاصيل التحويل</h6>
-        <button class="btn-close" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body small">
-        <div class="row g-2">
-          <div class="col-4 text-muted">التاريخ</div>
-          <div class="col-8 fw-semibold" id="mv-date">—</div>
-
-          <div class="col-4 text-muted">من</div>
-          <div class="col-8 fw-semibold" id="mv-main">—</div>
-
-          <div class="col-4 text-muted">إلى</div>
-          <div class="col-8 fw-semibold" id="mv-sub">—</div>
-
-          <div class="col-4 text-muted">المبلغ</div>
-          <div class="col-8 fw-bold" id="mv-amount">—</div>
-
-          <div class="col-12 text-muted mt-2">ملاحظات</div>
-          <div class="col-12 fw-semibold" id="mv-notes">—</div>
-
-          <div class="col-4 text-muted mt-2">بواسطة</div>
-          <div class="col-8 fw-semibold mt-2" id="mv-user">—</div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-light" data-bs-dismiss="modal">إغلاق</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 
-<!-- ملخص سريع + آخر التحويلات -->
+<!-- =====================================================
+     سجل التخصيصات
+====================================================== -->
+
+<div class="row g-3 mt-1">
+
+    <div class="col-12">
+
+        <div class="kpi-card p-3">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+
+                    <div class="fw-bold">
+
+                        <i class="bi bi-clock-history"></i>
+
+                        سجل تخصيصات البرامج
+
+                    </div>
+
+                    <div class="text-muted small mt-1">
+
+                        آخر عمليات التحويل من البرامج الرئيسية إلى البرامج الفرعية.
+
+                    </div>
+
+                </div>
+
+            </div>
 
 
-  <div class="col-12">
-    <div class="kpi-card p-3 h-100">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="icon-wrap"><i class="bi bi-clock-history"></i> آخر تحويلات رئيسي → فرعي</div>
-      </div>
+            {% if allocation_history %}
 
-      {% if last_allocs %}
-        <div class="table-responsive" style="max-height:220px; overflow:auto;">
-          <table class="table table-sm align-middle m-0">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th>التاريخ</th>
-                <th>من (رئيسي)</th>
-                <th>إلى (فرعي)</th>
-                <th class="text-end">المبلغ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for a in last_allocs %}
-              <tr class="alloc-row" role="button"
-                  data-id="{{ a.id }}"
-                  data-date="{{ a.created_at|date:'Y-m-d H:i' }}"
-                  data-main="{{ a.main_program.name }}"
-                  data-sub="{{ a.sub_program.name }}"
-                  data-amount="{{ a.amount|floatformat:2 }}"
-                  data-notes="{{ a.notes|default:'—' }}"
-                  data-user="{{ a.created_by.get_full_name|default:a.created_by.username|default:'—' }}"
-              >
-                <td class="small">{{ a.created_at|date:"Y-m-d" }}</td>
-                <td class="small">{{ a.main_program.name }}</td>
-                <td class="small">{{ a.sub_program.name }}</td>
-                <td class="text-end small fw-bold">{{ a.amount|floatformat:2 }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+                <div
+                    class="table-responsive mt-3"
+                    style="max-height:260px; overflow:auto;"
+                >
+
+                    <table class="table table-sm align-middle m-0">
+
+                        <thead class="table-light sticky-top">
+
+                            <tr>
+
+                                <th>
+                                    التاريخ
+                                </th>
+
+                                <th>
+                                    من الرئيسي
+                                </th>
+
+                                <th>
+                                    إلى الفرعي
+                                </th>
+
+                                <th class="text-end">
+                                    المبلغ
+                                </th>
+
+                                <th>
+                                    بواسطة
+                                </th>
+
+                                <th>
+                                    ملاحظات
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for a in allocation_history %}
+
+                                <tr>
+
+                                    <td class="small">
+
+                                        {{ a.created_at|date:"Y-m-d H:i" }}
+
+                                    </td>
+
+                                    <td class="small fw-semibold">
+
+                                        {{ a.from_main_program.name|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small fw-semibold">
+
+                                        {{ a.to_sub_program.name|default:"—" }}
+
+                                    </td>
+
+                                    <td class="text-end fw-bold text-success">
+
+                                        {{ a.amount|floatformat:2 }}
+                                        ر.س
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.created_by.get_full_name|default:a.created_by.username|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.note|default:"—" }}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <div class="text-center mt-3">
+
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline-primary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#allocationHistoryModal"
+                    >
+
+                        <i class="bi bi-list-ul"></i>
+
+                        عرض سجل التخصيصات الكامل
+
+                    </button>
+
+                </div>
+
+            {% else %}
+
+                <div class="text-muted small text-center py-4">
+
+                    لا توجد تخصيصات مسجلة حتى الآن.
+
+                </div>
+
+            {% endif %}
+
         </div>
-      {% else %}
-        <div class="text-muted small">لا توجد تحويلات حتى الآن.</div>
-      {% endif %}
+
     </div>
-  </div>
+
 </div>
 
+
+<!-- =====================================================
+     MODAL
+====================================================== -->
+
+<div
+    class="modal fade"
+    id="allocationHistoryModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header">
+
+                <div>
+
+                    <h5 class="modal-title fw-bold">
+
+                        <i class="bi bi-journal-text"></i>
+
+                        سجل تخصيصات البرامج
+
+                    </h5>
+
+                    <small class="text-muted">
+
+                        جميع عمليات التحويل من الرئيسي إلى الفرعي.
+
+                    </small>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body">
+
+
+                <!-- الفلاتر -->
+
+                <div class="card border-0 bg-light mb-3">
+
+                    <div class="card-body">
+
+                        <div class="row g-3">
+
+
+                            <div class="col-md-3">
+
+                                <label class="form-label small fw-bold">
+                                    البرنامج الرئيسي
+                                </label>
+
+                                <select
+                                    id="history-main-filter"
+                                    class="form-select form-select-sm"
+                                >
+
+                                    <option value="">
+                                        الكل
+                                    </option>
+
+                                    {% for p in programs %}
+
+                                        <option value="{{ p.id }}">
+                                            {{ p.name }}
+                                        </option>
+
+                                    {% endfor %}
+
+                                </select>
+
+                            </div>
+
+
+                            <div class="col-md-3">
+
+                                <label class="form-label small fw-bold">
+                                    البرنامج الفرعي
+                                </label>
+
+                                <select
+                                    id="history-sub-filter"
+                                    class="form-select form-select-sm"
+                                >
+
+                                    <option value="">
+                                        الكل
+                                    </option>
+
+                                    {% for sp in sub_programs %}
+
+                                        <option
+                                            value="{{ sp.id }}"
+                                        >
+                                            {{ sp.name }}
+                                        </option>
+
+                                    {% endfor %}
+
+                                </select>
+
+                            </div>
+
+
+                            <div class="col-md-3">
+
+                                <label class="form-label small fw-bold">
+                                    من تاريخ
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="history-date-from"
+                                    class="form-control form-control-sm"
+                                >
+
+                            </div>
+
+
+                            <div class="col-md-3">
+
+                                <label class="form-label small fw-bold">
+                                    إلى تاريخ
+                                </label>
+
+                                <input
+                                    type="date"
+                                    id="history-date-to"
+                                    class="form-control form-control-sm"
+                                >
+
+                            </div>
+
+
+                            <div class="col-md-8">
+
+                                <label class="form-label small fw-bold">
+                                    بحث
+                                </label>
+
+                                <input
+                                    type="text"
+                                    id="history-search"
+                                    class="form-control form-control-sm"
+                                    placeholder="ابحث في الملاحظات أو البرامج أو المستخدم..."
+                                >
+
+                            </div>
+
+
+                            <div class="col-md-4 d-flex align-items-end">
+
+                                <button
+                                    type="button"
+                                    id="history-reset"
+                                    class="btn btn-sm btn-outline-secondary w-100"
+                                >
+
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+
+                                    إعادة تعيين الفلاتر
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- الجدول -->
+
+                <div
+                    class="table-responsive"
+                    style="max-height:500px; overflow:auto;"
+                >
+
+                    <table
+                        class="table table-hover table-sm align-middle"
+                        id="allocation-history-table"
+                    >
+
+                        <thead class="table-light sticky-top">
+
+                            <tr>
+
+                                <th>
+                                    #
+                                </th>
+
+                                <th>
+                                    التاريخ
+                                </th>
+
+                                <th>
+                                    من الرئيسي
+                                </th>
+
+                                <th>
+                                    إلى الفرعي
+                                </th>
+
+                                <th class="text-end">
+                                    المبلغ
+                                </th>
+
+                                <th>
+                                    بواسطة
+                                </th>
+
+                                <th>
+                                    المرجع
+                                </th>
+
+                                <th>
+                                    الملاحظات
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            {% for a in allocation_history_all %}
+
+                                <tr
+                                    class="history-row"
+                                    data-main="{{ a.from_main_program_id|default:'' }}"
+                                    data-sub="{{ a.to_sub_program_id|default:'' }}"
+                                    data-date="{{ a.created_at|date:'Y-m-d' }}"
+                                    data-search="
+                                        {{ a.from_main_program.name|default:'' }}
+                                        {{ a.to_sub_program.name|default:'' }}
+                                        {{ a.created_by.get_full_name|default:'' }}
+                                        {{ a.created_by.username|default:'' }}
+                                        {{ a.reference|default:'' }}
+                                        {{ a.note|default:'' }}
+                                    "
+                                >
+
+                                    <td class="text-muted small">
+                                        {{ forloop.counter }}
+                                    </td>
+
+                                    <td class="small">
+
+                                        {{ a.created_at|date:"Y-m-d" }}
+
+                                        <br>
+
+                                        <span class="text-muted">
+                                            {{ a.created_at|date:"H:i" }}
+                                        </span>
+
+                                    </td>
+
+                                    <td class="fw-semibold">
+
+                                        {{ a.from_main_program.name|default:"—" }}
+
+                                    </td>
+
+                                    <td class="fw-semibold">
+
+                                        {{ a.to_sub_program.name|default:"—" }}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        <span class="fw-bold text-success">
+
+                                            {{ a.amount|floatformat:2 }}
+
+                                            ر.س
+
+                                        </span>
+
+                                    </td>
+
+                                    <td class="small">
+
+                                        {{ a.created_by.get_full_name|default:a.created_by.username|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.reference|default:"—" }}
+
+                                    </td>
+
+                                    <td class="small text-muted">
+
+                                        {{ a.note|default:"—" }}
+
+                                    </td>
+
+                                </tr>
+
+                            {% empty %}
+
+                                <tr>
+
+                                    <td
+                                        colspan="8"
+                                        class="text-center text-muted py-4"
+                                    >
+
+                                        لا توجد تخصيصات مسجلة.
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <div
+                    id="history-no-results"
+                    class="text-center text-muted py-4 d-none"
+                >
+
+                    لا توجد نتائج مطابقة للفلاتر.
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <div class="me-auto small text-muted">
+
+                    عدد العمليات:
+
+                    <span
+                        id="history-count"
+                        class="fw-bold"
+                    >
+                        {{ allocation_history_all|length }}
+                    </span>
+
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    data-bs-dismiss="modal"
+                >
+                    إغلاق
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     Modal تأكيد
+====================================================== -->
+
+<div
+    class="modal fade"
+    id="confirmTransferModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-dialog-centered">
+
+        <div class="modal-content border-0 shadow">
+
+            <div class="modal-header">
+
+                <h6 class="modal-title fw-bold">
+                    تأكيد تنفيذ التحويل
+                </h6>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                ></button>
+
+            </div>
+
+
+            <div class="modal-body small">
+
+                <div class="row g-2">
+
+                    <div class="col-5 text-muted">
+                        البرنامج الرئيسي
+                    </div>
+
+                    <div
+                        class="col-7 fw-semibold"
+                        id="confirm-main"
+                    >
+                        —
+                    </div>
+
+
+                    <div class="col-5 text-muted">
+                        البرنامج الفرعي
+                    </div>
+
+                    <div
+                        class="col-7 fw-semibold"
+                        id="confirm-sub"
+                    >
+                        —
+                    </div>
+
+
+                    <div class="col-5 text-muted">
+                        المبلغ
+                    </div>
+
+                    <div
+                        class="col-7 fw-bold"
+                        id="confirm-amount"
+                    >
+                        —
+                    </div>
+
+
+                    <div class="col-5 text-muted">
+                        المتبقي في الرئيسي
+                    </div>
+
+                    <div
+                        class="col-7 fw-semibold"
+                        id="confirm-after"
+                    >
+                        —
+                    </div>
+
+
+                    <div class="col-12 text-muted mt-2">
+                        ملاحظات
+                    </div>
+
+                    <div
+                        class="col-12 fw-semibold"
+                        id="confirm-notes"
+                    >
+                        —
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="modal-footer">
+
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    data-bs-dismiss="modal"
+                >
+                    إلغاء
+                </button>
+
+                <button
+                    type="button"
+                    id="confirm-transfer"
+                    class="btn btn-primary"
+                >
+                    تأكيد التنفيذ
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
 
 
 <script>
-  // عناصر DOM
-  const mainSelect = document.getElementById("main-program-select");
-  const subSelect  = document.getElementById("sub-program-select");
-  const amountInput = document.getElementById("alloc-amount");
-  const availableBox = document.getElementById("main-available");
-  const submitBtn = document.getElementById("submit-btn");
-  const allocError = document.getElementById("alloc-error");
 
-  const mainDetails = document.getElementById("main-details");
-  const subDetails = document.getElementById("sub-details");
+function parseNum(value) {
 
-  // مساعدات parsing
- function parseNum(v) {
-    if (v === null || v === undefined) return 0;
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+        return 0;
+    }
 
-    let s = v.toString().trim();
+    let s = value
+        .toString()
+        .trim();
 
-    if (s.includes(",") && !s.includes(".")) {
+    if (
+        s.includes(",") &&
+        !s.includes(".")
+    ) {
         s = s.replace(",", ".");
     } else {
         s = s.replace(/,/g, "");
@@ -263,248 +995,756 @@
     return parseFloat(s) || 0;
 }
 
-  function getMainEl(id){
-    return document.querySelector(`#main-data .main-prog[data-id="${id}"]`);
-  }
-  function getSubEls(mainId){
-    return Array.from(document.querySelectorAll(`#sub-data .sub-prog[data-main="${mainId}"]`));
-  }
-  function getSubEl(id){
-    return document.querySelector(`#sub-data .sub-prog[data-id="${id}"]`);
-  }
 
-  function renderMainDetails(el){
-    const name = el.dataset.name;
-    const total = parseNum(el.dataset.total);
-    const allocated = parseNum(el.dataset.allocated);
-    const spent = parseNum(el.dataset.spent);
-    const available = parseNum(el.dataset.available);
-    const remaining = total - spent;
+/* =====================================================
+   العناصر
+===================================================== */
 
-    mainDetails.innerHTML = `
-      <div class="mb-2"><strong>${name}</strong></div>
-      <div class="row g-2">
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">ميزانية الرئيسي</div>
-            <div class="fw-bold">${total.toFixed(2)} ر.س</div>
-          </div>
+const mainSelect =
+    document.getElementById(
+        "main-program-select"
+    );
+
+const subSelect =
+    document.getElementById(
+        "sub-program-select"
+    );
+
+const amountInput =
+    document.getElementById(
+        "transfer-amount"
+    );
+
+const mainAfter =
+    document.getElementById(
+        "main-after"
+    );
+
+const submitButton =
+    document.getElementById(
+        "transfer-submit"
+    );
+
+const errorBox =
+    document.getElementById(
+        "transfer-error"
+    );
+
+const detailsBox =
+    document.getElementById(
+        "program-details"
+    );
+
+
+/* =====================================================
+   بيانات البرامج
+===================================================== */
+
+function getMainData(id) {
+
+    return document.querySelector(
+        `#program-data .main-program-data[data-id="${id}"]`
+    );
+
+}
+
+
+function getSubData(id) {
+
+    return document.querySelector(
+        `#sub-program-data .sub-program-data[data-id="${id}"]`
+    );
+
+}
+
+
+/* =====================================================
+   فلترة البرامج الفرعية
+===================================================== */
+
+function updateSubPrograms() {
+
+    const mainId =
+        mainSelect.value;
+
+    subSelect.value = "";
+
+    subSelect.disabled =
+        !mainId;
+
+    Array.from(
+        subSelect.options
+    ).forEach(
+        function(option) {
+
+            if (!option.value) {
+                return;
+            }
+
+            const optionMain =
+                option.dataset.main;
+
+            option.hidden =
+                !mainId ||
+                optionMain !== mainId;
+
+        }
+    );
+
+    updateDetails();
+    updateAfter();
+    validateForm();
+
+}
+
+
+/* =====================================================
+   تفاصيل البرنامج
+===================================================== */
+
+function updateDetails() {
+
+    const mainId =
+        mainSelect.value;
+
+    const subId =
+        subSelect.value;
+
+    if (!mainId) {
+
+        detailsBox.innerHTML = `
+            <div class="text-muted small">
+                اختر برنامجًا رئيسيًا ثم برنامجًا فرعيًا لعرض التفاصيل.
+            </div>
+        `;
+
+        return;
+    }
+
+
+    const main =
+        getMainData(mainId);
+
+    if (!main) {
+        return;
+    }
+
+
+    const mainName =
+        main.dataset.name;
+
+    const mainAvailable =
+        parseNum(
+            main.dataset.available
+        );
+
+
+    if (!subId) {
+
+        detailsBox.innerHTML = `
+
+            <div class="mb-3">
+
+                <strong>
+                    ${mainName}
+                </strong>
+
+            </div>
+
+            <div class="kpi-card p-4 text-center border border-success">
+
+                <div class="text-muted small mb-2">
+                    الرصيد المتاح للتحويل إلى الفروع
+                </div>
+
+                <div
+                    class="fw-bold text-success"
+                    style="font-size:2rem;"
+                >
+
+                    ${mainAvailable.toFixed(2)}
+
+                    <span class="fs-6">
+                        ر.س
+                    </span>
+
+                </div>
+
+                <div class="text-muted small mt-2">
+                    الرصيد المتاح حاليًا داخل البرنامج الرئيسي.
+                </div>
+
+            </div>
+        `;
+
+        return;
+    }
+
+
+    const sub =
+        getSubData(subId);
+
+    if (!sub) {
+        return;
+    }
+
+
+    const subName =
+        sub.dataset.name;
+
+    const subAvailable =
+        parseNum(
+            sub.dataset.available
+        );
+
+
+    detailsBox.innerHTML = `
+
+        <div class="mb-3">
+
+            <strong>
+                ${mainName}
+            </strong>
+
+            <div class="text-muted small mt-1">
+                ${subName}
+            </div>
+
         </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المخصص للفروع</div>
-            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
-          </div>
+
+        <div class="kpi-card p-4 text-center border border-success">
+
+            <div class="text-muted small mb-2">
+                الرصيد المتاح للتحويل
+            </div>
+
+            <div
+                class="fw-bold text-success"
+                style="font-size:2rem;"
+            >
+
+                ${mainAvailable.toFixed(2)}
+
+                <span class="fs-6">
+                    ر.س
+                </span>
+
+            </div>
+
+            <div class="text-muted small mt-2">
+                الرصيد الحالي للبرنامج الرئيسي قبل التحويل.
+            </div>
+
         </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المصروف</div>
-            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
-          </div>
+
+        <div class="row g-3 mt-2 text-center">
+
+            <div class="col-6">
+
+                <div class="text-muted small">
+                    رصيد الفرعي الحالي
+                </div>
+
+                <div class="fw-bold">
+                    ${subAvailable.toFixed(2)} ر.س
+                </div>
+
+            </div>
+
         </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المتبقي بعد الصرف</div>
-            <div class="fw-bold text-success">${remaining.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-12 mt-2">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المتاح لتخصيص فروع جديدة</div>
-            <div class="fw-bold">${available.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-      </div>
+
     `;
-  }
 
-  function renderSubDetails(el){
-    const name = el.dataset.name;
-    const allocated = parseNum(el.dataset.allocated);
-    const spent = parseNum(el.dataset.spent);
-    const remaining = allocated - spent;
-    const pct = allocated ? (spent * 100 / allocated) : 0;
+}
 
-    subDetails.innerHTML = `
-      <div class="mb-2"><strong>${name}</strong></div>
-      <div class="row g-2">
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">مخصص الفرعي</div>
-            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">مصروف الفرعي</div>
-            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المتبقي</div>
-            <div class="fw-bold text-success">${remaining.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-6">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">نسبة الصرف</div>
-            <div class="fw-bold">${pct.toFixed(2)}%</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
 
-  function resetSub(){
-    subSelect.innerHTML = `<option value="">— اختر فرعًا —</option>`;
-    subSelect.disabled = true;
-    amountInput.disabled = true;
-    submitBtn.disabled = true;
-    allocError.classList.add('d-none');
-    subDetails.innerHTML = "اختر برنامجًا فرعيًا لعرض تفاصيله.";
-  }
+/* =====================================================
+   الرصيد بعد التحويل
+===================================================== */
 
-  // عند اختيار الرئيسي
-  mainSelect.addEventListener("change", function(){
-    const mainId = this.value;
-    resetSub();
+function updateAfter() {
 
-    if (!mainId){
-      mainDetails.innerHTML = "اختر برنامجًا رئيسيًا لعرض تفاصيله.";
-      availableBox.value = "—";
-      return;
+    const mainId =
+        mainSelect.value;
+
+    const amount =
+        parseNum(
+            amountInput.value
+        );
+
+
+    if (!mainId) {
+
+        mainAfter.value =
+            "—";
+
+        return;
     }
 
-    const el = getMainEl(mainId);
-    if (el){
-      renderMainDetails(el);
-      availableBox.value = parseNum(el.dataset.available || 0).toFixed(2) + " ر.س";
-      amountInput.disabled = false;
+
+    const main =
+        getMainData(mainId);
+
+    if (!main) {
+        return;
     }
 
-    // ملأ قائمة الفروع المرتبطة
-    const subs = getSubEls(mainId);
-    if (subs.length){
-      subSelect.disabled = false;
-      subs.forEach(s=>{
-        const opt = document.createElement("option");
-        opt.value = s.dataset.id;
-        opt.textContent = s.dataset.name;
-        subSelect.appendChild(opt);
-      });
-    } else {
-      subSelect.innerHTML = `<option value="">لا توجد فروع لهذا البرنامج</option>`;
-      subSelect.disabled = true;
-    }
-  });
 
-  // عند اختيار الفرعي
-  subSelect.addEventListener("change", function(){
-    const id = this.value;
-    if (!id){
-      submitBtn.disabled = true;
-      subDetails.innerHTML = "اختر برنامجًا فرعيًا لعرض تفاصيله.";
-      return;
-    }
-    const el = getSubEl(id);
-    if (el) renderSubDetails(el);
-    // إعادة التحقق من صلاحية الزر بحسب المبلغ
-    checkValidation();
-  });
+    const available =
+        parseNum(
+            main.dataset.available
+        );
 
-  // تحقق صلاحية المبلغ مقابل المتاح في الرئيسي
-  function checkValidation(){
-    allocError.classList.add('d-none');
-    const mainId = mainSelect.value;
-    const subId = subSelect.value;
-    const val = parseNum(amountInput.value || 0);
-    if (!mainId || !subId || val <= 0){
-      submitBtn.disabled = true;
-      return false;
+    const after =
+        available - amount;
+
+
+    mainAfter.value =
+        Math.max(
+            after,
+            0
+        ).toFixed(2) +
+        " ر.س";
+
+}
+
+
+/* =====================================================
+   التحقق
+===================================================== */
+
+function validateForm() {
+
+    const mainId =
+        mainSelect.value;
+
+    const subId =
+        subSelect.value;
+
+    const amount =
+        parseNum(
+            amountInput.value
+        );
+
+
+    errorBox.classList.add(
+        "d-none"
+    );
+
+
+    if (
+        !mainId ||
+        !subId ||
+        amount <= 0
+    ) {
+
+        submitButton.disabled =
+            true;
+
+        return false;
     }
-    const mainEl = getMainEl(mainId);
-    if (!mainEl){
-      submitBtn.disabled = true;
-      return false;
+
+
+    const main =
+        getMainData(mainId);
+
+    if (!main) {
+
+        submitButton.disabled =
+            true;
+
+        return false;
     }
-    const available = parseNum(mainEl.dataset.available || 0);
-    if (val > available){
-      allocError.innerText = "المبلغ أكبر من المتاح في الرئيسي.";
-      allocError.classList.remove('d-none');
-      submitBtn.disabled = true;
-      return false;
+
+
+    const available =
+        parseNum(
+            main.dataset.available
+        );
+
+
+    if (amount > available) {
+
+        errorBox.innerText =
+            "المبلغ أكبر من الرصيد المتاح في البرنامج الرئيسي.";
+
+        errorBox.classList.remove(
+            "d-none"
+        );
+
+        submitButton.disabled =
+            true;
+
+        return false;
     }
-    allocError.classList.add('d-none');
-    submitBtn.disabled = false;
+
+
+    submitButton.disabled =
+        false;
+
     return true;
-  }
 
-  // عند إدخال المبلغ
-  amountInput.addEventListener("input", function(){
-    const mainId = mainSelect.value;
-    const mainEl = getMainEl(mainId);
-    if (!mainEl) return;
-    const available = parseNum(mainEl.dataset.available || 0);
-    const val = parseNum(this.value || 0);
-    if (val > available){
-      this.classList.add("is-invalid");
-      submitBtn.disabled = true;
-    } else {
-      this.classList.remove("is-invalid");
-      checkValidation();
+}
+
+
+/* =====================================================
+   الأحداث
+===================================================== */
+
+mainSelect.addEventListener(
+    "change",
+    function() {
+
+        updateSubPrograms();
+
     }
-  });
+);
 
-  // عند الضغط على زر تنفيذ — نعرض مودال التأكيد
-  document.getElementById("submit-btn").addEventListener("click", function(){
-    if (!checkValidation()) return;
 
-    const mainId = mainSelect.value;
-    const subId = subSelect.value;
-    const mainEl = getMainEl(mainId);
-    const subEl = getSubEl(subId);
+subSelect.addEventListener(
+    "change",
+    function() {
 
-    document.getElementById("c-main").innerText = mainEl ? mainEl.dataset.name : "—";
-    document.getElementById("c-sub").innerText = subEl ? subEl.dataset.name : "—";
-    document.getElementById("c-amount").innerText = parseNum(amountInput.value).toFixed(2) + " ر.س";
-    const after = (parseNum(mainEl.dataset.available || 0) - parseNum(amountInput.value || 0)).toFixed(2) + " ر.س";
-    document.getElementById("c-after").innerText = after;
-    document.getElementById("c-notes").innerText = document.querySelector('textarea[name="notes"]').value || "—";
+        updateDetails();
+        updateAfter();
+        validateForm();
 
-    const modal = new bootstrap.Modal(document.getElementById("confirmAllocModal"));
-    modal.show();
-  });
-
-  // زر التأكيد في المودال: ينفذ إرسال الفورم
-  document.getElementById("c-confirm").addEventListener("click", function(){
-    document.getElementById("alloc-form").submit();
-  });
-
-  // فتح مودال تفاصيل من السجل عند الضغط على صف
-  document.addEventListener("click", function(e){
-    const row = e.target.closest(".alloc-row");
-    if (!row) return;
-
-    document.getElementById("mv-date").innerText = row.dataset.date || "—";
-    document.getElementById("mv-main").innerText = row.dataset.main || "—";
-    document.getElementById("mv-sub").innerText = row.dataset.sub || "—";
-    document.getElementById("mv-amount").innerText = row.dataset.amount || "—";
-    document.getElementById("mv-notes").innerText = row.dataset.notes || "—";
-    document.getElementById("mv-user").innerText = row.dataset.user || "—";
-
-    const modal = new bootstrap.Modal(document.getElementById("allocModal"));
-    modal.show();
-  });
-
-  // initial
-  document.addEventListener("DOMContentLoaded", function(){
-    resetSub();
-    // لو عندك قيمة مسبقة للـ mainSelect (مثلاً بعد خطأ في POST) عرض التفاصيل
-    if (mainSelect.value){
-      const ev = new Event('change'); mainSelect.dispatchEvent(ev);
     }
-  });
+);
+
+
+amountInput.addEventListener(
+    "input",
+    function() {
+
+        updateAfter();
+        validateForm();
+
+    }
+);
+
+
+/* =====================================================
+   تأكيد التحويل
+===================================================== */
+
+submitButton.addEventListener(
+    "click",
+    function() {
+
+        if (!validateForm()) {
+            return;
+        }
+
+
+        const main =
+            getMainData(
+                mainSelect.value
+            );
+
+        const sub =
+            getSubData(
+                subSelect.value
+            );
+
+
+        const amount =
+            parseNum(
+                amountInput.value
+            );
+
+
+        const available =
+            parseNum(
+                main.dataset.available
+            );
+
+
+        const after =
+            Math.max(
+                available - amount,
+                0
+            );
+
+
+        document.getElementById(
+            "confirm-main"
+        ).innerText =
+            main.dataset.name;
+
+
+        document.getElementById(
+            "confirm-sub"
+        ).innerText =
+            sub.dataset.name;
+
+
+        document.getElementById(
+            "confirm-amount"
+        ).innerText =
+            amount.toFixed(2) +
+            " ر.س";
+
+
+        document.getElementById(
+            "confirm-after"
+        ).innerText =
+            after.toFixed(2) +
+            " ر.س";
+
+
+        document.getElementById(
+            "confirm-notes"
+        ).innerText =
+            document.querySelector(
+                'textarea[name="notes"]'
+            ).value || "—";
+
+
+        new bootstrap.Modal(
+            document.getElementById(
+                "confirmTransferModal"
+            )
+        ).show();
+
+    }
+);
+
+
+document.getElementById(
+    "confirm-transfer"
+).addEventListener(
+    "click",
+    function() {
+
+        document.getElementById(
+            "transfer-form"
+        ).submit();
+
+    }
+);
+
+
+/* =====================================================
+   فلترة سجل التخصيصات
+===================================================== */
+
+const mainFilter =
+    document.getElementById(
+        "history-main-filter"
+    );
+
+const subFilter =
+    document.getElementById(
+        "history-sub-filter"
+    );
+
+const dateFrom =
+    document.getElementById(
+        "history-date-from"
+    );
+
+const dateTo =
+    document.getElementById(
+        "history-date-to"
+    );
+
+const searchInput =
+    document.getElementById(
+        "history-search"
+    );
+
+const resetButton =
+    document.getElementById(
+        "history-reset"
+    );
+
+const historyRows =
+    document.querySelectorAll(
+        ".history-row"
+    );
+
+const historyCount =
+    document.getElementById(
+        "history-count"
+    );
+
+const noResults =
+    document.getElementById(
+        "history-no-results"
+    );
+
+
+function filterHistory() {
+
+    const main =
+        mainFilter.value;
+
+    const sub =
+        subFilter.value;
+
+    const from =
+        dateFrom.value;
+
+    const to =
+        dateTo.value;
+
+    const search =
+        searchInput.value
+            .trim()
+            .toLowerCase();
+
+
+    let count = 0;
+
+
+    historyRows.forEach(
+        function(row) {
+
+            const rowMain =
+                row.dataset.main || "";
+
+            const rowSub =
+                row.dataset.sub || "";
+
+            const rowDate =
+                row.dataset.date || "";
+
+            const rowSearch =
+                (
+                    row.dataset.search || ""
+                )
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+
+
+            let show = true;
+
+
+            if (
+                main &&
+                rowMain !== main
+            ) {
+                show = false;
+            }
+
+
+            if (
+                sub &&
+                rowSub !== sub
+            ) {
+                show = false;
+            }
+
+
+            if (
+                from &&
+                rowDate < from
+            ) {
+                show = false;
+            }
+
+
+            if (
+                to &&
+                rowDate > to
+            ) {
+                show = false;
+            }
+
+
+            if (
+                search &&
+                !rowSearch.includes(search)
+            ) {
+                show = false;
+            }
+
+
+            row.style.display =
+                show
+                    ? ""
+                    : "none";
+
+
+            if (show) {
+                count++;
+            }
+
+        }
+    );
+
+
+    historyCount.innerText =
+        count;
+
+
+    noResults.classList.toggle(
+        "d-none",
+        count > 0
+    );
+
+}
+
+
+mainFilter.addEventListener(
+    "change",
+    filterHistory
+);
+
+subFilter.addEventListener(
+    "change",
+    filterHistory
+);
+
+dateFrom.addEventListener(
+    "change",
+    filterHistory
+);
+
+dateTo.addEventListener(
+    "change",
+    filterHistory
+);
+
+searchInput.addEventListener(
+    "input",
+    filterHistory
+);
+
+
+resetButton.addEventListener(
+    "click",
+    function() {
+
+        mainFilter.value = "";
+        subFilter.value = "";
+        dateFrom.value = "";
+        dateTo.value = "";
+        searchInput.value = "";
+
+        filterHistory();
+
+    }
+);
+
+
+/* =====================================================
+   البداية
+===================================================== */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    function() {
+
+        updateSubPrograms();
+        updateDetails();
+        updateAfter();
+        validateForm();
+
+    }
+);
 
 </script>
 

@@ -7,11 +7,59 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.forms.models import BaseInlineFormSet
 from django.core.exceptions import ValidationError
 from .models import MainProgram, SubProgram , PaymentPlan
+from django.utils import timezone
+from Accounting.models import FinancialSponsorshipInvoice
 
 User = get_user_model()
 
 
+class SponsorshipInvoiceSelect(forms.Select):
 
+    def create_option(
+        self,
+        name,
+        value,
+        label,
+        selected,
+        index,
+        subindex=None,
+        attrs=None,
+    ):
+        option = super().create_option(
+            name,
+            value,
+            label,
+            selected,
+            index,
+            subindex,
+            attrs,
+        )
+
+        invoice = getattr(value, "instance", None)
+
+        if invoice:
+            sponsor_name = (
+                invoice.sponsor.user.get_full_name()
+                or invoice.sponsor.user.username
+            )
+
+            option["attrs"]["data-sponsor"] = sponsor_name
+            option["attrs"]["data-amount"] = (
+                f"{invoice.total_amount:,.2f} ر.س"
+            )
+            option["attrs"]["data-start"] = (
+                invoice.start_date.isoformat()
+                if invoice.start_date
+                else "—"
+            )
+            option["attrs"]["data-end"] = (
+                invoice.end_date.isoformat()
+                if invoice.end_date
+                else "—"
+            )
+
+        return option
+    
 # مكسن بسيط يجعل أي فورم يقبل request بدون ما يطيح
 class RequestFormMixin:
     def __init__(self, *args, **kwargs):
@@ -306,13 +354,77 @@ class BeneficiaryImportForm(forms.Form):
     file = forms.FileField(label="ملف Excel (xlsx)", widget=forms.FileInput(attrs={"accept":".xlsx"}))
 
 class BeneficiariesBulkAssignForm(forms.Form):
-    donor = forms.ModelChoiceField(
-        queryset=Profile.objects.filter(role=Profile.Roles.DONOR).select_related("user"),
-        label="إلحاق إلى متبرّع",
-        widget=forms.Select(attrs={"class":"form-select"})
+    """
+    إلحاق مستفيد واحد بسند كفالة مالية.
+
+    القواعد:
+    - سند كفالة واحد = مستفيد واحد.
+    - لا تظهر إلا السندات السارية.
+    - لا تظهر السندات المرتبطة بمستفيد سابقًا.
+    - الكافل يؤخذ تلقائيًا من السند.
+    """
+
+    sponsorship_invoice = forms.ModelChoiceField(
+        queryset=FinancialSponsorshipInvoice.objects.none(),
+        label="سند الكفالة",
+        required=True,
+        empty_label="اختر سند الكفالة",
+        widget=SponsorshipInvoiceSelect(
+            attrs={
+                "class": "form-select sponsorship-select",
+            }
+        ),
     )
-    # اجعله اختياريًا لأننا نرسل selected_ids من القالب
-    ids = forms.CharField(widget=forms.HiddenInput, required=False)
+
+    ids = forms.CharField(
+        widget=forms.HiddenInput(),
+        required=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        today = timezone.localdate()
+
+        queryset = (
+            FinancialSponsorshipInvoice.objects
+            .filter(
+                start_date__lte=today,
+                end_date__gte=today,
+                allocation__isnull=True,
+            )
+            .select_related(
+                "invoice",
+                "sponsor",
+                "sponsor__user",
+            )
+            .order_by(
+                "end_date",
+                "invoice__number",
+            )
+        )
+
+        self.fields["sponsorship_invoice"].queryset = queryset
+
+        self.fields[
+            "sponsorship_invoice"
+        ].label_from_instance = self._sponsorship_label
+
+    @staticmethod
+    def _sponsorship_label(obj):
+
+        sponsor_name = (
+            obj.sponsor.user.get_full_name()
+            or obj.sponsor.user.username
+        )
+
+        return (
+            f"سند #{obj.invoice.number} | "
+            f"{sponsor_name} | "
+            f"{obj.total_amount:,.2f} ر.س | "
+            f"{obj.start_date:%Y-%m-%d} → "
+            f"{obj.end_date:%Y-%m-%d}"
+        )
 
 
 ## البرامج 
@@ -373,3 +485,4 @@ class PaymentPlanForm(forms.ModelForm):
             "duration_months": "المدة (بالأشهر)",
             "is_active": "نشطة",
         }
+

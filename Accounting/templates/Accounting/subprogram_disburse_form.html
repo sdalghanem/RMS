@@ -1,657 +1,1121 @@
 {% extends "Management/base.html" %}
+{% load static %}
+
 {% block title %}أمر صرف من برنامج فرعي{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">أمر صرف من برنامج فرعي</h5>
-    <small class="text-muted">صرف مباشر للمستفيدين تحت برنامج فرعي، مع إمكانية الصرف من رصيد البرنامج أو من رصيد المستفيد (الكفالة).</small>
-  </div>
-</div>
+<style>
+  #beneficiaries-list thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #f8f9fa;
+  }
 
-<div class="row g-3">
-  <!-- نموذج الصرف -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
+  #beneficiaries-list tbody tr {
+    transition: background-color 0.15s ease;
+  }
 
-        <h6 class="fw-bold mb-3">بيانات الأمر</h6>
+  #beneficiaries-list tbody tr:hover {
+    background-color: #f8fbf9;
+  }
+</style>
 
-        <form method="post" id="disburse-form">
-          {% csrf_token %}
+<form method="post">
 
-          <div class="mb-3">
-            <label class="form-label">البرنامج الفرعي</label>
-            <select name="sub_program" class="form-select" id="sub-program-select">
-              <option value="">— اختر —</option>
-              {% for sp in sub_programs %}
-                <option value="{{ sp.id }}">{{ sp.main_program.name }} / {{ sp.name }}</option>
-              {% endfor %}
-            </select>
-            <div class="form-text text-muted">سيتم ربط الصرف بهذا البرنامج.</div>
-          </div>
+    {% csrf_token %}
 
-          <div id="sub-details" class="text-muted small mb-3">
-            اختر برنامجًا فرعيًا لعرض تفاصيل رصيده.
-          </div>
+    <!-- ===================================================== -->
+    <!-- عنوان الصفحة -->
+    <!-- ===================================================== -->
 
-          <!-- مصدر الصرف -->
-          <div class="mb-3">
-            <label class="form-label d-block">مصدر الصرف</label>
-            <div class="btn-group" role="group">
-              <input type="radio" class="btn-check" name="source_type"
-                     id="src-sub" value="sub_program" checked>
-              <label class="btn btn-outline-secondary btn-sm" for="src-sub">
-                من رصيد البرنامج الفرعي
-              </label>
+    <div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
 
-              <input type="radio" class="btn-check" name="source_type"
-                     id="src-bene" value="beneficiary">
-              <!-- <label class="btn btn-outline-secondary btn-sm" for="src-bene">
-                من رصيد المستفيد (الكفالة)
-              </label> -->
-            </div>
-            <!-- <div class="form-text text-muted small">
-              الصرف من رصيد المستفيد متاح فقط إذا كان الأمر لمستفيد واحد ولديه رصيد كافٍ.
-            </div> -->
-          </div>
+        <div>
+            <h5 class="m-0 fw-bold">
+                أمر صرف من برنامج فرعي
+            </h5>
 
-          <div class="mb-3">
-            <label class="form-label">رقم السند</label>
-            <input type="text"
-                   name="voucher_number"
-                   class="form-control"
-                   placeholder="مثال: V-2025-001"
-                   required>
-            <div class="form-text text-muted">رقم مرجعي لإثبات عملية الصرف.</div>
-          </div>
+            <small class="text-muted">
+                صرف مباشر للمستفيدين تحت برنامج فرعي، مع إمكانية الصرف من رصيد البرنامج أو من رصيد المستفيد (الكفالة).
+            </small>
+        </div>
 
-          <div class="mb-3">
-            <label class="form-label">ملاحظات</label>
-            <input type="text" name="notes" class="form-control"
-                   placeholder="مثال: هدية تفوق / دعم علاجي / ...">
-          </div>
-
-          <div class="d-flex align-items-center justify-content-between mb-2">
-            <h6 class="m-0 fw-bold">تفاصيل المستفيدين المختارين</h6>
-
-            <button type="button"
-                    class="btn btn-outline-primary btn-sm"
-                    id="add-selected">
-              <i class="bi bi-plus-circle"></i> إضافة المحددين
-            </button>
-          </div>
-
-          <!-- مبلغ موحّد للمستفيدين -->
-          <div class="mb-2">
-            <label class="form-label small text-muted">
-              مبلغ موحّد للمستفيدين المختارين (اختياري)
-            </label>
-
-            <div class="input-group">
-              <input type="number"
-                     step="0.01" min="0"
-                     class="form-control"
-                     id="uniform-amount"
-                     placeholder="0.00">
-
-              <button type="button"
-                      class="btn btn-outline-success"
-                      id="apply-uniform">
-                <i class="bi bi-check2-all"></i>
-                لكل المستفيدين
-              </button>
-
-              <button type="button"
-                      class="btn btn-outline-secondary"
-                      id="clear-uniform">
-                <i class="bi bi-eraser"></i>
-                مسح
-              </button>
-            </div>
-
-            <div class="form-text text-muted">
-              اكتب مبلغًا واحدًا ثم اضغط "لكل المستفيدين"، ويمكنك تعديل أي مستفيد يدويًا بعد ذلك.
-            </div>
-          </div>
-
-          <div class="table-responsive">
-            <table class="table table-hover align-middle m-0" id="beneficiaries-table">
-              <thead class="table-light sticky-top">
-                <tr>
-                  <th style="width:35px">#</th>
-                  <th>المستفيد</th>
-                  <th style="width:130px" class="text-end text-muted small">المبلغ</th>
-                  <th style="width:40px"></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="empty-row">
-                  <td colspan="4" class="text-center text-muted py-3">
-                    لم يتم اختيار مستفيدين بعد.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="d-flex justify-content-between align-items-center mt-3">
-            <div class="text-muted small">
-              إجمالي الصرف: <strong id="total-amount">0.00</strong> ر.س
-            </div>
-            <div class="text-muted small">
-              المتبقي بعد الصرف (حسب مصدر الصرف): <strong id="sub-after">—</strong>
-            </div>
-          </div>
-
-          <div class="d-flex justify-content-end gap-2 mt-3">
-            <a href="#" class="btn btn-light">رجوع</a>
-            <button class="btn btn-primary" id="submit-btn" disabled>
-              <i class="bi bi-check2-circle"></i> تنفيذ الصرف
-            </button>
-          </div>
-
-        </form>
-
-      </div>
     </div>
-  </div>
 
-  <!-- قائمة المستفيدين + فلاتر -->
-  <div class="col-lg-6">
-    <div class="card shadow-sm border-0 h-100">
-      <div class="card-body">
 
-        <h6 class="fw-bold mb-3">اختيار المستفيدين (Checklist)</h6>
+    <!-- ===================================================== -->
+    <!-- ① اختيار البرنامج الفرعي -->
+    <!-- ===================================================== -->
 
-        <form method="get" class="row g-2 mb-3">
+    <div class="card shadow-sm border-0 mb-3">
 
-          <!-- صف 1: المرحلة + الجنس -->
-          <div class="col-md-6">
-            <label class="form-label small text-muted">المرحلة الدراسية</label>
-            <select name="education_level" class="form-select">
-              <option value="">الكل</option>
-              {% for val, label in education_levels %}
-                <option value="{{ val }}" {% if filters.education_level == val %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
+        <div class="card-header bg-white border-bottom">
 
-          <div class="col-md-6">
-            <label class="form-label small text-muted">الجنس</label>
-            <select name="gender" class="form-select">
-              <option value="">الكل</option>
-              {% for val, label in genders %}
-                <option value="{{ val }}" {% if filters.gender == val %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
+            <h5 class="mb-0 fw-bold">
+                ① اختيار البرنامج الفرعي
+                <span class="text-danger">*</span>
+            </h5>
 
-          <!-- صف 2: الحالة الصحية + نوع المرض -->
-          <div class="col-md-6">
-            <label class="form-label small text-muted">الحالة الصحية</label>
-            <select name="health_status" class="form-select" id="health-status">
-              <option value="">الكل</option>
-              {% for val, label in health_statuses %}
-                <option value="{{ val }}" {% if filters.health_status == val %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
+        </div>
 
-          <div class="col-md-6">
-            <label class="form-label small text-muted">نوع المرض</label>
-            <select name="type_disease" class="form-select" id="disease-type">
-              <option value="">الكل</option>
-              {% for val, label in disease_types %}
-                <option value="{{ val }}" {% if filters.type_disease == val %}selected{% endif %}>
-                  {{ label }}
-                </option>
-              {% endfor %}
-            </select>
-          </div>
+        <div class="card-body">
 
-          <!-- صف 3: بحث باسم المرض -->
-          <div class="col-12">
-            <label class="form-label small text-muted">بحث باسم المرض</label>
-            <input type="text"
-                   name="disease_q"
-                   class="form-control"
-                   value="{{ filters.disease_q }}"
-                   placeholder="مثال: سكري / ربو / ...">
-          </div>
+            <div class="mb-3">
 
-          <div class="col-12 d-grid">
-            <button class="btn btn-primary btn-sm">
-              <i class="bi bi-search"></i> تطبيق الفلاتر
-            </button>
-          </div>
-        </form>
+                <label class="form-label fw-semibold">
+                    البرنامج الفرعي
+                    <span class="text-danger">*</span>
+                </label>
 
-        <div class="table-responsive" style="max-height:420px; overflow:auto;">
-          <table class="table table-sm align-middle">
-            <thead class="table-light sticky-top">
-              <tr>
-                <th style="width:35px" class="text-center">
-                  <input type="checkbox" class="form-check-input" id="select-all-bene">
-                </th>
-                <th>المستفيد</th>
-                <th class="text-muted small">المرحلة</th>
-                <th class="text-muted small">الحالة</th>
-                <!-- <th class="text-end text-muted small">رصيده</th> -->
-              </tr>
-            </thead>
-            <tbody>
-              {% for b in beneficiaries %}
-              <tr>
-                <td class="text-center">
-                  {% with bal=b.balance_total|default:0 %}
-                    <input type="checkbox" class="form-check-input bene-check"
-                           data-id="{{ b.id }}"
-                           data-name="{{ b.first_name }} {{ b.last_name }}"
-                           data-nn="{{ b.national_number }}"
-                           data-balance="{% if bal < 0 %}0{% else %}{{ bal }}{% endif %}">
-                  {% endwith %}
-                </td>
-                <td class="small fw-semibold">
-                  {{ b.first_name }} {{ b.last_name }}
-                  <div class="text-muted small">{{ b.national_number }}</div>
-                </td>
-                <td class="small text-muted">
-                  {{ b.get_education_level_display|default:"—" }}
-                </td>
-                <td class="small text-muted">
-                  {{ b.get_health_status_display|default:"—" }}
-                  {% if b.health_status == "sick" %}
-                    <div class="small text-muted">
-                      {{ b.get_type_disease_display }}
+                <select
+                    name="sub_program"
+                    id="sub-program-select"
+                    class="form-select"
+                    required>
+
+                    <option value="">
+                        اختر البرنامج...
+                    </option>
+
+                    {% for sp in sub_programs %}
+
+                    <option value="{{ sp.id }}">
+                        {{ sp.main_program.name }} / {{ sp.name }}
+                    </option>
+
+                    {% endfor %}
+
+                </select>
+
+                <div class="form-text">
+                    اختر البرنامج الفرعي الذي سيتم تحميل مبلغ الصرف منه.
+                </div>
+
+            </div>
+
+
+            <div id="sub-details" class="mt-3">
+
+                <div class="alert alert-light border text-center mb-0">
+
+                    <div class="text-muted small mb-1">
+                        اختر برنامجًا فرعيًا لعرض الرصيد الحالي
                     </div>
-                    {% if b.disease %}
-                      <div class="small">{{ b.disease }}</div>
-                    {% endif %}
-                  {% endif %}
-                </td>
-                {% with bal=b.balance_total|default:0 %}
-                  <!-- <td class="small text-end {% if bal < 0 %}text-danger{% endif %}">
-                    {% if bal < 0 %}
-                      0.00 ر.س
-                    {% else %}
-                      {{ bal|floatformat:2 }} ر.س
-                    {% endif %}
-                  </td> -->
-                {% endwith %}
-              </tr>
-              {% empty %}
-              <tr>
-                <td colspan="5" class="text-center text-muted py-3">
-                  لا توجد نتائج تطابق الفلاتر.
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+
+                    <div class="fs-3 fw-bold text-success">
+                        —
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
 
-      </div>
     </div>
-  </div>
-</div>
 
-<!-- بيانات مخفية للبرامج الفرعية -->
-<div class="d-none" id="sub-data">
-  {% for sp in sub_program_data %}
-    <div class="sub-prog"
-         data-id="{{ sp.id }}"
-         data-name="{{ sp.name }}"
-         data-main="{{ sp.main_name }}"
-         data-allocated="{{ sp.allocated }}"
-         data-spent="{{ sp.spent }}"
-         data-remaining="{{ sp.remaining }}">
-    </div>
-  {% endfor %}
-</div>
 
-<!-- آخر الأوامر + رصيد الصندوق (مرجعي) -->
-<div class="row g-3 mb-3">
-  <div class="col-12">
-    <div class="kpi-card p-3 h-100">
-      <div class="d-flex align-items-center justify-content-between mb-2">
-        <div class="icon-wrap"><i class="bi bi-clock-history"></i> آخر أوامر الصرف</div>
-      </div>
+    <!-- ===================================================== -->
+    <!-- ② اختيار المستفيدين -->
+    <!-- ===================================================== -->
 
-      {% if last_disbursements %}
-        <div class="table-responsive">
-          <table class="table table-sm align-middle m-0">
-            <thead class="table-light">
-              <tr>
-                <th>رقم السند</th>
-                <th>التاريخ</th>
-                <th>البرنامج</th>
-                <th class="text-end">الإجمالي</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for d in last_disbursements %}
-              <tr class="disb-row"
-                  role="button"
-                  data-id="{{ d.voucher_number }}"
-                  data-date="{{ d.created_at|date:'Y-m-d H:i' }}"
-                  data-main="{{ d.sub_program.main_program.name }}"
-                  data-sub="{{ d.sub_program.name }}"
-                  data-total="{{ d.total_amount|floatformat:2 }}"
-                  data-notes="{{ d.notes|default:'—' }}"
-                  data-user="{{ d.created_by.get_full_name|default:d.created_by.username|default:'—' }}">
-                <td class="small fw-bold">{{ d.voucher_number }}</td>
-                <td class="small">{{ d.created_at|date:"Y-m-d" }}</td>
-                <td class="small">
-                  {{ d.sub_program.main_program.name }} / {{ d.sub_program.name }}
-                </td>
-                <td class="text-end small fw-bold">{{ d.total_amount|floatformat:2 }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+    <div class="card shadow-sm border-0 mb-3">
 
-          <!-- بيانات أوامر الصرف المخفية -->
-          <div class="d-none" id="disb-data">
-            {% for d in last_disbursements %}
-              <div class="disb-item" data-id="{{ d.voucher_number }}">
-                {% for line in d.lines.all %}
-                  <div class="line"
-                       data-name="{{ line.beneficiary.first_name }} {{ line.beneficiary.last_name }}"
-                       data-nn="{{ line.beneficiary.national_number }}"
-                       data-amount="{{ line.amount|floatformat:2 }}">
-                  </div>
+        <div class="card-header bg-white">
+
+            <h5 class="mb-0 fw-bold">
+                ② اختيار المستفيدين
+                <span class="text-danger">*</span>
+            </h5>
+
+            <small class="text-muted">
+                يمكنك البحث عن المستفيد باستخدام بياناته أو بيانات الكافل ثم تحديد المستفيدين المطلوب الصرف لهم.
+            </small>
+
+        </div>
+
+
+        <div class="card-body">
+
+
+            <!-- ================================================= -->
+            <!-- البحث والفلاتر -->
+            <!-- ================================================= -->
+
+            <div id="beneficiary-filter-form" class="row g-3 mb-3">
+
+
+                <!-- البحث السريع -->
+
+                <div class="col-md-12">
+
+                    <label
+                        for="beneficiary-search"
+                        class="form-label fw-semibold">
+
+                        البحث السريع
+
+                    </label>
+
+                    <input
+                        type="text"
+                        id="beneficiary-search"
+                        class="form-control"
+                        placeholder="ابحث باسم المستفيد، رقم هويته، اسم الكافل أو رقم هوية الكافل..."
+                        autocomplete="off">
+
+                    <div class="form-text">
+                        يمكنك البحث باسم المستفيد أو الكافل أو باستخدام رقم الهوية.
+                    </div>
+
+                </div>
+
+
+                <!-- المرحلة الدراسية -->
+
+                <div class="col-md-3">
+
+                    <label class="form-label small fw-semibold">
+                        المرحلة الدراسية
+                    </label>
+
+                    <select
+                        name="education_level"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for val, label in education_levels %}
+
+                        <option
+                            value="{{ val }}"
+                            {% if filters.education_level == val %}
+                                selected
+                            {% endif %}>
+
+                            {{ label }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+                <!-- الجنس -->
+
+                <div class="col-md-3">
+
+                    <label class="form-label small fw-semibold">
+                        الجنس
+                    </label>
+
+                    <select
+                        name="gender"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for val, label in genders %}
+
+                        <option
+                            value="{{ val }}"
+                            {% if filters.gender == val %}
+                                selected
+                            {% endif %}>
+
+                            {{ label }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+                <!-- الحالة الصحية -->
+
+                <div class="col-md-3">
+
+                    <label class="form-label small fw-semibold">
+                        الحالة الصحية
+                    </label>
+
+                    <select
+                        name="health_status"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for val, label in health_statuses %}
+
+                        <option
+                            value="{{ val }}"
+                            {% if filters.health_status == val %}
+                                selected
+                            {% endif %}>
+
+                            {{ label }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+                <!-- نوع المرض -->
+
+                <div class="col-md-3">
+
+                    <label class="form-label small fw-semibold">
+                        نوع المرض
+                    </label>
+
+                    <select
+                        name="type_disease"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for val, label in disease_types %}
+
+                        <option
+                            value="{{ val }}"
+                            {% if filters.type_disease == val %}
+                                selected
+                            {% endif %}>
+
+                            {{ label }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- جدول المستفيدين -->
+            <!-- ================================================= -->
+
+            <div
+                class="table-responsive border rounded"
+                style="max-height:300px; overflow-y:auto;">
+
+                <table
+                    id="beneficiaries-list"
+                    class="table table-hover table-sm align-middle mb-0"
+                    dir="rtl">
+
+                    <thead class="table-light">
+
+                        <tr>
+
+                            <th
+                                width="40"
+                                class="text-center">
+
+                                <input
+                                    type="checkbox"
+                                    id="select-all-bene"
+                                    class="form-check-input">
+
+                            </th>
+
+
+                            <th>
+                                المستفيد
+                            </th>
+
+
+                            <th width="220">
+                                الكافل
+                            </th>
+                            <th width="140" class="text-center">
+                                حالة الكفالة
+                            </th>
+
+                            <th width="160">
+                                المرحلة
+                            </th>
+
+
+                            <th width="220">
+                                الحالة الصحية
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+
+                    <tbody>
+
+                        {% for b in beneficiaries %}
+
+                        <tr
+                            data-education="{{ b.education_level|default_if_none:'' }}"
+                            data-gender="{{ b.gender|default_if_none:'' }}"
+                            data-health="{{ b.health_status|default_if_none:'' }}"
+                            data-disease="{{ b.type_disease|default_if_none:'' }}"
+                            data-disease-name="{{ b.disease|default_if_none:'' }}"
+
+                            data-beneficiary-name="{{ b.first_name }} {{ b.father_name }}"
+                            data-beneficiary-id="{{ b.national_number|default_if_none:'' }}"
+
+                            data-donor-name="{% if b.donor %}{{ b.donor.user.get_full_name|default:b.donor.user.username }}{% endif %}"
+                            data-donor-id="{% if b.donor %}{{ b.donor.national_number|default_if_none:'' }}{% endif %}">
+
+
+                            <!-- تحديد -->
+
+                            <td class="text-center">
+
+                                <input
+                                    type="checkbox"
+                                    class="form-check-input bene-check"
+
+                                    data-id="{{ b.id }}"
+
+                                    data-name="{{ b.first_name }} {{ b.father_name }}"
+
+                                    data-nn="{{ b.national_number }}">
+
+                            </td>
+
+
+                            <!-- المستفيد -->
+
+                            <td>
+
+                                <div class="fw-semibold">
+
+                                    {{ b.first_name }}
+                                    {{ b.father_name }}
+
+                                </div>
+
+                                <div class="small text-muted">
+
+                                    {{ b.national_number|default:"—" }}
+
+                                </div>
+
+                            </td>
+
+
+                            <!-- الكافل -->
+
+                            <td>
+
+                                {% if b.donor %}
+
+                                    <div class="fw-semibold">
+
+                                        {{ b.donor.user.get_full_name|default:b.donor.user.username }}
+
+                                    </div>
+
+                                    <div class="small text-muted">
+
+                                        {{ b.donor.national_number|default:"—" }}
+
+                                    </div>
+
+                                {% else %}
+
+                                    <span class="text-muted">
+
+                                        غير مرتبط بكافل
+
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+                          <!--حالكة الكفالة -->
+                          <td class="text-center">
+
+                              {% if b.active_sponsorship_list %}
+
+                                  <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                                      <i class="bi bi-check-circle"></i>
+                                      سارية
+                                  </span>
+
+                              {% elif b.donor %}
+
+                                  <span class="badge rounded-pill bg-danger-subtle text-danger border border-danger-subtle px-3 py-2">
+                                      <i class="bi bi-x-circle"></i>
+                                      غير سارية
+                                  </span>
+
+                              {% else %}
+
+                                  <span class="badge rounded-pill bg-secondary-subtle text-secondary border px-3 py-2">
+                                      غير مكفول
+                                  </span>
+
+                              {% endif %}
+
+                          </td>
+                            <!-- المرحلة -->
+
+                            <td class="small">
+
+                                {{ b.get_education_level_display|default:"—" }}
+
+                            </td>
+
+
+                            <!-- الحالة الصحية -->
+
+                            <td class="small">
+
+                                {{ b.get_health_status_display|default:"—" }}
+
+
+                                {% if b.health_status == "sick" %}
+
+                                    <div class="small text-muted">
+
+                                        {{ b.get_type_disease_display }}
+
+                                    </div>
+
+
+                                    {% if b.disease %}
+
+                                        <div class="small">
+
+                                            {{ b.disease }}
+
+                                        </div>
+
+                                    {% endif %}
+
+                                {% endif %}
+
+                            </td>
+
+
+                        </tr>
+
+
+                        {% empty %}
+
+                        <tr>
+
+                            <td
+                                colspan="6"
+                                class="text-center text-muted py-4">
+
+                                لا يوجد مستفيدون.
+
+                            </td>
+
+                        </tr>
+
+                        {% endfor %}
+
+                    </tbody>
+
+                </table>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- إضافة المحددين -->
+            <!-- ================================================= -->
+
+            <div class="text-end mt-3 mb-3">
+
+                <button
+                    type="button"
+                    id="add-selected"
+                    class="btn btn-success">
+
+                    <i class="bi bi-plus-circle"></i>
+
+                    إضافة المحددين
+
+                </button>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- ③ المستفيدون المختارون -->
+            <!-- ================================================= -->
+
+            <div class="card shadow-sm border-0 mb-4">
+
+                <div class="card-header bg-white">
+
+                    <div class="row align-items-center">
+
+                        <div class="col-md-6 text-end">
+
+                            <h5 class="fw-bold mb-0">
+
+                                ③ المستفيدون المختارون
+
+                            </h5>
+
+                            <small class="text-muted">
+
+                                تم اختيار
+
+                                <span id="selected-count">
+                                    0
+                                </span>
+
+                                مستفيد
+
+                            </small>
+
+                        </div>
+
+
+                        <div class="col-md-6">
+
+                            <div class="d-flex justify-content-end align-items-end gap-2">
+
+                                <div>
+
+                                    <label class="form-label mb-1">
+
+                                        مبلغ موحد
+
+                                        <span class="text-muted">
+                                            (اختياري)
+                                        </span>
+
+                                    </label>
+
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        id="uniform-amount"
+                                        class="form-control text-center"
+                                        style="width:150px"
+                                        placeholder="0.00">
+
+                                </div>
+
+
+                                <button
+                                    type="button"
+                                    id="apply-uniform"
+                                    class="btn btn-success">
+
+                                    <i class="bi bi-check2"></i>
+
+                                    تطبيق على الجميع
+
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    id="clear-uniform"
+                                    class="btn btn-outline-secondary">
+
+                                    <i class="bi bi-eraser"></i>
+
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="card-body p-0">
+
+                    <div class="table-responsive">
+
+                        <table
+                            id="beneficiaries-table"
+                            class="table table-hover align-middle mb-0">
+
+                            <thead class="table-light">
+
+                                <tr>
+
+                                    <th class="text-start">
+                                        المستفيد
+                                    </th>
+
+                                    <th
+                                        width="180"
+                                        class="text-center">
+
+                                        مبلغ الصرف
+
+                                    </th>
+
+                                    <th
+                                        width="70"
+                                        class="text-center">
+
+                                        حذف
+
+                                    </th>
+
+                                </tr>
+
+                            </thead>
+
+
+                            <tbody>
+
+                                <tr id="empty-row">
+
+                                    <td
+                                        colspan="3"
+                                        class="text-center text-muted py-4">
+
+                                        لم يتم اختيار أي مستفيد.
+
+                                    </td>
+
+                                </tr>
+
+                            </tbody>
+
+
+                            <tfoot>
+
+                                <tr class="table-light">
+
+                                    <th class="text-end">
+
+                                        إجمالي الصرف
+
+                                    </th>
+
+                                    <th
+                                        class="text-primary fs-5 fw-bold text-center">
+
+                                        <span id="total-amount">
+                                            0.00
+                                        </span>
+
+                                        ر.س
+
+                                    </th>
+
+                                    <th></th>
+
+                                </tr>
+
+
+                                <tr>
+
+                                    <th class="text-end">
+
+                                        الرصيد بعد الصرف
+
+                                    </th>
+
+                                    <th
+                                        class="text-success fs-3 fw-bold text-center">
+
+                                        <span id="sub-after">
+                                            0.00
+                                        </span>
+
+                                        ر.س
+
+                                    </th>
+
+                                    <th></th>
+
+                                </tr>
+
+                            </tfoot>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- ④ تنفيذ أمر الصرف -->
+            <!-- ================================================= -->
+
+            <div class="card shadow-sm border-0 mb-4">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="fw-bold mb-0">
+
+                        ④ تنفيذ أمر الصرف
+
+                    </h5>
+
+                </div>
+
+
+                <div class="card-body">
+
+                    <div class="row g-3">
+
+
+                        <!-- رقم السند -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label fw-semibold">
+
+                                رقم السند
+
+                                <span class="text-danger">
+                                    *
+                                </span>
+
+                            </label>
+
+
+                            <input
+                                type="text"
+                                name="voucher_number"
+                                class="form-control"
+                                placeholder="مثال : V-2026-001"
+                                required>
+
+
+                            <small class="text-muted">
+
+                                رقم مرجعي لإثبات عملية الصرف.
+
+                            </small>
+
+                        </div>
+
+
+                        <!-- الملاحظات -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label fw-semibold">
+
+                                ملاحظات
+
+                                <span class="text-muted">
+                                    (اختياري)
+                                </span>
+
+                            </label>
+
+
+                            <input
+                                type="text"
+                                name="notes"
+                                class="form-control"
+                                placeholder="أي ملاحظات تخص عملية الصرف">
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4">
+
+
+                    <!-- الملخص -->
+
+                    <div class="row text-center">
+
+
+                        <!-- الرصيد الحالي -->
+
+                        <div class="col-md-4">
+
+                            <div class="border rounded p-3 h-100">
+
+                                <div class="text-muted small mb-2">
+
+                                    الرصيد الحالي
+
+                                </div>
+
+
+                                <div
+                                    class="fs-4 fw-bold text-success"
+                                    id="summary-balance">
+
+                                    0.00 ر.س
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- إجمالي الصرف -->
+
+                        <div class="col-md-4">
+
+                            <div class="border rounded p-3 h-100">
+
+                                <div class="text-muted small mb-2">
+
+                                    إجمالي الصرف
+
+                                </div>
+
+
+                                <div
+                                    class="fs-4 fw-bold text-primary">
+
+                                    <span id="summary-total">
+                                        0.00
+                                    </span>
+
+                                    ر.س
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- الرصيد بعد التنفيذ -->
+
+                        <div class="col-md-4">
+
+                            <div class="border rounded p-3 h-100">
+
+                                <div class="text-muted small mb-2">
+
+                                    الرصيد بعد التنفيذ
+
+                                </div>
+
+
+                                <div
+                                    class="fs-4 fw-bold text-success">
+
+                                    <span id="summary-after">
+                                        0.00
+                                    </span>
+
+                                    ر.س
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-4">
+
+
+                    <!-- الأزرار -->
+
+                    <div class="d-flex justify-content-between align-items-center">
+
+                        <a
+                            href="{% url 'Accounting:accountant_home' %}"
+                            class="btn btn-outline-secondary">
+
+                            رجوع
+
+                        </a>
+
+
+                        <button
+                            id="submit-btn"
+                            type="submit"
+                            class="btn btn-success btn-lg px-5"
+                            disabled>
+
+                            <i class="bi bi-check-circle"></i>
+
+                            تنفيذ أمر الصرف
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- ================================================= -->
+            <!-- البيانات المخفية -->
+            <!-- ================================================= -->
+
+            <div
+                id="sub-data"
+                style="display:none;">
+
+                {% for sp in sub_program_data %}
+
+                <div
+                    class="sub-prog"
+                    data-id="{{ sp.id }}"
+                    data-name="{{ sp.name }}"
+                    data-main="{{ sp.main_name }}"
+                    data-balance="{{ sp.balance }}">
+                </div>
+
                 {% endfor %}
-                <div class="lines-count" data-count="{{ d.lines.count }}"></div>
-              </div>
-            {% endfor %}
-          </div>
+
+            </div>
+
 
         </div>
-      {% else %}
-        <div class="text-muted small">لا توجد أوامر صرف حتى الآن.</div>
-      {% endif %}
+
     </div>
-  </div>
-</div>
+
+</form>
+
+
+<!-- ===================================================== -->
+<!-- البحث السريع -->
+<!-- ===================================================== -->
 
 <script>
-  const subSelect          = document.getElementById("sub-program-select");
-  const subDetails         = document.getElementById("sub-details");
-  const addSelectedBtn     = document.getElementById("add-selected");
-  const tableBody          = document.querySelector("#beneficiaries-table tbody");
-  const emptyRow           = document.getElementById("empty-row");
-  const totalEl            = document.getElementById("total-amount");
-  const subAfterEl         = document.getElementById("sub-after");
-  const submitBtn          = document.getElementById("submit-btn");
-  const uniformAmountInput = document.getElementById("uniform-amount");
-  const applyUniformBtn    = document.getElementById("apply-uniform");
-  const clearUniformBtn    = document.getElementById("clear-uniform");
-  const sourceRadios       = document.querySelectorAll('input[name="source_type"]');
 
-  let subRemaining = 0;
-  let sourceType   = "sub_program";
+document.addEventListener("DOMContentLoaded", function () {
 
-  sourceRadios.forEach(r => {
-    r.addEventListener("change", function(){
-      sourceType = this.value;
-      updateTotals();
-    });
-  });
+    const searchInput =
+        document.getElementById("beneficiary-search");
 
-  // تطبيق مبلغ موحّد
-  applyUniformBtn.addEventListener("click", function(){
-    const val = parseFloat(uniformAmountInput.value || 0);
-    if (val <= 0) return;
+    const rows =
+        document.querySelectorAll(
+            "#beneficiaries-list tbody tr"
+        );
 
-    document.querySelectorAll('input[name="amounts[]"]').forEach(inp => {
-      inp.value = val.toFixed(2);
-    });
 
-    updateTotals();
-  });
-
-  clearUniformBtn.addEventListener("click", function(){
-    document.querySelectorAll('input[name="amounts[]"]').forEach(inp => {
-      inp.value = "";
-    });
-    uniformAmountInput.value = "";
-    updateTotals();
-  });
-
-  function getSubEl(id){
-    return document.querySelector(`#sub-data .sub-prog[data-id="${id}"]`);
-  }
-
-  function renderSubDetails(el){
-    const name      = el.dataset.name;
-    const main      = el.dataset.main;
-    const allocated = parseFloat(el.dataset.allocated || 0);
-    const spent     = parseFloat(el.dataset.spent || 0);
-    subRemaining    = parseFloat(el.dataset.remaining || 0);
-
-    subDetails.innerHTML = `
-      <div class="mb-2"><strong>${main} / ${name}</strong></div>
-      <div class="row g-2">
-        <div class="col-4">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">مخصص الفرعي</div>
-            <div class="fw-bold">${allocated.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-4">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">مصروف الفرعي</div>
-            <div class="fw-bold text-danger">${spent.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-        <div class="col-4">
-          <div class="kpi-card p-2">
-            <div class="text-muted small">المتبقي</div>
-            <div class="fw-bold text-success">${subRemaining.toFixed(2)} ر.س</div>
-          </div>
-        </div>
-      </div>
-    `;
-    updateTotals();
-  }
-
-  function updateTotals(){
-    let total = 0;
-    document.querySelectorAll('input[name="amounts[]"]').forEach(inp=>{
-      total += parseFloat(inp.value || 0);
-    });
-    totalEl.innerText = total.toFixed(2);
-
-    let afterText = "—";
-    let isValid   = true;
-
-    if (sourceType === "sub_program"){
-      const after = subRemaining - total;
-      afterText = after.toFixed(2) + " ر.س";
-      if (after < 0){
-        isValid = false;
-        subAfterEl.classList.add("text-danger");
-      } else {
-        subAfterEl.classList.remove("text-danger");
-      }
-    } else {
-      const rows = Array.from(tableBody.querySelectorAll("tr")).filter(r => !r.id);
-      if (rows.length === 1){
-        const row     = rows[0];
-        const balance = parseFloat(row.dataset.balance || 0);
-        const after   = balance - total;
-        afterText     = after.toFixed(2) + " ر.س";
-        if (after < 0){
-          isValid = false;
-          subAfterEl.classList.add("text-danger");
-        } else {
-          subAfterEl.classList.remove("text-danger");
-        }
-      } else if (rows.length === 0){
-        afterText = "—";
-        isValid   = false;
-        subAfterEl.classList.remove("text-danger");
-      } else {
-        afterText = "متاح لمستفيد واحد فقط";
-        isValid   = false;
-        subAfterEl.classList.add("text-danger");
-      }
+    if (!searchInput) {
+        return;
     }
 
-    subAfterEl.innerText = afterText;
 
-    submitBtn.disabled = !(subSelect.value && total > 0 && isValid);
-  }
+    function normalize(value) {
 
-  subSelect.addEventListener("change", function(){
-    const id = this.value;
-    if (!id){
-      subDetails.innerHTML = "اختر برنامجًا فرعيًا لعرض تفاصيل رصيده.";
-      subRemaining = 0;
-      updateTotals();
-      return;
+        return (value || "")
+            .toString()
+            .trim()
+            .toLowerCase()
+            .replace(/\s+/g, " ");
+
     }
-    const el = getSubEl(id);
-    if (el) renderSubDetails(el);
-  });
 
-  // إضافة المحددين إلى جدول الصرف
-  addSelectedBtn.addEventListener("click", function(){
-    const checks = document.querySelectorAll(".bene-check:checked");
-    if (!checks.length) return;
 
-    if (emptyRow) emptyRow.remove();
+    function filterBeneficiaries() {
 
-    checks.forEach((c)=>{
-      const id      = c.dataset.id;
-      const name    = c.dataset.name;
-      const nn      = c.dataset.nn;
-      const balance = parseFloat(c.dataset.balance || 0);
+        const search =
+            normalize(searchInput.value);
 
-      if (document.querySelector(`input[name="beneficiary_ids[]"][value="${id}"]`)) return;
 
-      const rowIndex = tableBody.querySelectorAll("tr").length + 1;
+        rows.forEach(function (row) {
 
-      const tr = document.createElement("tr");
-      tr.dataset.balance = balance;
-      tr.innerHTML = `
-        <td class="row-index">${rowIndex}</td>
-        <td class="small fw-semibold">
-          ${name}
-          <div class="text-muted small">${nn}</div>
-         
-          <input type="hidden" name="beneficiary_ids[]" value="${id}">
-        </td>
-        <td>
-          <input type="number" step="0.01" min="0" name="amounts[]" class="form-control amount-input" placeholder="0.00">
-        </td>
-        <td>
-          <button type="button" class="btn btn-outline-danger btn-sm remove-row">
-            <i class="bi bi-x"></i>
-          </button>
-        </td>
-      `;
-      // tr.innerHTML = `
-      //   <td class="row-index">${rowIndex}</td>
-      //   <td class="small fw-semibold">
-      //     ${name}
-      //     <div class="text-muted small">${nn}</div>
-      //     <div class="text-muted small">رصيده الحالي: ${balance.toFixed(2)} ر.س</div>
-      //     <input type="hidden" name="beneficiary_ids[]" value="${id}">
-      //   </td>
-      //   <td>
-      //     <input type="number" step="0.01" min="0" name="amounts[]" class="form-control amount-input" placeholder="0.00">
-      //   </td>
-      //   <td>
-      //     <button type="button" class="btn btn-outline-danger btn-sm remove-row">
-      //       <i class="bi bi-x"></i>
-      //     </button>
-      //   </td>
-      // `;
-      tableBody.appendChild(tr);
+            if (!row.dataset.beneficiaryName) {
+                return;
+            }
 
-      const uVal = parseFloat(uniformAmountInput.value || 0);
-      if (uVal > 0){
-        tr.querySelector('input[name="amounts[]"]').value = uVal.toFixed(2);
-      }
 
-      c.checked = false;
-    });
+            const beneficiaryName =
+                normalize(
+                    row.dataset.beneficiaryName
+                );
 
-    refreshIndexes();
-    updateTotals();
 
-    if (!tableBody.querySelectorAll("tr").length){
-      tableBody.innerHTML = `<tr id="empty-row"><td colspan="4" class="text-center text-muted py-3">لم يتم اختيار مستفيدين بعد.</td></tr>`;
+            const beneficiaryId =
+                normalize(
+                    row.dataset.beneficiaryId
+                );
+
+
+            const donorName =
+                normalize(
+                    row.dataset.donorName
+                );
+
+
+            const donorId =
+                normalize(
+                    row.dataset.donorId
+                );
+
+
+            const disease =
+                normalize(
+                    row.dataset.diseaseName
+                );
+
+
+            const matchesSearch =
+                !search ||
+                beneficiaryName.includes(search) ||
+                beneficiaryId.includes(search) ||
+                donorName.includes(search) ||
+                donorId.includes(search) ||
+                disease.includes(search);
+
+
+            row.style.display =
+                matchesSearch
+                    ? ""
+                    : "none";
+
+        });
+
     }
-  });
 
-  document.addEventListener("click", function(e){
-    if (e.target.closest(".remove-row")){
-      e.target.closest("tr").remove();
-      refreshIndexes();
-      updateTotals();
 
-      if (!tableBody.querySelectorAll("tr").length){
-        tableBody.innerHTML = `<tr id="empty-row"><td colspan="4" class="text-center text-muted py-3">لم يتم اختيار مستفيدين بعد.</td></tr>`;
-      }
-    }
-  });
+    searchInput.addEventListener(
+        "input",
+        filterBeneficiaries
+    );
 
-  function refreshIndexes(){
-    tableBody.querySelectorAll("tr").forEach((row, i)=>{
-      const idx = row.querySelector(".row-index");
-      if (idx) idx.innerText = i+1;
-    });
-  }
+});
 
-  document.addEventListener("input", function(e){
-    if (e.target.matches(".amount-input")){
-      updateTotals();
-    }
-  });
-
-  updateTotals();
-
-  // ===== تحديد الكل في قائمة المستفيدين =====
-  const selectAllBene = document.getElementById("select-all-bene");
-
-  function getVisibleChecks(){
-    return Array.from(document.querySelectorAll(".bene-check"));
-  }
-
-  if (selectAllBene){
-    selectAllBene.addEventListener("change", function(){
-      const checks = getVisibleChecks();
-      checks.forEach(ch => ch.checked = this.checked);
-    });
-
-    document.addEventListener("change", function(e){
-      if (!e.target.classList.contains("bene-check")) return;
-      const checks = getVisibleChecks();
-      const allChecked = checks.length && checks.every(ch => ch.checked);
-      const noneChecked = checks.every(ch => !ch.checked);
-
-      if (allChecked){
-        selectAllBene.checked = true;
-        selectAllBene.indeterminate = false;
-      } else if (noneChecked){
-        selectAllBene.checked = false;
-        selectAllBene.indeterminate = false;
-      } else {
-        selectAllBene.checked = false;
-        selectAllBene.indeterminate = true;
-      }
-    });
-  }
 </script>
+
+
+<script src="{% static 'accounting/js/subprogram_disbursement.js' %}"></script>
 
 {% endblock %}

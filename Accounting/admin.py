@@ -1,7 +1,7 @@
 from django.contrib import admin
-
+from django.db.models.deletion import ProtectedError
 # Accounting/admin.py
-from django.contrib import admin, messages
+from django.contrib import messages
 from django.urls import path
 from django.template.response import TemplateResponse
 from django.db import transaction
@@ -19,9 +19,9 @@ from .models import (
     SubProgramDisbursementLine,
 )
 
-from Management.models import Beneficiary, MainProgram, SubProgram
+from Management.models import Beneficiary, MainProgram, SubProgram 
 from django.db.models import Sum
-from .models import FundReservation
+from .models import FundReservation , AllocationHistory
 
 from Management.models import (
     Beneficiary,
@@ -41,8 +41,74 @@ from .models import (
 
 from .models import Invoice
 
-print("Invoice =", Invoice)
-print("Type =", type(Invoice))
+
+
+@admin.register(BeneficiarySponsorHistory)
+class BeneficiarySponsorHistoryAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "beneficiary",
+        "donor",
+        "start_date",
+        "end_date",
+        "assigned_by",
+        "created_at",
+    )
+
+    list_display_links = (
+        "beneficiary",
+        "donor",
+    )
+
+    list_filter = (
+        "start_date",
+        "end_date",
+        "created_at",
+    )
+
+    search_fields = (
+        "beneficiary__first_name",
+        "beneficiary__father_name",
+        "beneficiary__last_name",
+        "donor__user__first_name",
+        "donor__user__last_name",
+        "donor__phone",
+        "donor__national_number",
+    )
+
+    date_hierarchy = "start_date"
+
+    ordering = (
+        "-start_date",
+        "-id",
+    )
+
+    readonly_fields = (
+        "created_at",
+    )
+
+    fieldsets = (
+        (
+            "بيانات الكفالة",
+            {
+                "fields": (
+                    "beneficiary",
+                    "donor",
+                    "start_date",
+                    "end_date",
+                )
+            },
+        ),
+        (
+            "بيانات الإسناد",
+            {
+                "fields": (
+                    "assigned_by",
+                    "created_at",
+                )
+            },
+        ),
+    )
 
 @admin.register(FundReservation)
 class FundReservationAdmin(admin.ModelAdmin):
@@ -119,49 +185,112 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
         if request.method == "POST":
             delete_management = request.POST.get("delete_management") == "on"
 
-            with transaction.atomic():
+            try:
+                with transaction.atomic():
 
-                AuditLog.objects.all().delete()
+                    # ==========================================
+                    # السجلات والتقارير
+                    # ==========================================
 
-                SponsorshipReport.objects.all().delete()
+                    AuditLog.objects.all().delete()
 
-                BeneficiarySupportEntry.objects.all().delete()
+                    SponsorshipReport.objects.all().delete()
 
-                SubProgramDisbursementLine.objects.all().delete()
-                SubProgramDisbursement.objects.all().delete()
+                    # ==========================================
+                    # عمليات الصرف
+                    # ==========================================
 
-                FinancialSponsorshipAllocation.objects.all().delete()
-                FinancialSponsorshipInvoice.objects.all().delete()
-                GeneralDonationInvoice.objects.all().delete()
-                Invoice.objects.all().delete()
+                    BeneficiarySupportEntry.objects.all().delete()
 
-                BeneficiaryBalanceEntry.objects.all().delete()
+                    SubProgramDisbursementLine.objects.all().delete()
+                    SubProgramDisbursement.objects.all().delete()
 
-                MainToSubProgramAllocation.objects.all().delete()
-                FundToMainProgramAllocation.objects.all().delete()
+                    # ==========================================
+                    # الكفالات
+                    # ==========================================
 
-                FundReservation.objects.all().delete()
-                FundEntry.objects.all().delete()
+                    FinancialSponsorshipAllocation.objects.all().delete()
+                    FinancialSponsorshipInvoice.objects.all().delete()
 
-                BeneficiarySponsorHistory.objects.all().delete()
+                    BeneficiarySponsorHistory.objects.all().delete()
 
-                if delete_management:
-                    SubProgram.objects.all().delete()
-                    MainProgram.objects.all().delete()
-                PaymentPlan.objects.all().delete()
-                Beneficiary.objects.all().delete()
+                    # ==========================================
+                    # الفواتير
+                    # ==========================================
 
-            messages.success(
-                request,
-                "✅ تم حذف جميع بيانات المحاسبة بنجاح"
-                + (" + بيانات البرامج والمستفيدين" if delete_management else "")
-            )
+                    GeneralDonationInvoice.objects.all().delete()
+                    Invoice.objects.all().delete()
+
+                    # ==========================================
+                    # أرصدة المستفيدين
+                    # ==========================================
+
+                    BeneficiaryBalanceEntry.objects.all().delete()
+
+                    # ==========================================
+                    # سجل التخصيصات
+                    # مهم جدًا قبل حذف البرامج
+                    # ==========================================
+
+                    AllocationHistory.objects.all().delete()
+
+                    MainToSubProgramAllocation.objects.all().delete()
+                    FundToMainProgramAllocation.objects.all().delete()
+
+                    # ==========================================
+                    # الحجوزات والحركات المالية
+                    # ==========================================
+
+                    FundReservation.objects.all().delete()
+                    FundEntry.objects.all().delete()
+
+                    # ==========================================
+                    # خطط الدفع
+                    # ==========================================
+
+                    PaymentPlan.objects.all().delete()
+
+                    # ==========================================
+                    # البرامج والمستفيدين
+                    # ==========================================
+
+                    if delete_management:
+
+                        SubProgram.objects.all().delete()
+                        MainProgram.objects.all().delete()
+
+                        Beneficiary.objects.all().delete()
+
+                messages.success(
+                    request,
+                    "✅ تم تنظيف بيانات النظام بنجاح"
+                    + (
+                        " + تم حذف البرامج والمستفيدين"
+                        if delete_management
+                        else ""
+                    )
+                )
+
+            except ProtectedError as ex:
+                messages.error(
+                    request,
+                    "❌ تعذر إكمال التنظيف بسبب وجود سجلات مرتبطة "
+                    "ببيانات محمية. راجع العلاقات المرتبطة قبل الحذف."
+                )
+
+            except Exception as ex:
+                messages.error(
+                    request,
+                    f"❌ حدث خطأ أثناء التنظيف: {ex}"
+                )
 
         return TemplateResponse(
             request,
             "admin/accounting_cleanup.html",
-            {"title": "تنظيف بيانات المحاسبة"},
-        )
+            {
+                "title": "تنظيف بيانات المحاسبة",
+            },
+         )
 admin.site.register(FundEntry, AccountingCleanupAdmin)
 
 

@@ -1,0 +1,1078 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block content %}
+
+<div class="container-fluid py-4" dir="rtl">
+
+    <!-- =====================================================
+         Header
+    ====================================================== -->
+
+    <div class="mb-4">
+
+        <div class="d-flex align-items-center gap-2 mb-2">
+
+
+        </div>
+
+
+        <h2 class="fw-bold mb-1">
+            إضافة كافل جديد
+        </h2>
+
+        <p class="text-muted mb-0">
+            تسجيل بيانات كافل جديد في نظام الكفالات
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         Main Form
+    ====================================================== -->
+
+    <div class="row justify-content-center">
+
+        <div class="col-xl-8 col-lg-10">
+
+            <div class="card border-0 shadow-sm sponsor-form-card">
+
+                <div class="card-body p-4 p-lg-5">
+
+
+                    <!-- Form Header -->
+
+                    <div class="d-flex align-items-center gap-3 mb-4">
+
+                        <div class="form-icon">
+
+                            <i class="bi bi-person-plus"></i>
+
+                        </div>
+
+                        <div>
+
+                            <h5 class="fw-bold mb-1">
+                                بيانات الكافل
+                            </h5>
+
+                            <div class="text-muted small">
+                                أدخل البيانات الأساسية للكفيل
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="mb-4">
+
+
+                    <!-- Alert -->
+
+                    <div id="formAlert"
+                         class="alert d-none mb-4">
+                    </div>
+
+
+                    <!-- =================================================
+                         Form
+                    ================================================== -->
+
+                    <form id="sponsorCreateForm">
+
+                        {% csrf_token %}
+
+
+                        <!-- ==========================
+                             البيانات الشخصية
+                        =========================== -->
+
+                        <div class="section-title">
+
+                            <i class="bi bi-person"></i>
+
+                            البيانات الشخصية
+
+                        </div>
+
+
+                        <div class="row g-4 mb-4">
+
+
+                            <!-- الاسم الأول -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    الاسم الأول
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="first_name"
+                                    class="form-control form-control-lg"
+                                    placeholder="أدخل الاسم الأول"
+                                    autocomplete="given-name"
+                                    required
+                                >
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- اسم الأب -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    اسم الأب
+
+                                    <span class="text-muted small">
+                                        (اختياري)
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="father_name"
+                                    class="form-control form-control-lg"
+                                    placeholder="أدخل اسم الأب"
+                                    autocomplete="additional-name"
+                                >
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- اسم الجد -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    اسم الجد
+
+                                    <span class="text-muted small">
+                                        (اختياري)
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="grandpa_name"
+                                    class="form-control form-control-lg"
+                                    placeholder="أدخل اسم الجد"
+                                >
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- اسم العائلة -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    اسم العائلة
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="last_name"
+                                    class="form-control form-control-lg"
+                                    placeholder="أدخل اسم العائلة"
+                                    autocomplete="family-name"
+                                    required
+                                >
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ==========================
+                             بيانات التواصل والهوية
+                        =========================== -->
+
+                        <div class="section-title mt-4">
+
+                            <i class="bi bi-person-vcard"></i>
+
+                            بيانات التواصل والهوية
+
+                        </div>
+
+
+                        <div class="row g-4 mb-4">
+
+
+                            <!-- البريد -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    البريد الإلكتروني
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="email"
+                                    name="email"
+                                    class="form-control form-control-lg"
+                                    placeholder="example@email.com"
+                                    dir="ltr"
+                                    autocomplete="email"
+                                    required
+                                >
+
+                                <div class="form-text">
+                                    يستخدم البريد الإلكتروني كاسم مستخدم للحساب.
+                                </div>
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- الجوال -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    رقم الجوال
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="phone"
+                                    class="form-control form-control-lg"
+                                    placeholder="05xxxxxxxx"
+                                    maxlength="10"
+                                    minlength="10"
+                                    dir="ltr"
+                                    inputmode="numeric"
+                                    autocomplete="tel"
+                                    required
+                                >
+
+                                <div class="form-text">
+                                    يجب أن يتكون الرقم من 10 أرقام.
+                                </div>
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- الهوية -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    رقم الهوية الوطنية
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    type="text"
+                                    name="national_number"
+                                    class="form-control form-control-lg"
+                                    placeholder="10 أرقام"
+                                    maxlength="10"
+                                    minlength="10"
+                                    dir="ltr"
+                                    inputmode="numeric"
+                                    required
+                                >
+
+                                <div class="form-text">
+                                    يجب أن يتكون رقم الهوية من 10 أرقام.
+                                </div>
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ==========================
+                             بيانات الدخول
+                        =========================== -->
+
+                        <div class="section-title mt-4">
+
+                            <i class="bi bi-shield-lock"></i>
+
+                            بيانات الدخول
+
+                        </div>
+
+
+                        <div class="row g-4 mb-4">
+
+
+                            <!-- كلمة المرور -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    كلمة المرور
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+
+                                <div class="password-wrapper">
+
+                                    <input
+                                        type="password"
+                                        name="password1"
+                                        id="password1"
+                                        class="form-control form-control-lg"
+                                        placeholder="أدخل كلمة المرور"
+                                        autocomplete="new-password"
+                                        required
+                                    >
+
+
+                                    <button
+                                        type="button"
+                                        class="password-toggle"
+                                        data-target="password1"
+                                        tabindex="-1"
+                                    >
+
+                                        <i class="bi bi-eye"></i>
+
+                                    </button>
+
+                                </div>
+
+
+                                <div class="form-text">
+                                    استخدم كلمة مرور قوية يصعب تخمينها.
+                                </div>
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+
+                            <!-- تأكيد كلمة المرور -->
+
+                            <div class="col-md-6">
+
+                                <label class="form-label fw-semibold">
+
+                                    تأكيد كلمة المرور
+
+                                    <span class="text-danger">
+                                        *
+                                    </span>
+
+                                </label>
+
+
+                                <div class="password-wrapper">
+
+                                    <input
+                                        type="password"
+                                        name="password2"
+                                        id="password2"
+                                        class="form-control form-control-lg"
+                                        placeholder="أعد كتابة كلمة المرور"
+                                        autocomplete="new-password"
+                                        required
+                                    >
+
+
+                                    <button
+                                        type="button"
+                                        class="password-toggle"
+                                        data-target="password2"
+                                        tabindex="-1"
+                                    >
+
+                                        <i class="bi bi-eye"></i>
+
+                                    </button>
+
+                                </div>
+
+
+                                <div class="invalid-feedback"></div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ==========================
+                             Information Box
+                        =========================== -->
+
+                        <div class="info-box mb-4">
+
+                            <i class="bi bi-info-circle"></i>
+
+                            <div>
+
+                                <div class="fw-semibold mb-1">
+                                    حساب الكافل
+                                </div>
+
+                                <div class="small text-muted">
+                                    سيتم إنشاء حساب مستخدم للكفيل تلقائيًا،
+                                    وسيتم تعيين دوره في النظام كـ «كفيل».
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- ==========================
+                             Actions
+                        =========================== -->
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+
+                            <a href="{% url 'Accounting:sponsors_list' %}"
+                               class="btn btn-outline-secondary px-4">
+
+                                <i class="bi bi-arrow-right ms-1"></i>
+
+                                إلغاء
+
+                            </a>
+
+
+                            <button
+                                type="submit"
+                                id="submitBtn"
+                                class="btn btn-primary px-5"
+                            >
+
+                                <span id="submitText">
+
+                                    <i class="bi bi-check-lg ms-1"></i>
+
+                                    حفظ الكافل
+
+                                </span>
+
+
+                                <span id="submitLoading"
+                                      class="d-none">
+
+                                    <span class="spinner-border spinner-border-sm ms-2">
+                                    </span>
+
+                                    جاري الحفظ...
+
+                                </span>
+
+                            </button>
+
+                        </div>
+
+
+                    </form>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<!-- =====================================================
+     JavaScript
+====================================================== -->
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+
+    const form =
+        document.getElementById("sponsorCreateForm");
+
+    const submitBtn =
+        document.getElementById("submitBtn");
+
+    const submitText =
+        document.getElementById("submitText");
+
+    const submitLoading =
+        document.getElementById("submitLoading");
+
+    const formAlert =
+        document.getElementById("formAlert");
+
+
+    /* ==========================================
+       CSRF
+    ========================================== */
+
+    function getCookie(name) {
+
+        let cookieValue = null;
+
+        if (document.cookie && document.cookie !== "") {
+
+            const cookies =
+                document.cookie.split(";");
+
+            for (let cookie of cookies) {
+
+                cookie = cookie.trim();
+
+                if (
+                    cookie.substring(
+                        0,
+                        name.length + 1
+                    ) === name + "="
+                ) {
+
+                    cookieValue =
+                        decodeURIComponent(
+                            cookie.substring(
+                                name.length + 1
+                            )
+                        );
+
+                    break;
+                }
+            }
+        }
+
+        return cookieValue;
+    }
+
+
+    /* ==========================================
+       Clear Errors
+    ========================================== */
+
+    function clearErrors() {
+
+        form
+            .querySelectorAll(".is-invalid")
+            .forEach(function (element) {
+
+                element.classList.remove(
+                    "is-invalid"
+                );
+
+            });
+
+
+        form
+            .querySelectorAll(".invalid-feedback")
+            .forEach(function (element) {
+
+                element.textContent = "";
+
+            });
+
+
+        formAlert.className =
+            "alert d-none mb-4";
+
+        formAlert.textContent = "";
+
+    }
+
+
+    /* ==========================================
+       Show Field Error
+    ========================================== */
+
+    function showError(field, message) {
+
+        const input =
+            form.querySelector(
+                `[name="${field}"]`
+            );
+
+
+        if (!input) {
+            return;
+        }
+
+
+        input.classList.add(
+            "is-invalid"
+        );
+
+
+        const feedback =
+            input
+                .parentElement
+                .querySelector(
+                    ".invalid-feedback"
+                );
+
+
+        if (feedback) {
+
+            feedback.textContent =
+                message;
+
+        }
+
+    }
+
+
+    /* ==========================================
+       Password Toggle
+    ========================================== */
+
+    document
+        .querySelectorAll(".password-toggle")
+        .forEach(function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const target =
+                        document.getElementById(
+                            button.dataset.target
+                        );
+
+
+                    if (
+                        target.type ===
+                        "password"
+                    ) {
+
+                        target.type =
+                            "text";
+
+                        button.innerHTML =
+                            '<i class="bi bi-eye-slash"></i>';
+
+                    } else {
+
+                        target.type =
+                            "password";
+
+                        button.innerHTML =
+                            '<i class="bi bi-eye"></i>';
+
+                    }
+
+                }
+            );
+
+        });
+
+
+    /* ==========================================
+       Submit
+    ========================================== */
+
+    form.addEventListener(
+        "submit",
+        function (event) {
+
+            event.preventDefault();
+
+
+            clearErrors();
+
+
+            submitBtn.disabled = true;
+
+            submitText.classList.add(
+                "d-none"
+            );
+
+            submitLoading.classList.remove(
+                "d-none"
+            );
+
+
+            const formData =
+                new FormData(form);
+
+
+            fetch(
+                "{% url 'Accounting:sponsor_quick_create' %}",
+                {
+                    method: "POST",
+
+                    body: formData,
+
+                    headers: {
+                        "X-CSRFToken":
+                            getCookie("csrftoken"),
+
+                        "X-Requested-With":
+                            "XMLHttpRequest"
+                    }
+                }
+            )
+
+            .then(
+                async function (response) {
+
+                    const data =
+                        await response.json();
+
+
+                    if (!response.ok) {
+
+                        throw {
+                            validation: true,
+                            data: data
+                        };
+
+                    }
+
+
+                    return data;
+
+                }
+            )
+
+            .then(
+                function (data) {
+
+                    if (data.success) {
+
+                        formAlert.className =
+                            "alert alert-success mb-4";
+
+                        formAlert.innerHTML = `
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-check-circle-fill"></i>
+                                <div>
+                                    <strong>تم إنشاء الكافل بنجاح.</strong>
+                                    <div class="small mt-1">
+                                        تم إنشاء حساب الكافل وإضافته إلى النظام.
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+
+                        formAlert.classList.remove(
+                            "d-none"
+                        );
+
+
+                        setTimeout(
+                            function () {
+
+                                window.location.href =
+                                    "{% url 'Accounting:sponsors_list' %}";
+
+                            },
+                            2500
+                        );
+
+                    }
+
+                }
+            )
+
+            .catch(
+                function (error) {
+
+                    if (
+                        error.validation &&
+                        error.data &&
+                        error.data.errors
+                    ) {
+
+
+                        Object.entries(
+                            error.data.errors
+                        ).forEach(
+                            function (
+                                [field, message]
+                            ) {
+
+                                showError(
+                                    field,
+                                    message
+                                );
+
+                            }
+                        );
+
+
+                        formAlert.className =
+                            "alert alert-danger mb-4";
+
+
+                        formAlert.innerHTML = `
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <div>
+                                    <strong>تعذر إنشاء الكافل.</strong>
+                                    <div class="small mt-1">
+                                        يرجى مراجعة البيانات المدخلة.
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+
+
+                        formAlert.classList.remove(
+                            "d-none"
+                        );
+
+                    } else {
+
+
+                        formAlert.className =
+                            "alert alert-danger mb-4";
+
+
+                        formAlert.textContent =
+                            "حدث خطأ غير متوقع أثناء إنشاء الكافل. حاول مرة أخرى.";
+
+
+                        formAlert.classList.remove(
+                            "d-none"
+                        );
+
+                    }
+
+                }
+            )
+
+            .finally(
+                function () {
+
+                    submitBtn.disabled =
+                        false;
+
+                    submitText.classList.remove(
+                        "d-none"
+                    );
+
+                    submitLoading.classList.add(
+                        "d-none"
+                    );
+
+                }
+            );
+
+        }
+    );
+
+});
+
+</script>
+
+
+<!-- =====================================================
+     Styling
+====================================================== -->
+
+<style>
+
+.sponsor-form-card {
+    border-radius: 18px;
+}
+
+.form-icon {
+    width: 60px;
+    height: 60px;
+    min-width: 60px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 16px;
+
+    background: #e9f7f4;
+    color: #009b84;
+
+    font-size: 26px;
+}
+
+
+.section-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+
+    font-size: 16px;
+    font-weight: 700;
+
+    margin-bottom: 20px;
+
+    color: #16283d;
+}
+
+
+.section-title i {
+    color: #009b84;
+}
+
+
+.form-control {
+    border-radius: 10px;
+    border-color: #dce3e1;
+}
+
+
+.form-control:focus {
+    border-color: #009b84;
+
+    box-shadow:
+        0 0 0 .2rem
+        rgba(0, 155, 132, .10);
+}
+
+
+.form-control-lg {
+    min-height: 48px;
+}
+
+
+.password-wrapper {
+    position: relative;
+}
+
+
+.password-wrapper .form-control {
+    padding-left: 48px;
+}
+
+
+.password-toggle {
+    position: absolute;
+
+    left: 10px;
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    border: 0;
+    background: transparent;
+
+    color: #6c757d;
+
+    cursor: pointer;
+
+    font-size: 18px;
+}
+
+
+.password-toggle:hover {
+    color: #009b84;
+}
+
+
+.info-box {
+    display: flex;
+    align-items: flex-start;
+
+    gap: 12px;
+
+    padding: 16px 18px;
+
+    border-radius: 12px;
+
+    background: #f0faf7;
+
+    border: 1px solid #d8eee8;
+
+    color: #385c55;
+}
+
+
+.info-box > i {
+    color: #009b84;
+
+    font-size: 20px;
+
+    margin-top: 2px;
+}
+
+
+.btn {
+    border-radius: 10px;
+}
+
+.success-alert {
+    border-radius: 12px;
+    border: 1px solid #bfe8dc;
+    background: #eefaf7;
+    color: #176b5b;
+}
+
+.success-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: #009b84;
+    color: white;
+
+    font-size: 20px;
+}
+</style>
+
+{% endblock %}

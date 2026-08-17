@@ -1,100 +1,689 @@
 {% extends "Management/base.html" %}
 {% block title %}{{ title }}{% endblock %}
+
+
 {% block content %}
+<!-- Header -->
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">{{ title }}</h5>
-    <small class="text-muted">هذا التقرير يوضح من استفاد من محافظ البرامج (ليس دَين على المستفيد).</small>
-  </div>
-</div>
+<div class="card shadow-sm border-0 mb-4">
 
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-body">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-md-3">
-        <label class="form-label">من تاريخ</label>
-        <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
-      </div>
-      <div class="col-md-3">
-        <label class="form-label">إلى تاريخ</label>
-        <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
-      </div>
-      <div class="col-md-4">
-        <label class="form-label">بحث</label>
-        <input type="text" class="form-control" name="q" value="{{ filters.q }}" placeholder="اسم مستفيد / رقم سند / ملاحظة">
-      </div>
-      <div class="col-md-2 d-flex gap-2">
-        <button class="btn btn-primary w-100"><i class="bi bi-search"></i> بحث</button>
-        <a class="btn btn-light w-100" href="{% url 'Accounting:beneficiary_supports_report' %}">مسح</a>
-      </div>
-    </form>
-  </div>
-</div>
+    <div class="card-body">
 
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">إجمالي الدعم حسب المستفيد</h6>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>المستفيد</th>
-                <th class="text-end">الإجمالي</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in per_beneficiary %}
-              <tr>
-                <td class="small">{{ row.beneficiary__first_name }} {{ row.beneficiary__last_name }}</td>
-                <td class="text-end small fw-bold">{{ row.total|floatformat:2 }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="2" class="text-center text-muted p-3">لا توجد بيانات.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
+        <div class="row align-items-center">
 
-  <div class="col-lg-7">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">آخر العمليات</h6>
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>التاريخ</th>
-                <th>المستفيد</th>
-                <th>البرنامج</th>
-                <th class="text-end">المبلغ</th>
-                <th>السند</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in latest %}
-              <tr>
-                <td class="small">{{ r.created_at|date:"Y-m-d" }}</td>
-                <td class="small">{{ r.beneficiary }}</td>
-                <td class="small text-muted">{{ r.sub_program }}</td>
-                <td class="text-end small fw-bold">{{ r.amount|floatformat:2 }}</td>
-                <td class="small">{{ r.voucher_number|default:"—" }}</td>
-              </tr>
-              {% empty %}
-              <tr><td colspan="5" class="text-center text-muted p-3">لا توجد بيانات.</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
+            <div class="col-lg-8">
+
+                <h2 class="fw-bold mb-2">
+
+                    كشف حساب المستفيد
+
+                </h2>
+
+                <p class="text-muted mb-0">
+
+                    يعرض جميع عمليات الدعم التي حصل عليها المستفيد مع إمكانية
+                    البحث والتصدير إلى Excel.
+
+                </p>
+
+            </div>
+
+            <div class="col-lg-4 text-lg-end mt-3 mt-lg-0">
+
+                <a href="?{{ request.GET.urlencode }}{% if request.GET %}&{% endif %}export=1"
+                   class="btn btn-success">
+
+                    <i class="bi bi-file-earmark-excel"></i>
+
+                    تصدير Excel
+
+                </a>
+
+            </div>
+
         </div>
 
-      </div>
     </div>
-  </div>
+
 </div>
 
-{% endblock %}
+
+<!-- Search -->
+
+<div class="card shadow-sm border-0 mb-4">
+
+    <div class="card-body">
+
+        <form method="get">
+
+            <div class="row g-3 align-items-end">
+
+                <div class="col-lg-6">
+
+                    <label class="form-label fw-semibold">
+
+                        المستفيد
+
+                    </label>
+
+                    <div class="position-relative">
+
+                        <input
+                            type="text"
+                            id="beneficiary-search"
+                            class="form-control"
+                            placeholder="ابحث باسم المستفيد أو رقم الهوية">
+
+                        <input
+                            type="hidden"
+                            id="beneficiary-id"
+                            name="beneficiary"
+                            value="{{ filters.beneficiary }}">
+
+                        <div
+                            id="beneficiary-results"
+                            class="list-group position-absolute w-100 shadow"
+                            style="display:none;max-height:260px;overflow:auto;z-index:1050;">
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        الفترة
+
+                    </label>
+
+                    <select
+                        name="period"
+                        class="form-select"
+                        onchange="this.form.submit()">
+
+                        <option value="today" {% if filters.period == "today" %}selected{% endif %}>اليوم</option>
+
+                        <option value="week" {% if filters.period == "week" %}selected{% endif %}>هذا الأسبوع</option>
+
+                        <option value="month" {% if filters.period == "month" %}selected{% endif %}>هذا الشهر</option>
+
+                        <option value="year" {% if filters.period == "year" %}selected{% endif %}>هذه السنة</option>
+
+                        <option value="custom" {% if filters.period == "custom" %}selected{% endif %}>فترة مخصصة</option>
+
+                        <option value="all" {% if filters.period == "all" %}selected{% endif %}>كل الفترات</option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        من
+
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_from"
+                        class="form-control"
+                        value="{{ filters.date_from }}"
+                        {% if filters.period != "custom" %}disabled{% endif %}>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        إلى
+
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_to"
+                        class="form-control"
+                        value="{{ filters.date_to }}"
+                        {% if filters.period != "custom" %}disabled{% endif %}>
+
+                </div>
+
+                <div class="col-lg-3">
+
+                    <label class="form-label">
+
+                        رقم السند
+
+                    </label>
+
+                    <input
+                        type="text"
+                        name="voucher"
+                        class="form-control"
+                        value="{{ filters.voucher }}"
+                        placeholder="مثل E-100">
+
+                </div>
+
+                <div class="col-lg-5">
+
+                    <label class="form-label">
+
+                        البيان
+
+                    </label>
+
+                    <input
+                        type="text"
+                        name="q"
+                        class="form-control"
+                        value="{{ filters.q }}"
+                        placeholder="بحث في الملاحظات">
+
+                </div>
+
+                <div class="col-lg-2 d-grid">
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary">
+
+                        <i class="bi bi-search"></i>
+
+                        بحث
+
+                    </button>
+
+                </div>
+
+                <div class="col-lg-2 d-grid">
+
+                    <a href="{% url 'Accounting:beneficiary_supports_report' %}"
+                       class="btn btn-outline-secondary">
+
+                        <i class="bi bi-arrow-clockwise"></i>
+
+                        مسح
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+{% if selected_beneficiary %}
+
+<div class="card shadow-sm border-0 mb-4">
+
+    <div class="card-body">
+
+        <div class="row align-items-center">
+
+            <div class="col-lg-7">
+
+                <div class="d-flex align-items-center">
+
+                    <div class="rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center me-3"
+                         style="width:70px;height:70px;">
+
+                        <i class="bi bi-person-fill text-primary fs-2"></i>
+
+                    </div>
+
+                    <div>
+
+                        <h3 class="fw-bold mb-2">
+
+                            {{ selected_beneficiary.first_name }}
+                            {{ selected_beneficiary.father_name }}
+                            {{ selected_beneficiary.grand_name }}
+                            {{ selected_beneficiary.last_name }}
+
+                        </h3>
+
+                        <div class="text-muted mb-1">
+
+                            <i class="bi bi-credit-card-2-front"></i>
+
+                            رقم الهوية :
+
+                            {{ selected_beneficiary.national_number|default:"غير مسجل" }}
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+            </div>
+
+           <div class="col-lg-5">
+
+    <div class="row h-100 align-items-center text-center">
+
+        <div class="col-4">
+
+            <div>
+
+                <div class="small text-muted mb-2">
+
+                    إجمالي ما استلمه
+
+                </div>
+
+                <div class="display-6 fw-bold text-success">
+
+                    {{ total_support|floatformat:2 }}
+
+                </div>
+
+                <div class="small text-muted">
+
+                    ريال سعودي
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-4 border-start border-end">
+
+            <div>
+
+                <div class="small text-muted mb-2">
+
+                    عدد مرات الصرف
+
+                </div>
+
+                <div class="display-5 fw-bold">
+
+                    {{ support_count }}
+
+                </div>
+
+                <div class="small text-muted">
+
+                    عملية
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-4">
+
+            <div>
+
+                <div class="small text-muted mb-2">
+
+                    آخر عملية
+
+                </div>
+
+                <div class="fs-4 fw-bold">
+
+                    {% if last_support %}
+
+                        {{ last_support.created_at|date:"Y-m-d" }}
+
+                    {% else %}
+
+                        —
+
+                    {% endif %}
+
+                </div>
+
+                <div class="small text-muted">
+
+                    {% if last_support %}
+
+                        {{ last_support.voucher_number }}
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+        </div>
+
+    </div>
+
+</div>
+{% else %}
+
+<div class="card shadow-sm border-0 mb-4">
+
+    <div class="card-body text-center py-5">
+
+        <i class="bi bi-person-search display-3 text-primary"></i>
+
+        <h4 class="fw-bold mt-3">
+
+            ابدأ بالبحث عن مستفيد
+
+        </h4>
+
+        <p class="text-muted mb-0">
+
+            اختر مستفيداً من مربع البحث بالأعلى لعرض كشف الحساب الكامل.
+
+        </p>
+
+    </div>
+
+</div>
+
+{% endif %}
+<div class="card shadow-sm border-0">
+
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+        <div>
+
+            <h5 class="fw-bold mb-1">
+    سجل عمليات الدعم
+</h5>
+
+<div class="small text-muted">
+    جميع عمليات الدعم للمستفيد حسب الفلاتر المحددة.
+</div>
+
+        </div>
+
+        
+
+    </div>
+
+    <div class="card-body p-0">
+
+        {% if entries %}
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0 text-right">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th width="150">
+
+                            التاريخ
+
+                        </th>
+                        <th width="150">
+
+                           الوقت
+
+                        </th>
+
+                        <th width="140">
+
+                            رقم السند
+
+                        </th>
+
+                        <th width="250">
+
+                            البرنامج
+
+                        </th>
+
+                        <th>
+
+                            البيان
+
+                        </th>
+
+                        <th width="140" class="text-center">
+
+                            المبلغ
+
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for e in entries %}
+
+                    <tr>
+
+                        <td>
+                          <div class="fw-semibold d-flex align-items-center gap-3">
+
+                              <span class="d-inline-flex align-items-center">
+
+                                  <i class="bi bi-calendar3 small text-primary me-1 "></i>
+
+                                  {{ e.created_at|date:"Y-m-d" }}
+
+                              </span>
+
+                              
+
+                          </div>
+                                                    
+
+                         
+                      </td>
+                      <td>
+                        <span class="d-inline-flex align-items-center">
+
+                                  <i class="bi-clock small text-success me-1 "></i>
+
+                                  {{ e.created_at|date:"H:i" }}
+
+                              </span>
+                      </td>
+                        <td>
+
+                           <span class="badge rounded-pill text-bg-primary px-3 py-2">
+    {{ e.voucher_number }}
+</span>
+
+                        </td>
+
+                        <td>
+
+    <div class="fw-semibold">
+
+        {{ e.main_program.name }}
+
+    </div>
+
+    <div class="small text-muted">
+
+       <i class="bi bi-arrow-return-left text-muted me-1"></i> {{ e.sub_program.name }}  
+
+    </div>
+
+</td>
+                        <td>
+
+                            {{ e.note|default:"صرف دعم للمستفيد" }}
+
+                        </td>
+
+                        <td class="text-center">
+
+    <span class="fw-bold text-success">
+
+        {{ e.amount|floatformat:2 }} ر.س
+
+    </span>
+
+</td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="text-center py-5">
+
+            <i class="bi bi-inbox display-4 text-muted"></i>
+
+            <h5 class="mt-3">
+
+                لا توجد عمليات
+
+            </h5>
+
+            <p class="text-muted mb-0">
+
+                لا توجد أي عمليات دعم مطابقة للفلاتر الحالية.
+
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+<script>
+
+const searchInput = document.getElementById("beneficiary-search");
+const hiddenInput = document.getElementById("beneficiary-id");
+const resultsBox = document.getElementById("beneficiary-results");
+
+let timer = null;
+
+searchInput.addEventListener("input", function () {
+
+    clearTimeout(timer);
+
+    const q = this.value.trim();
+
+    if (q.length < 2) {
+
+        resultsBox.style.display = "none";
+        resultsBox.innerHTML = "";
+
+        return;
+
+    }
+
+    timer = setTimeout(function () {
+
+fetch("{% url 'Accounting:ajax_beneficiary_search' %}?q=" + encodeURIComponent(q))
+            .then(r => r.json())
+
+            .then(data => {
+
+                resultsBox.innerHTML = "";
+
+                if (!data.results.length) {
+
+                    resultsBox.innerHTML = `
+
+                        <div class="list-group-item text-muted">
+
+                            لا توجد نتائج
+
+                        </div>
+
+                    `;
+
+                    resultsBox.style.display = "block";
+
+                    return;
+
+                }
+
+                data.results.forEach(function (item) {
+
+                    const a = document.createElement("a");
+
+                    a.href = "#";
+
+                    a.className = "list-group-item list-group-item-action";
+
+                    a.innerHTML = `
+
+                        <div class="fw-bold">
+
+                            ${item.name}
+
+                        </div>
+
+                        <div class="small text-muted">
+
+                            ${item.identity_number}
+
+                        </div>
+
+                    `;
+
+                    a.onclick = function (e) {
+
+                        e.preventDefault();
+
+                        searchInput.value = item.name;
+
+                        hiddenInput.value = item.id;
+
+                        resultsBox.style.display = "none";
+                        searchInput.form.submit();
+                    };
+
+                    resultsBox.appendChild(a);
+
+                });
+
+                resultsBox.style.display = "block";
+
+            });
+
+    }, 300);
+
+});
+
+
+document.addEventListener("click", function (e) {
+
+    if (!resultsBox.contains(e.target) && e.target !== searchInput) {
+
+        resultsBox.style.display = "none";
+
+    }
+
+});
+
+</script>
+
+{%endblock%}  

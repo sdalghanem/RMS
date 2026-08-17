@@ -1,369 +1,833 @@
 {% extends "Management/base.html" %}
-{% block title %}إدارة الحجوزات والمحافظ{% endblock %}
+
+
+{% block title %}إدارة المحافظ{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">إدارة الحجوزات والمحافظ</h5>
-    <small class="text-muted">عرض الحجوزات الداخلية والتحكم في تحريرها + مراقبة المحافظ (Budget Wallets).</small>
-  </div>
+<div class="container-fluid py-3">
+
+    <!-- ===================================================== -->
+    <!-- العنوان -->
+    <!-- ===================================================== -->
+
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+
+                <div>
+                    <h1 class="h3 fw-bold mb-1">
+                        إدارة التخصيصات
+                    </h1>
+
+                    <p class="text-muted mb-0">
+                        متابعة أرصدة البرامج والتحويلات المالية الداخلية.
+                    </p>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2">
+
+                    <a
+                        href="{% url 'Accounting:fund_to_main_allocate' %}"
+                        class="btn btn-success"
+                    >
+                        <i class="bi bi-plus-circle"></i>
+                        تخصيص الصندوق → الرئيسي
+                    </a>
+
+                    <a
+                        href="{% url 'Accounting:main_to_sub_allocate' %}"
+                        class="btn btn-success"
+                    >
+                        <i class="bi bi-arrow-left-right"></i>
+                        تحويل رئيسي → فرعي
+                    </a>
+
+                    <a
+                        href="{% url 'Accounting:release_main_program' %}"
+                        class="btn btn-warning"
+                    >
+                        <i class="bi bi-arrow-return-left"></i>
+                        تحرير من الرئيسي
+                    </a>
+
+                    <a
+                        href="{% url 'Accounting:release_sub_program' %}"
+                        class="btn btn-outline-warning"
+                    >
+                        <i class="bi bi-arrow-return-left"></i>
+                        تحرير من الفرعي
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- ملخص الأرصدة -->
+    <!-- ===================================================== -->
+
+    <div class="row g-4 mb-4">
+
+        <!-- الصندوق -->
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-4">
+
+                    <div class="text-muted mb-2">
+                        الرصيد المتاح بالصندوق
+                    </div>
+
+                    <div class="display-5 fw-bold text-success">
+                        {{ available_for_allocation|floatformat:2 }}
+                    </div>
+
+                    <div class="text-muted mt-1">
+                        ريال سعودي
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+        <!-- البرامج الرئيسية -->
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-4">
+
+                    <div class="text-muted mb-2">
+                        البرامج الرئيسية
+                    </div>
+
+                    <div class="display-5 fw-bold">
+                        {{ main_programs_count }}
+                    </div>
+
+                    <div class="text-muted mt-1">
+                        برنامج رئيسي
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+        <!-- البرامج الفرعية -->
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body text-center py-4">
+
+                    <div class="text-muted mb-2">
+                        البرامج الفرعية
+                    </div>
+
+                    <div class="display-5 fw-bold">
+                        {{ sub_programs_count }}
+                    </div>
+
+                    <div class="text-muted mt-1">
+                        برنامج فرعي
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- ===================================================== -->
+    <!-- سجل التحويلات -->
+    <!-- ===================================================== -->
+
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-header bg-white py-3">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+                    <h5 class="mb-1 fw-bold">
+                        سجل التحويلات
+                    </h5>
+
+                    <small class="text-muted">
+                        آخر عمليات تحويل الأموال بين الصندوق والبرامج.
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    data-bs-toggle="modal"
+                    data-bs-target="#transferHistoryModal"
+                >
+                    <i class="bi bi-list-ul"></i>
+                    عرض سجل التحويلات الكامل
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead>
+                    <tr>
+
+                        <th class="text-nowrap">
+                            التاريخ
+                        </th>
+
+                        <th>
+                            من
+                        </th>
+
+                        <th>
+                            إلى
+                        </th>
+
+                        <th>
+                            المبلغ
+                        </th>
+
+                        <th>
+                            الملاحظات
+                        </th>
+
+                        <th>
+                            بواسطة
+                        </th>
+
+                    </tr>
+                </thead>
+
+                <tbody>
+
+                    {% for item in recent_transfers %}
+
+                    <tr>
+
+                        <td class="text-nowrap">
+                            {{ item.created_at|date:"Y-m-d H:i" }}
+                        </td>
+
+
+                        <td>
+
+                            {% if item.from_sub_program %}
+                                {{ item.from_sub_program.name }}
+
+                            {% elif item.from_main_program %}
+                                {{ item.from_main_program.name }}
+
+                            {% else %}
+                                الصندوق
+                            {% endif %}
+
+                        </td>
+
+
+                        <td>
+
+                            {% if item.to_sub_program %}
+                                {{ item.to_sub_program.name }}
+
+                            {% elif item.to_main_program %}
+                                {{ item.to_main_program.name }}
+
+                            {% else %}
+                                الصندوق
+                            {% endif %}
+
+                        </td>
+
+
+                        <td class="fw-bold text-success">
+                            {{ item.amount|floatformat:2 }}
+                            ر.س
+                        </td>
+
+
+                        <td>
+                            {{ item.note|default:"—" }}
+                        </td>
+
+
+                        <td>
+                            {% if item.created_by %}
+                                {{ item.created_by.get_full_name|default:item.created_by.username }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+
+                    </tr>
+
+                    {% empty %}
+
+                    <tr>
+                        <td
+                            colspan="6"
+                            class="text-center text-muted py-5"
+                        >
+                            لا توجد تحويلات مسجلة حتى الآن.
+                        </td>
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
 </div>
 
-<!-- Summary Cards -->
-<div class="row g-3 mb-3">
-  <div class="col-md-4">
-    <div class="kpi-card p-3 h-100">
-      <div class="text-muted small mb-1">إجمالي الصندوق (FundEntry)</div>
-      <div class="fs-3 fw-bold">{{ fund_total|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
+
+<!-- ========================================================= -->
+<!-- Modal: سجل التحويلات الكامل -->
+<!-- ========================================================= -->
+
+<div
+    class="modal fade"
+    id="transferHistoryModal"
+    tabindex="-1"
+    aria-hidden="true"
+>
+
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+
+        <div class="modal-content">
+
+            <!-- Header -->
+
+            <div class="modal-header">
+
+                <div>
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-list-ul"></i>
+                        سجل التحويلات
+                    </h5>
+
+                    <small class="text-muted">
+                        جميع عمليات التحويل بين الصندوق والبرامج.
+                    </small>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn-close"
+                    data-bs-dismiss="modal"
+                    aria-label="إغلاق"
+                ></button>
+
+            </div>
+
+
+            <!-- Body -->
+
+            <div class="modal-body">
+
+                <!-- Filters -->
+
+                <div class="bg-light rounded-3 p-3 mb-3">
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+
+                            <label class="form-label">
+                                من تاريخ
+                            </label>
+
+                            <input
+                                type="date"
+                                id="transferDateFrom"
+                                class="form-control"
+                            >
+
+                        </div>
+
+
+                        <div class="col-md-4">
+
+                            <label class="form-label">
+                                إلى تاريخ
+                            </label>
+
+                            <input
+                                type="date"
+                                id="transferDateTo"
+                                class="form-control"
+                            >
+
+                        </div>
+
+
+                        <div class="col-md-4">
+
+                            <label class="form-label">
+                                بحث
+                            </label>
+
+                            <input
+                                type="text"
+                                id="transferSearch"
+                                class="form-control"
+                                placeholder="ابحث في البرامج أو الملاحظات أو المستخدم..."
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="d-flex gap-2 mt-3">
+
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            id="transferSearchBtn"
+                        >
+                            <i class="bi bi-search"></i>
+                            بحث
+                        </button>
+
+                        <button
+                            type="button"
+                            class="btn btn-outline-secondary"
+                            id="transferResetBtn"
+                        >
+                            <i class="bi bi-arrow-clockwise"></i>
+                            إعادة تعيين الفلاتر
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Loading -->
+
+                <div
+                    id="transferLoading"
+                    class="text-center py-4 d-none"
+                >
+                    <div
+                        class="spinner-border text-primary"
+                        role="status"
+                    ></div>
+
+                    <div class="text-muted mt-2">
+                        جاري تحميل السجل...
+                    </div>
+                </div>
+
+
+                <!-- Table -->
+
+                <div
+                    class="table-responsive"
+                    id="transferTableContainer"
+                >
+
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    #
+                                </th>
+
+                                <th>
+                                    التاريخ
+                                </th>
+
+                                <th>
+                                    من
+                                </th>
+
+                                <th>
+                                    إلى
+                                </th>
+
+                                <th>
+                                    المبلغ
+                                </th>
+
+                                <th>
+                                    المرجع
+                                </th>
+
+                                <th>
+                                    الملاحظات
+                                </th>
+
+                                <th>
+                                    بواسطة
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+
+                        <tbody id="transferHistoryBody">
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- Empty -->
+
+                <div
+                    id="transferEmpty"
+                    class="text-center text-muted py-5 d-none"
+                >
+                    لا توجد عمليات مطابقة للبحث.
+                </div>
+
+            </div>
+
+
+            <!-- Footer -->
+
+            <div class="modal-footer">
+
+                <div class="me-auto text-muted">
+                    عدد العمليات:
+                    <strong id="transferCount">0</strong>
+                </div>
+
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    data-bs-dismiss="modal"
+                >
+                    إغلاق
+                </button>
+
+            </div>
+
+        </div>
+
     </div>
-  </div>
-  <div class="col-md-4">
-    <div class="kpi-card p-3 h-100">
-      <div class="text-muted small mb-1">إجمالي المحجوزات (FundReservation)</div>
-      <div class="fs-3 fw-bold text-warning">{{ reserved_total|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
-    </div>
-  </div>
-  <!-- <div class="col-md-4">
-    <div class="kpi-card p-3 h-100">
-      <div class="text-muted small mb-1">المتاح بعد الحجوزات</div>
-      <div class="fs-3 fw-bold text-success">{{ available_fund|floatformat:2 }} <span class="fs-6 text-muted">ر.س</span></div>
-    </div>
-  </div> -->
+
 </div>
 
-<ul class="nav nav-tabs mb-3" role="tablist">
-  <!-- <li class="nav-item" role="presentation">
-    <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-bene" type="button" role="tab">محافظ المستفيدين</button>
-  </li> -->
-  <li class="nav-item" role="presentation">
-    <button class="nav-link active"  data-bs-toggle="tab" data-bs-target="#tab-main" type="button" role="tab">البرامج الرئيسية</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-sub" type="button" role="tab">البرامج الفرعية</button>
-  </li>
-  <li class="nav-item" role="presentation">
-    <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-log" type="button" role="tab">سجل الحجوزات</button>
-  </li>
-</ul>
 
-<div class="tab-content">
+<script>
 
-  <!-- Beneficiaries -->
-  <!-- <div class="tab-pane fade show active" id="tab-bene" role="tabpanel">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">محافظ المستفيدين</h6>
+document.addEventListener("DOMContentLoaded", function () {
 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>المستفيد</th>
-                <th class="text-end">رصيد المحفظة</th>
-                <th class="text-end">محجوز من الصندوق</th>
-                <th class="text-end">إجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for b in beneficiaries_wallets %}
-                {% if b.wallet_balance or b.reserved_from_fund %}
-                <tr>
-                  <td class="small">{{ b }}</td>
-                  <td class="text-end small fw-bold">{{ b.wallet_balance|floatformat:2 }}</td>
-                  <td class="text-end small fw-bold {% if b.reserved_from_fund > 0 %}text-warning{% endif %}">
-                    {{ b.reserved_from_fund|floatformat:2 }}
-                  </td>
-                  <td class="text-end">
-  {% if b.reserved_from_fund > 0 %}
-    <form method="post" class="d-inline-flex gap-2 align-items-center">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="release_partial_wallet">
-      <input type="hidden" name="source_type" value="beneficiary">
-      <input type="hidden" name="obj_id" value="{{ b.id }}">
-      <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
-             step="0.01" min="0.01" max="{{ b.reserved_from_fund }}"
-             placeholder="مبلغ">
-      <button class="btn btn-sm btn-outline-danger">
-        <i class="bi bi-unlock"></i> تحرير جزئي
-      </button>
-    </form>
+    const modal =
+        document.getElementById(
+            "transferHistoryModal"
+        );
 
-    <form method="post" class="d-inline ms-2">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="release_all">
-      <input type="hidden" name="source_type" value="beneficiary">
-      <input type="hidden" name="obj_id" value="{{ b.id }}">
-      <button class="btn btn-sm btn-danger">
-        <i class="bi bi-x-circle"></i> تحرير كامل
-      </button>
-    </form>
-  {% else %}
-    <span class="text-muted small">—</span>
-  {% endif %}
-</td>
+    const body =
+        document.getElementById(
+            "transferHistoryBody"
+        );
 
-                </tr>
-                {% endif %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+    const loading =
+        document.getElementById(
+            "transferLoading"
+        );
 
-        <div class="text-muted small">* يظهر فقط من لديه رصيد محفظة أو حجز.</div>
-      </div>
-    </div>
-  </div> -->
+    const tableContainer =
+        document.getElementById(
+            "transferTableContainer"
+        );
 
-  <!-- Main Programs -->
-  <div class="tab-pane fade show active" id="tab-main" role="tabpanel">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">ميزانيات البرامج الرئيسية</h6>
+    const empty =
+        document.getElementById(
+            "transferEmpty"
+        );
 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>البرنامج الرئيسي</th>
-                <th class="text-end">ميزانية الرئيسي</th>
-                <th class="text-end">مخصص للفروع</th>
-                <th class="text-end">محجوز من الصندوق</th>
-                <th class="text-end">إجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in main_program_wallets %}
-              <tr>
-                <td class="small">{{ p.name }}</td>
-                <td class="text-end small fw-bold">{{ p.total_donation_amount|floatformat:2 }}</td>
-                <td class="text-end small">{{ p.allocated_sum|floatformat:2 }}</td>
-                <td class="text-end small fw-bold {% if p.reserved_from_fund > 0 %}text-warning{% endif %}">
-                  {{ p.reserved_from_fund|floatformat:2 }}
-                </td>
-               <td class="text-end">
-  {% if p.reserved_from_fund > 0 %}
+    const count =
+        document.getElementById(
+            "transferCount"
+        );
 
-    {% if p.sub_reserved_total > 0 or p.sub_spent_total > 0 %}
-      <span class="badge bg-secondary">
-        لا يمكن تحرير الرئيسي قبل تحرير الفروع
-      </span>
-    {% else %}
-      <form method="post" class="d-inline-flex gap-2 align-items-center">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="release_partial_wallet">
-        <input type="hidden" name="source_type" value="main_program">
-        <input type="hidden" name="obj_id" value="{{ p.id }}">
-        <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
-               step="0.01" min="0.01" max="{{ p.reserved_from_fund }}"
-               placeholder="مبلغ">
-        <button class="btn btn-sm btn-outline-danger">
-          <i class="bi bi-unlock"></i> تحرير جزئي
-        </button>
-      </form>
+    const dateFrom =
+        document.getElementById(
+            "transferDateFrom"
+        );
 
-      <form method="post" class="d-inline ms-2">
-        {% csrf_token %}
-        <input type="hidden" name="action" value="release_all">
-        <input type="hidden" name="source_type" value="main_program">
-        <input type="hidden" name="obj_id" value="{{ p.id }}">
-        <button class="btn btn-sm btn-danger">
-          <i class="bi bi-x-circle"></i> تحرير كامل
-        </button>
-      </form>
-    {% endif %}
+    const dateTo =
+        document.getElementById(
+            "transferDateTo"
+        );
 
-  {% else %}
-    <span class="text-muted small">—</span>
-  {% endif %}
-</td>
+    const search =
+        document.getElementById(
+            "transferSearch"
+        );
 
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+    const searchBtn =
+        document.getElementById(
+            "transferSearchBtn"
+        );
 
-      </div>
-    </div>
-  </div>
+    const resetBtn =
+        document.getElementById(
+            "transferResetBtn"
+        );
 
-  <!-- Sub Programs -->
-  <div class="tab-pane fade" id="tab-sub" role="tabpanel">
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">ميزانيات البرامج الفرعية</h6>
 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>البرنامج الفرعي</th>
-                <th class="text-muted">الرئيسي</th>
-                <th class="text-end">مخصص الفرعي</th>
-                <th class="text-end">مصروف</th>
-                <th class="text-end">المتبقي</th>
-                <th class="text-end">محجوز من الصندوق</th>
-                <th class="text-end">إجراء</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for sp in sub_program_wallets %}
-              <tr>
-                <td class="small">{{ sp.name }}</td>
-                <td class="small text-muted">{{ sp.main_program.name }}</td>
-                <td class="text-end small">{{ sp.allocated_amount|floatformat:2 }}</td>
-                <td class="text-end small text-danger">{{ sp.spent_amount|floatformat:2 }}</td>
-                <td class="text-end small fw-bold text-success">{{ sp.remaining_amount|floatformat:2 }}</td>
-                <td class="text-end small fw-bold {% if sp.reserved_from_fund > 0 %}text-warning{% endif %}">
-                  {{ sp.reserved_from_fund|floatformat:2 }}
-                </td>
-                <td class="text-end">
-  {% if sp.reserved_from_fund > 0 %}
-    <form method="post" class="d-inline-flex gap-2 align-items-center">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="release_partial_wallet">
-      <input type="hidden" name="source_type" value="sub_program">
-      <input type="hidden" name="obj_id" value="{{ sp.id }}">
-      <input type="number" name="amount" class="form-control form-control-sm" style="width:120px"
-             step="0.01" min="0.01" max="{{ sp.reserved_from_fund }}"
-             placeholder="مبلغ">
-      <button class="btn btn-sm btn-outline-danger">
-        <i class="bi bi-unlock"></i> تحرير جزئي
-      </button>
-    </form>
+    function escapeHtml(value) {
 
-    <form method="post" class="d-inline ms-2">
-      {% csrf_token %}
-      <input type="hidden" name="action" value="release_all">
-      <input type="hidden" name="source_type" value="sub_program">
-      <input type="hidden" name="obj_id" value="{{ sp.id }}">
-      <button class="btn btn-sm btn-danger">
-        <i class="bi bi-x-circle"></i> تحرير كامل
-      </button>
-    </form>
-  {% else %}
-    <span class="text-muted small">—</span>
-  {% endif %}
-</td>
+        if (value === null || value === undefined) {
+            return "";
+        }
 
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+        return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 
-      </div>
-    </div>
-  </div>
 
-  <!-- Reservations Log -->
-  <div class="tab-pane fade" id="tab-log" role="tabpanel">
+    function loadTransfers() {
 
-    <div class="card shadow-sm border-0 mb-3">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">فلترة سجل الحجوزات</h6>
+        loading.classList.remove("d-none");
+        tableContainer.classList.add("d-none");
+        empty.classList.add("d-none");
 
-        <form method="get" class="row g-2 align-items-end">
-          <div class="col-md-3">
-            <label class="form-label">نوع الحجز</label>
-            <select class="form-select" name="source_type">
-              <option value="">— الكل —</option>
-              <option value="beneficiary" {% if filters.source_type == "beneficiary" %}selected{% endif %}>محفظة مستفيد</option>
-              <option value="main_program" {% if filters.source_type == "main_program" %}selected{% endif %}>برنامج رئيسي</option>
-              <option value="sub_program" {% if filters.source_type == "sub_program" %}selected{% endif %}>برنامج فرعي</option>
-            </select>
-          </div>
+        const params =
+            new URLSearchParams();
 
-          <div class="col-md-2">
-            <label class="form-label">من تاريخ</label>
-            <input type="date" class="form-control" name="date_from" value="{{ filters.date_from }}">
-          </div>
-          <div class="col-md-2">
-            <label class="form-label">إلى تاريخ</label>
-            <input type="date" class="form-control" name="date_to" value="{{ filters.date_to }}">
-          </div>
+        params.set(
+            "transfer_history",
+            "1"
+        );
 
-          <div class="col-md-3">
-            <label class="form-label">بحث</label>
-            <input type="text" class="form-control" name="q" value="{{ filters.q }}" placeholder="مرجع / ملاحظة / اسم">
-          </div>
+        if (dateFrom.value) {
 
-          <div class="col-md-2 d-flex gap-2">
-            <button class="btn btn-primary w-100"><i class="bi bi-search"></i> بحث</button>
-            <a class="btn btn-light w-100" href="{% url 'Accounting:fund_reservations_dashboard' %}">مسح</a>
-          </div>
-        </form>
-      </div>
-    </div>
+            params.set(
+                "date_from",
+                dateFrom.value
+            );
+        }
 
-    <div class="card shadow-sm border-0">
-      <div class="card-body">
-        <h6 class="fw-bold mb-3">سجل الحجوزات (FundReservation)</h6>
+        if (dateTo.value) {
 
-        <div class="table-responsive">
-          <table class="table table-hover align-middle">
-            <thead class="table-light">
-              <tr>
-                <th>التاريخ</th>
-                <th>النوع</th>
-                <th>المستفيد</th>
-                <th>رئيسي</th>
-                <th>فرعي</th>
-                <th class="text-end">المبلغ</th>
-                <th>مرجع</th>
-                <th>ملاحظة</th>
-                <th class="text-end">تحرير</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in reservations %}
-              <tr>
-                <td class="small">{{ r.created_at|date:"Y-m-d" }}</td>
-                <td class="small">{{ r.get_source_type_display }}</td>
-                <td class="small">{{ r.beneficiary|default:"—" }}</td>
-                <td class="small">{{ r.main_program|default:"—" }}</td>
-                <td class="small">{{ r.sub_program|default:"—" }}</td>
-                <td class="text-end small fw-bold {% if r.amount < 0 %}text-success{% else %}text-warning{% endif %}">
-                  {{ r.amount|floatformat:2 }}
-                </td>
-                <td class="small text-muted">{{ r.reference|default:"—" }}</td>
-                <td class="small text-muted">{{ r.note|default:"—" }}</td>
-                <td class="text-end">
-                  {% if r.amount > 0 %}
-                    <form method="post" class="d-inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="release_amount">
-                      <input type="hidden" name="source_type" value="{{ r.source_type }}">
-                      {% if r.beneficiary_id %}<input type="hidden" name="obj_id" value="{{ r.beneficiary_id }}">{% endif %}
-                      {% if r.main_program_id %}<input type="hidden" name="obj_id" value="{{ r.main_program_id }}">{% endif %}
-                      {% if r.sub_program_id %}<input type="hidden" name="obj_id" value="{{ r.sub_program_id }}">{% endif %}
-                      <input type="hidden" name="amount" value="{{ r.amount }}">
-                      <input type="hidden" name="reference" value="REL-{{ r.id }}">
-                      <button class="btn btn-sm btn-outline-danger">
-                        <i class="bi bi-unlock"></i>
-                      </button>
-                    </form>
-                  {% else %}
-                    <span class="text-muted small">—</span>
-                  {% endif %}
-                </td>
-              </tr>
-              {% empty %}
-              <tr>
-                <td colspan="9" class="text-center text-muted p-4">لا توجد حجوزات مطابقة.</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+            params.set(
+                "date_to",
+                dateTo.value
+            );
+        }
 
-        <div class="text-muted small">* زر التحرير هنا يحرر مقدار هذا السطر كحد أقصى وبشكل آمن (لا يحرر أكثر من المحجوز الحالي).</div>
-      </div>
-    </div>
+        if (search.value.trim()) {
 
-  </div>
+            params.set(
+                "q",
+                search.value.trim()
+            );
+        }
 
-</div>
+
+        fetch(
+            `${window.location.pathname}?${params.toString()}`,
+            {
+                headers: {
+                    "X-Requested-With":
+                        "XMLHttpRequest"
+                }
+            }
+        )
+        .then(response => {
+
+            if (!response.ok) {
+                throw new Error(
+                    "حدث خطأ أثناء تحميل السجل."
+                );
+            }
+
+            return response.json();
+        })
+        .then(data => {
+
+            body.innerHTML = "";
+
+            count.textContent =
+                data.count;
+
+
+            if (!data.results.length) {
+
+                tableContainer.classList.add(
+                    "d-none"
+                );
+
+                empty.classList.remove(
+                    "d-none"
+                );
+
+                return;
+            }
+
+
+            data.results.forEach(
+                (item, index) => {
+
+                    const row =
+                        document.createElement(
+                            "tr"
+                        );
+
+                    row.innerHTML = `
+
+                        <td>
+                            ${index + 1}
+                        </td>
+
+                        <td class="text-nowrap">
+                            ${escapeHtml(item.date)}
+                            <br>
+                            <small class="text-muted">
+                                ${escapeHtml(item.time)}
+                            </small>
+                        </td>
+
+                        <td>
+                            ${escapeHtml(item.from)}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(item.to)}
+                        </td>
+
+                        <td class="fw-bold text-success">
+                            ${escapeHtml(item.amount)}
+                            ر.س
+                        </td>
+
+                        <td>
+                            ${escapeHtml(item.reference)}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(item.note)}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(item.user)}
+                        </td>
+
+                    `;
+
+                    body.appendChild(row);
+                }
+            );
+
+            tableContainer.classList.remove(
+                "d-none"
+            );
+
+        })
+        .catch(error => {
+
+            body.innerHTML = "";
+
+            tableContainer.classList.add(
+                "d-none"
+            );
+
+            empty.classList.remove(
+                "d-none"
+            );
+
+            empty.textContent =
+                error.message;
+
+        })
+        .finally(() => {
+
+            loading.classList.add(
+                "d-none"
+            );
+
+        });
+    }
+
+
+    modal.addEventListener(
+        "shown.bs.modal",
+        function () {
+
+            loadTransfers();
+
+        }
+    );
+
+
+    searchBtn.addEventListener(
+        "click",
+        function () {
+
+            loadTransfers();
+
+        }
+    );
+
+
+    resetBtn.addEventListener(
+        "click",
+        function () {
+
+            dateFrom.value = "";
+            dateTo.value = "";
+            search.value = "";
+
+            loadTransfers();
+
+        }
+    );
+
+
+    search.addEventListener(
+        "keydown",
+        function (event) {
+
+            if (event.key === "Enter") {
+
+                event.preventDefault();
+
+                loadTransfers();
+
+            }
+
+        }
+    );
+
+});
+
+</script>
+
 
 {% endblock %}

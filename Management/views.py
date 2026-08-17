@@ -9,11 +9,10 @@ from django.core.paginator import Paginator
 from django.db.models import Q
 from django.http import HttpResponseForbidden
 from django.urls import resolve
-from django.utils.http import url_has_allowed_host_and_scheme
 
 from .forms import LoginForm, UserWithProfileCreateForm, UserContactEditForm
 from .models import Profile , Beneficiary
-
+from Accounting.models import FinancialSponsorshipInvoice
 # أعلى الملف:
 from .forms import BeneficiaryForm, BeneficiaryFilterForm, BeneficiaryImportForm, BeneficiariesBulkAssignForm , BeneficiariesBulkEducationForm
 from django.views.decorators.http import require_http_methods
@@ -21,7 +20,7 @@ from django.db.models import Q
 import json
 from django.utils import timezone
 from .models import BeneficiarySponsorHistory
-
+from Accounting.models import FinancialSponsorshipAllocation
 from django.db.models.functions import TruncMonth
 from django.db.models import Sum
 from decimal import Decimal
@@ -55,52 +54,40 @@ def _is_system_admin(user):
     return user.is_superuser or in_group or (prof and prof.role == Profile.Roles.SYSTEM_ADMIN)
 
 def _redirect_by_role(user):
-    # بعد تسجيل الدخول، الكل يروح إلى الصفحة الرئيسية
-    #return redirect("Management:home")
+
     profile = getattr(user, "profile", None)
-    if profile.role == Profile.Roles.SYSTEM_ADMIN:
-        return redirect("Management:dashboard")
 
-    if profile and profile.role == Profile.Roles.DONOR:
-        return redirect("Donation:dashboard")
-    if profile.role == Profile.Roles.ACCOUNTANT:
-        return redirect("Accounting:accountant_home")
-    if profile.role == Profile.Roles.CASHIER:
-        return redirect("Accounting:cashier_home")
-    return redirect("Management:home")
+    if (
+        user.is_superuser
+        or user.groups.filter(
+            name="system_admin"
+        ).exists()
+        or (
+            profile
+            and profile.role == Profile.Roles.SYSTEM_ADMIN
+        )
+    ):
+        return redirect(
+            "Management:dashboard"
+        )
 
-# def _redirect_by_role(user):
-#     prof = getattr(user, "profile", None)
-#     if _is_system_admin(user):
-#         return redirect("Management:users_list")
-#     if prof:
-#         if prof.role == Profile.Roles.ACCOUNTANT:
-#             return redirect("Management:accountant_home")
-#         if prof.role == Profile.Roles.DONOR:
-#             return redirect("Management:donor_home")
-#         if prof.role == Profile.Roles.CASHIER:
-#             return redirect("Management:cashier_home")
-#     return redirect("Management:home")
-
-def _user_allowed_for_url(user, path: str) -> bool:
-    """يتأكد أن المستخدم مخوّل للـ next URL"""
-    try:
-        match = resolve(path)
-        view_name = f"{match.namespace}:{match.url_name}" if match.namespace else match.url_name
-    except Exception:
-        return False
-
-    admin_only = {
-        "Management:users_list",
-        "Management:create_user_with_profile",
-        "Management:update_user_role",
-        "Management:delete_user",
-        "Management:edit_user_contact",
+    role_redirects = {
+        Profile.Roles.DONOR: "Donation:dashboard",
+        Profile.Roles.ACCOUNTANT: "Accounting:accountant_home",
+        Profile.Roles.CASHIER: "Accounting:cashier_home",
     }
-    if view_name in admin_only:
-        return _is_system_admin(user)
-    return True
 
+    if profile:
+        url_name = role_redirects.get(
+            profile.role
+        )
+
+        if url_name:
+            return redirect(url_name)
+
+    return redirect(
+        "Management:landing"
+    )
 # -------------------------------------------------------------------
 # 🔹 صفحة تسجيل الدخول 	hmad@gmail.com
 # -------------------------------------------------------------------
@@ -251,9 +238,9 @@ def users_list(request):
     page_obj = paginator.get_page(request.GET.get("page"))
 
     roles = [
-        (Profile.Roles.DONOR, "كفيل"),
+        (Profile.Roles.DONOR, "كافل"),
         (Profile.Roles.ACCOUNTANT, "محاسب"),
-        (Profile.Roles.CASHIER, "كاشير"),
+        (Profile.Roles.CASHIER, "موظف استقبال"),
     ]
 
     return render(request, "Management/users_list.html", {
@@ -924,127 +911,157 @@ def beneficiaries_import(request):
 
     return render(request, "Management/beneficiaries_import.html", {"form": form, "title": "استيراد مستفيدين"})
 
-
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
 def beneficiaries_bulk_assign(request):
+
     form = BeneficiariesBulkAssignForm(request.POST)
 
-    if form.is_valid():
-        donor = form.cleaned_data["donor"]
-
-        ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
-
-        try:
-            ids = [
-                int(i)
-                for i in ids_raw.replace("[", "").replace("]", "").split(",")
-                if i.strip().isdigit()
-            ]
-        except Exception:
-            ids = []
-
-        if not ids:
-            messages.error(request, "لم يتم تحديد مستفيدين.")
-            return redirect("Management:beneficiaries_list")
-
-        updated = 0
-
-        with transaction.atomic():
-
-            beneficiaries = (
-                Beneficiary.objects
-                .filter(id__in=ids)
-                .select_related("donor")
-            )
-
-            for beneficiary in beneficiaries:
-
-                # إغلاق أي كفالة حالية
-                BeneficiarySponsorHistory.objects.filter(
-                    beneficiary=beneficiary,
-                    end_date__isnull=True,
-                ).update(
-                    end_date=timezone.localdate()
-                )
-
-                # إنشاء سجل الكفالة الجديد
-                BeneficiarySponsorHistory.objects.create(
-                    beneficiary=beneficiary,
-                    donor=donor,
-                    start_date=timezone.localdate(),
-                    assigned_by=request.user,
-                )
-
-                # تحديث الكافل الحالي
-                beneficiary.donor = donor
-                beneficiary.save(update_fields=["donor"])
-
-                updated += 1
-
-        messages.success(
+    if not form.is_valid():
+        messages.error(
             request,
-            f"تم إلحاق {updated} مستفيد/ـين بالكافل المحدد."
+            "تعذر تنفيذ عملية الإلحاق. تحقق من البيانات."
         )
         return redirect("Management:beneficiaries_list")
 
-    messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
+    sponsorship_invoice = form.cleaned_data["sponsorship_invoice"]
+
+    ids_raw = (
+        request.POST.get("selected_ids")
+        or form.cleaned_data.get("ids")
+        or ""
+    )
+
+    try:
+        ids = [
+            int(i.strip())
+            for i in ids_raw.split(",")
+            if i.strip().isdigit()
+        ]
+    except (TypeError, ValueError):
+        ids = []
+
+    # سند واحد = مستفيد واحد
+    if len(ids) != 1:
+        messages.error(
+            request,
+            "يجب اختيار مستفيد واحد فقط لإلحاقه بسند الكفالة."
+        )
+        return redirect("Management:beneficiaries_list")
+
+    beneficiary_id = ids[0]
+    today = timezone.localdate()
+
+    with transaction.atomic():
+
+        sponsorship_invoice = (
+            FinancialSponsorshipInvoice.objects
+            .select_for_update()
+            .select_related(
+                "invoice",
+                "sponsor",
+                "sponsor__user",
+            )
+            .get(pk=sponsorship_invoice.pk)
+        )
+
+        beneficiary = (
+            Beneficiary.objects
+            .select_for_update()
+            .get(pk=beneficiary_id)
+        )
+
+        # السند يجب أن يكون ساريًا
+        if (
+            sponsorship_invoice.start_date > today
+            or sponsorship_invoice.end_date < today
+        ):
+            messages.error(
+                request,
+                "سند الكفالة المحدد غير ساري حاليًا."
+            )
+            return redirect("Management:beneficiaries_list")
+
+        # السند لا يمكن استخدامه لأكثر من مستفيد
+        if FinancialSponsorshipAllocation.objects.filter(
+            sponsorship_invoice=sponsorship_invoice
+        ).exists():
+            messages.error(
+                request,
+                "سند الكفالة هذا مرتبط بالفعل بمستفيد."
+            )
+            return redirect("Management:beneficiaries_list")
+
+        # المستفيد لا يمكن أن يكون لديه كفالة سارية أخرى
+        active_history = (
+            BeneficiarySponsorHistory.objects
+            .filter(
+                beneficiary=beneficiary,
+                start_date__lte=today,
+                end_date__gte=today,
+            )
+            .select_related(
+                "donor",
+                "donor__user",
+            )
+            .first()
+        )
+
+        if active_history:
+
+            donor_name = (
+                active_history.donor.user.get_full_name()
+                or active_history.donor.user.username
+            )
+
+            messages.error(
+                request,
+                (
+                    "لا يمكن إلحاق المستفيد بسند جديد. "
+                    f"لديه كفالة سارية حاليًا مع "
+                    f"{donor_name} حتى "
+                    f"{active_history.end_date:%Y-%m-%d}."
+                ),
+            )
+
+            return redirect("Management:beneficiaries_list")
+
+        # إنشاء تخصيص السند للمستفيد
+        FinancialSponsorshipAllocation.objects.create(
+            sponsorship_invoice=sponsorship_invoice,
+            beneficiary=beneficiary,
+            amount=sponsorship_invoice.total_amount,
+        )
+
+        # إنشاء سجل تاريخ الكفالة
+        # نفس تواريخ السند
+        BeneficiarySponsorHistory.objects.create(
+            beneficiary=beneficiary,
+            donor=sponsorship_invoice.sponsor,
+            start_date=sponsorship_invoice.start_date,
+            end_date=sponsorship_invoice.end_date,
+            assigned_by=request.user,
+        )
+
+        # مؤقتًا للتوافق مع بقية النظام
+        beneficiary.donor = sponsorship_invoice.sponsor
+        beneficiary.save(update_fields=["donor"])
+
+    sponsor_name = (
+        sponsorship_invoice.sponsor.user.get_full_name()
+        or sponsorship_invoice.sponsor.user.username
+    )
+
+    messages.success(
+        request,
+        (
+            f"تم إلحاق المستفيد بنجاح بسند الكفالة "
+            f"رقم {sponsorship_invoice.invoice.number} "
+            f"مع الكافل {sponsor_name}."
+        ),
+    )
+
     return redirect("Management:beneficiaries_list")
-# @role_required(_beneficiary_roles())
-# @require_http_methods(["POST"])
-# def beneficiaries_bulk_assign(request):
-#     form = BeneficiariesBulkAssignForm(request.POST)
-#     if form.is_valid():
-#         donor = form.cleaned_data["donor"]
-
-#         # اقرأ المعرّفات من selected_ids (المعبأة via JS)
-#         ids_raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
-#         try:
-#             ids = [int(i) for i in ids_raw.replace("[","").replace("]","").split(",") if str(i).strip().isdigit()]
-#         except Exception:
-#             ids = []
-
-#         if not ids:
-#             messages.error(request, "لم يتم تحديد مستفيدين.")
-#             return redirect("Management:beneficiaries_list")
-
-#         #updated = Beneficiary.objects.filter(id__in=ids).update(donor=donor)
-#         updated = 0
-
-#         with transaction.atomic():
-
-#             beneficiaries = Beneficiary.objects.filter(id__in=ids)
-
-#             for beneficiary in beneficiaries:
-
-#                 # إغلاق الكفالة الحالية إن وجدت
-#                 BeneficiarySponsorHistory.objects.filter(
-#                     beneficiary=beneficiary,
-#                     end_date__isnull=True,
-#                 ).update(
-#                     end_date=timezone.now().date()
-#                 )
-
-#                 # إنشاء سجل جديد
-#                 BeneficiarySponsorHistory.objects.create(
-#                     beneficiary=beneficiary,
-#                     donor=donor,
-#                     start_date=timezone.now().date(),
-#                     assigned_by=request.user,
-#                 )
-
-#                 # تحديث الكافل الحالي (للتوافق مع النظام الحالي)
-#                 beneficiary.donor = donor
-#                 beneficiary.save(update_fields=["donor"])
-
-#                 updated += 1
-#                 messages.success(request, f"تم إلحاق {updated} مستفيد/ـين بالمتبرع المحدد.")
-#                 return redirect("Management:beneficiaries_list")
-
-#     # لو فيه أخطاء (مثلاً دونر غير مُرسَل)
-#     messages.error(request, "تعذر تنفيذ العملية. تحقق من المدخلات.")
-#     return redirect("Management:beneficiaries_list")
-
 
 
 @role_required(_beneficiary_roles())
@@ -1123,6 +1140,7 @@ def dashboard(request):
     User = get_user_model()
 
     today = timezone.localdate()
+    expiring_date = today + timedelta(days=30)
 
     beneficiaries_count = Beneficiary.objects.count()
 
@@ -1136,6 +1154,31 @@ def dashboard(request):
 
     invoices_count = Invoice.objects.count()
 
+    # =====================================================
+    # الكفالات
+    # =====================================================
+
+    sponsorships_total = FinancialSponsorshipInvoice.objects.count()
+
+    sponsorships_active = FinancialSponsorshipInvoice.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+    ).count()
+
+    sponsorships_expiring = FinancialSponsorshipInvoice.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+        end_date__lte=expiring_date,
+    ).count()
+
+    sponsorships_expired = FinancialSponsorshipInvoice.objects.filter(
+        end_date__lt=today,
+    ).count()
+
+    # =====================================================
+    # الإيرادات / الرصيد
+    # =====================================================
+
     today_income = (
         FundEntry.objects.filter(
             created_at__date=today,
@@ -1146,7 +1189,6 @@ def dashboard(request):
         ).aggregate(total=Sum("amount"))["total"] or 0
     )
 
-    # رصيد الجمعية الحالي
     balance = FundEntry.total_balance()
 
     # =====================================================
@@ -1212,6 +1254,8 @@ def dashboard(request):
             )
 
     # =====================================================
+    # آخر العمليات
+    # =====================================================
 
     latest_operations = (
         FundEntry.objects
@@ -1245,6 +1289,12 @@ def dashboard(request):
 
         "today_income": balance,
 
+        # الكفالات
+        "sponsorships_total": sponsorships_total,
+        "sponsorships_active": sponsorships_active,
+        "sponsorships_expiring": sponsorships_expiring,
+        "sponsorships_expired": sponsorships_expired,
+
         "latest_operations": latest_operations,
         "latest_activity": latest_activity,
 
@@ -1258,88 +1308,254 @@ def dashboard(request):
         context,
     )
 
-    User = get_user_model()
+# صفحة هبوط
 
-    today = timezone.localdate()
 
-    beneficiaries_count = Beneficiary.objects.count()
+def landing_page(request):
 
-    sponsors_count = Profile.objects.filter(
-        role=Profile.Roles.DONOR
-    ).count()
-
-    users_count = User.objects.count()
-
-    programs_count = MainProgram.objects.count()
-
-    invoices_count = Invoice.objects.count()
-
-    today_income = (
-        FundEntry.objects.filter(
-            created_at__date=today,
-            type__in=[
-                FundEntry.Types.GENERAL_DONATION_INCOME,
-                FundEntry.Types.SPONSORSHIP_INCOME,
-            ],
-        ).aggregate(total=Sum("amount"))["total"] or 0
-    )
-    balance = FundEntry.total_balance()
-    monthly_income = (
-    FundEntry.objects.filter(
-        type__in=[
-            FundEntry.Types.GENERAL_DONATION_INCOME,
-            FundEntry.Types.SPONSORSHIP_INCOME,
-        ]
-    )
-    .annotate(month=TruncMonth("created_at"))
-    .values("month")
-    .annotate(total=Sum("amount"))
-    .order_by("month")
-    )
-
-    chart_labels = []
-    chart_values = []
-
-    for row in monthly_income:
-        chart_labels.append(row["month"].strftime("%m/%Y"))
-        chart_values.append(float(row["total"]))
-
-    latest_operations = (
-    FundEntry.objects
-    .select_related(
-        "created_by",
-        "invoice",
-        "beneficiary",
-        "main_program",
-        "sub_program",
-    )
-    .order_by("-created_at")[:10]
-    )
-
-    latest_activity = (
-    AuditLog.objects
-    .exclude(action=AuditLog.Actions.REQUEST)
-    .exclude(action=AuditLog.Actions.LOGIN)
-    .exclude(action=AuditLog.Actions.LOGOUT)
-    .select_related("user")
-    .order_by("-ts")[:10]
-)
-    context = {
-        "title": "لوحة تحكم مدير النظام",
-        "latest_operations": latest_operations,
-        "beneficiaries_count": beneficiaries_count,
-        "sponsors_count": sponsors_count,
-        "users_count": users_count,
-        "programs_count": programs_count,
-        "invoices_count": invoices_count,
-        "today_income": balance,
-        "latest_activity" :latest_activity,
-        "chart_labels": json.dumps(chart_labels),
-        "chart_values": json.dumps(chart_values),
-    }
+    if request.user.is_authenticated:
+        return _redirect_by_role(request.user)
 
     return render(
         request,
-        "Management/dashboard.html",
-        context,
+        "Management/landing.html",
+    )
+
+
+def help_page(request):
+    return render(
+        request,
+        "Management/help.html",
+    )
+
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def sponsorships_list(request):
+
+    today = timezone.localdate()
+    expiring_date = today + timedelta(days=30)
+
+    sponsorships = (
+        FinancialSponsorshipInvoice.objects
+        .select_related(
+            "invoice",
+            "sponsor",
+            "sponsor__user",
+            "payment_plan",
+        )
+        .prefetch_related(
+            "allocation",
+            "allocation__beneficiary",
+        )
+        .order_by("-start_date", "-invoice__date")
+    )
+
+    q = request.GET.get("q", "").strip()
+    status_filter = request.GET.get("status", "").strip()
+
+    # ---------------------------------------------------------
+    # البحث
+    # ---------------------------------------------------------
+
+    if q:
+        sponsorships = sponsorships.filter(
+            Q(invoice__number__icontains=q)
+            | Q(sponsor__user__first_name__icontains=q)
+            | Q(sponsor__user__last_name__icontains=q)
+            | Q(sponsor__user__username__icontains=q)
+            | Q(allocation__beneficiary__first_name__icontains=q)
+            | Q(allocation__beneficiary__father_name__icontains=q)
+            | Q(allocation__beneficiary__grand_name__icontains=q)
+            | Q(allocation__beneficiary__last_name__icontains=q)
+        ).distinct()
+
+    # ---------------------------------------------------------
+    # فلترة الحالة
+    # ---------------------------------------------------------
+
+    if status_filter == "active":
+
+        sponsorships = sponsorships.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+        )
+
+    elif status_filter == "expiring":
+
+        sponsorships = sponsorships.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+            end_date__lte=expiring_date,
+        )
+
+    elif status_filter == "expired":
+
+        sponsorships = sponsorships.filter(
+            end_date__lt=today,
+        )
+
+    elif status_filter == "pending":
+
+        sponsorships = sponsorships.filter(
+            start_date__gt=today,
+        )
+
+    # ---------------------------------------------------------
+    # الإحصائيات
+    # ---------------------------------------------------------
+
+    total_count = FinancialSponsorshipInvoice.objects.count()
+
+    active_count = FinancialSponsorshipInvoice.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+    ).count()
+
+    expiring_count = FinancialSponsorshipInvoice.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+        end_date__lte=expiring_date,
+    ).count()
+
+    expired_count = FinancialSponsorshipInvoice.objects.filter(
+        end_date__lt=today,
+    ).count()
+
+    pending_count = FinancialSponsorshipInvoice.objects.filter(
+        start_date__gt=today,
+    ).count()
+
+    # ---------------------------------------------------------
+    # تجهيز بيانات العرض
+    # ---------------------------------------------------------
+
+    sponsorship_list = []
+
+    for sponsorship in sponsorships:
+
+        # الحالة
+        if sponsorship.start_date and today < sponsorship.start_date:
+
+            status = "pending"
+
+        elif sponsorship.end_date and today > sponsorship.end_date:
+
+            status = "expired"
+
+        elif (
+            sponsorship.end_date
+            and today <= sponsorship.end_date <= expiring_date
+        ):
+
+            status = "expiring"
+
+        elif (
+            sponsorship.start_date
+            and sponsorship.end_date
+            and sponsorship.start_date <= today <= sponsorship.end_date
+        ):
+
+            status = "active"
+
+        else:
+
+            status = "unknown"
+
+        # التخصيص
+        allocation = getattr(
+            sponsorship,
+            "allocation",
+            None,
+        )
+
+        beneficiary = (
+            allocation.beneficiary
+            if allocation
+            else None
+        )
+
+        # مدة الكفالة
+        duration_months = (
+            sponsorship.custom_duration_months
+            or (
+                sponsorship.payment_plan.duration_months
+                if sponsorship.payment_plan_id
+                and getattr(
+                    sponsorship.payment_plan,
+                    "duration_months",
+                    None,
+                )
+                else None
+            )
+        )
+
+        # نجهز قاموس للعرض بدل تعديل الموديل
+        sponsorship_list.append(
+            {
+                "object": sponsorship,
+
+                "invoice": sponsorship.invoice,
+
+                "sponsor": sponsorship.sponsor,
+
+                "beneficiary": beneficiary,
+
+                "status": status,
+
+                "duration_months": duration_months,
+
+                "start_date": sponsorship.start_date,
+
+                "end_date": sponsorship.end_date,
+
+                "amount": sponsorship.total_amount,
+
+                "allocated_amount": sponsorship.allocated_amount,
+
+                "remaining_amount": sponsorship.remaining_amount,
+            }
+        )
+
+    # ---------------------------------------------------------
+    # Pagination
+    # ---------------------------------------------------------
+
+    paginator = Paginator(
+        sponsorship_list,
+        25,
+    )
+
+    page_number = request.GET.get("page")
+
+    page_obj = paginator.get_page(
+        page_number
+    )
+
+    # ---------------------------------------------------------
+    # العرض
+    # ---------------------------------------------------------
+
+    return render(
+        request,
+        "Management/sponsorships_list.html",
+        {
+            "title": "إدارة الكفالات",
+
+            "sponsorships": page_obj.object_list,
+
+            "page_obj": page_obj,
+
+            "total_count": total_count,
+
+            "active_count": active_count,
+
+            "expiring_count": expiring_count,
+
+            "expired_count": expired_count,
+
+            "pending_count": pending_count,
+
+            "today": today,
+
+            "expiring_date": expiring_date,
+        },
     )

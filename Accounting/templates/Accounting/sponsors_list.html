@@ -1,536 +1,599 @@
 {% extends "Management/base.html" %}
 {% load static %}
 
-{% block title %}{{ title }} - RMS{% endblock %}
-
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">
-      <i class="bi bi-people-heart me-1"></i> {{ title }}
-    </h5>
-    <small class="text-muted">
-      عرض وإدارة الكفلاء (حسابات المتبرعين) من داخل نظام المحاسبة.
-    </small>
-  </div>
-  <div class="d-flex gap-2">
-    <button type="button"
-            class="btn btn-primary btn-sm"
-            data-bs-toggle="modal"
-            data-bs-target="#createSponsorModal">
-      <i class="bi bi-person-plus"></i> إضافة كافل جديد
-    </button>
-  </div>
-</div>
+<div class="container-fluid py-4" dir="rtl">
 
-<!-- بطاقة البحث -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-body pb-2">
+    <!-- =====================================================
+         Page Header
+    ====================================================== -->
+    <div class="mb-4">
 
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-      <div class="small text-muted">
-        إجمالي الكفلاء:
-        <span class="badge bg-primary-subtle text-primary border rounded-pill px-2">
-          {{ total_count }}
-        </span>
-      </div>
+        <div class="d-flex align-items-center gap-2 mb-2">
 
-      <form method="get" class="d-flex gap-2 align-items-center">
-        <input type="text"
-               name="q"
-               class="form-control form-control-sm"
-               style="min-width: 230px;"
-               value="{{ query }}"
-               placeholder="بحث بالاسم، الجوال، الهوية">
-        {% if query %}
-          <a href="{% url 'Accounting:sponsors_list' %}" class="btn btn-outline-secondary btn-sm">
-            مسح
-          </a>
-        {% endif %}
-        <button type="submit" class="btn btn-primary btn-sm">
-          <i class="bi bi-search"></i> بحث
-        </button>
-      </form>
-    </div>
+            <span class="text-muted small">
+                الإدارة المالية
+            </span>
 
-  </div>
-</div>
+            <i class="bi bi-chevron-left text-muted small"></i>
 
-<!-- جدول الكفلاء -->
-<div class="card shadow-sm border-0">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle m-0">
-        <thead class="table-light">
-          <tr>
-            <th style="width:4%;">#</th>
-            <th style="width:26%;">الاسم</th>
-            <th style="width:18%;">الجوال</th>
-            <th style="width:18%;">الهوية</th>
-            <th style="width:18%;">تاريخ الإضافة</th>
-            <th style="width:16%;" class="text-center">إجراءات</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% if page_obj.object_list %}
-            {% for sponsor in page_obj.object_list %}
-              <tr>
-                <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
+            <span class="text-dark small">
+                الكفلاء
+            </span>
 
-                <td>
-                  <div class="fw-semibold">
-                   
-                    {{ sponsor.user.first_name }}
-                    {{ sponsor.father_name }}
-                    {{ sponsor.grandpa_name }}
-                     {{ sponsor.user.last_name }}
-                  </div>
-                  <div class="small text-muted">
-                    {{ sponsor.user.email }}
-                  </div>
-                </td>
-
-                <td>
-                  <span class="badge bg-light text-dark border small">
-                    {{ sponsor.phone }}
-                  </span>
-                </td>
-
-                <td>
-                  <span class="badge bg-secondary-subtle text-dark small">
-                    {{ sponsor.national_number }}
-                  </span>
-                </td>
-
-                <td>
-                  <span class="small text-muted">
-                    {{ sponsor.created_at|date:"Y-m-d H:i" }}
-                  </span>
-                </td>
-
-                <td class="text-center">
-                  <div class="d-inline-flex gap-1">
-                    <!-- عرض كفالاته -->
-                    <a href="{% url 'Accounting:sponsorship_inquiry' %}?q={{ sponsor.phone }}"
-                       class="btn btn-sm btn-outline-primary"
-                       title="عرض كفالات هذا الكافل">
-                      <i class="bi bi-journal-text"></i>
-                    </a>
-
-                    <!-- تعديل الكافل (يفتح مودال) -->
-                    <button type="button"
-                            class="btn btn-sm btn-outline-secondary btn-edit-sponsor"
-                            title="تعديل بيانات الكافل"
-                            data-bs-toggle="modal"
-                            data-bs-target="#editSponsorModal"
-                            data-id="{{ sponsor.id }}"
-                            data-email="{{ sponsor.user.email }}"
-                            data-first-name="{{ sponsor.user.first_name }}"
-                            data-father-name="{{ sponsor.father_name }}"
-                            data-grandpa-name="{{ sponsor.grandpa_name }}"
-                            data-last-name="{{ sponsor.user.last_name }}"
-                            data-phone="{{ sponsor.phone }}"
-                            data-national-number="{{ sponsor.national_number }}">
-                      <i class="bi bi-pencil"></i>
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="6" class="text-center py-3 text-muted small">
-                لا توجد حسابات كفلاء مسجلة حتى الآن.
-              </td>
-            </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ترقيم الصفحات -->
-    {% if page_obj.paginator.num_pages > 1 %}
-      <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top small">
-        <div class="text-muted">
-          صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}
         </div>
-        <nav>
-          <ul class="pagination pagination-sm mb-0">
-            {% if page_obj.has_previous %}
-              <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">
-                  السابق
-                </a>
-              </li>
-            {% else %}
-              <li class="page-item disabled"><span class="page-link">السابق</span></li>
-            {% endif %}
 
-            <li class="page-item active">
-              <span class="page-link">{{ page_obj.number }}</span>
-            </li>
+        <h2 class="fw-bold mb-1">
+            إدارة الكفلاء
+        </h2>
 
-            {% if page_obj.has_next %}
-              <li class="page-item">
-                <a class="page-link"
-                   href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}">
-                  التالي
-                </a>
-              </li>
-            {% else %}
-              <li class="page-item disabled"><span class="page-link">التالي</span></li>
-            {% endif %}
-          </ul>
+        <p class="text-muted mb-0">
+            إدارة بيانات الكفلاء ومتابعة كفالاتهم وملفاتهم
+        </p>
+
+    </div>
+
+
+    <!-- =====================================================
+         Summary
+    ====================================================== -->
+    <div class="row g-3 mb-4">
+
+        <!-- إجمالي الكفلاء -->
+        <div class="col-xl-6 col-lg-6">
+
+            <div class="card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+                    <div class="d-flex align-items-center justify-content-between">
+
+                        <div>
+
+                            <div class="text-muted mb-2">
+                                إجمالي الكفلاء
+                            </div>
+
+                            <div class="fw-bold fs-2">
+                                {{ total_count }}
+                            </div>
+
+                            <small class="text-muted">
+                                كفيل مسجل في النظام
+                            </small>
+
+                        </div>
+
+                        <div class="d-flex align-items-center justify-content-center rounded-4"
+                             style="
+                                width:60px;
+                                height:60px;
+                                background:#e9f7f4;
+                                color:#009b84;
+                             ">
+
+                            <i class="bi bi-people fs-3"></i>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- إضافة كفيل -->
+        <div class="col-xl-6 col-lg-6">
+
+            <a href="{% url 'Accounting:sponsor_create_page' %}"
+               class="text-decoration-none text-dark">
+
+                <div class="card border-0 shadow-sm h-100 sponsor-action-card">
+
+                    <div class="card-body p-4">
+
+                        <div class="d-flex align-items-center justify-content-between">
+
+                            <div>
+
+                                <div class="text-muted mb-2">
+                                    إضافة كفيل جديد
+                                </div>
+
+                                <div class="fw-bold fs-5 mb-1">
+                                    تسجيل كفيل
+                                </div>
+
+                                <small class="text-muted">
+                                    إضافة بيانات كفيل جديد إلى النظام
+                                </small>
+
+                            </div>
+
+                            <div class="d-flex align-items-center justify-content-center rounded-4"
+                                 style="
+                                    width:60px;
+                                    height:60px;
+                                    background:#e9f7f4;
+                                    color:#009b84;
+                                 ">
+
+                                <i class="bi bi-person-plus fs-3"></i>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         Search
+    ====================================================== -->
+    <div class="card border-0 shadow-sm mb-4">
+
+        <div class="card-body p-4">
+
+            <form method="get">
+
+                <div class="row g-3 align-items-end">
+
+                    <div class="col-lg-10">
+
+                        <label class="form-label fw-semibold">
+                            البحث عن كفيل
+                        </label>
+
+                        <div class="input-group">
+
+                            <span class="input-group-text bg-white">
+                                <i class="bi bi-search"></i>
+                            </span>
+
+                            <input
+                                type="text"
+                                name="q"
+                                value="{{ query }}"
+                                class="form-control"
+                                placeholder="ابحث باسم الكفيل أو البريد أو الجوال أو رقم الهوية..."
+                            >
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="col-lg-2">
+
+                        <button type="submit"
+                                class="btn btn-primary w-100">
+
+                            <i class="bi bi-search ms-1"></i>
+                            بحث
+
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         Section Header
+    ====================================================== -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+
+        <div>
+
+            <h5 class="fw-bold mb-1">
+                الكفلاء
+            </h5>
+
+            <div class="text-muted small">
+                اختر كفيلاً لعرض ملفه ومتابعة كفالاته
+            </div>
+
+        </div>
+
+        <div class="text-muted small">
+
+            {{ total_count }} نتيجة
+
+        </div>
+
+    </div>
+
+
+    <!-- =====================================================
+         Sponsors Cards
+    ====================================================== -->
+    <div class="row g-4">
+
+        {% for sponsor in page_obj %}
+
+        <div class="col-12 col-md-6 col-xl-4">
+
+            <div class="card border-0 shadow-sm h-100 sponsor-card">
+
+                <div class="card-body p-4">
+
+                    <!-- ===============================
+                         Sponsor Header
+                    ================================ -->
+                    <div class="d-flex align-items-center gap-3 mb-4">
+
+                        <!-- Avatar -->
+                        <div class="d-flex align-items-center justify-content-center rounded-4"
+                             style="
+                                width:58px;
+                                height:58px;
+                                min-width:58px;
+                                background:#e9f7f4;
+                                color:#009b84;
+                                font-size:21px;
+                                font-weight:700;
+                             ">
+
+                            {{ sponsor.user.get_full_name|default:"ك"|first }}
+
+                        </div>
+
+
+                        <!-- Name -->
+                        <div class="flex-grow-1">
+
+                            <h5 class="fw-bold mb-1">
+
+                                {{ sponsor.user.get_full_name|default:"بدون اسم" }}
+
+                            </h5>
+
+                            <div class="text-muted small">
+                                كفيل
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <hr class="my-3">
+
+
+                    <!-- ===============================
+                         Sponsor Information
+                    ================================ -->
+                    <div class="d-flex flex-column gap-3">
+
+
+                        <!-- Phone -->
+                        <div class="d-flex align-items-center gap-3">
+
+                            <div class="d-flex align-items-center justify-content-center rounded-3"
+                                 style="
+                                    width:38px;
+                                    height:38px;
+                                    min-width:38px;
+                                    background:#f5f7f8;
+                                 ">
+
+                                <i class="bi bi-phone text-muted"></i>
+
+                            </div>
+
+                            <div>
+
+                                <div class="small text-muted">
+                                    رقم الجوال
+                                </div>
+
+                                <div class="fw-semibold">
+
+                                    {{ sponsor.phone|default:"غير مسجل" }}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- Email -->
+                        <div class="d-flex align-items-center gap-3">
+
+                            <div class="d-flex align-items-center justify-content-center rounded-3"
+                                 style="
+                                    width:38px;
+                                    height:38px;
+                                    min-width:38px;
+                                    background:#f5f7f8;
+                                 ">
+
+                                <i class="bi bi-envelope text-muted"></i>
+
+                            </div>
+
+                            <div class="overflow-hidden">
+
+                                <div class="small text-muted">
+                                    البريد الإلكتروني
+                                </div>
+
+                                <div class="fw-semibold text-truncate"
+                                     style="max-width:230px;">
+
+                                    {{ sponsor.user.email|default:"غير مسجل" }}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- National ID -->
+                        <div class="d-flex align-items-center gap-3">
+
+                            <div class="d-flex align-items-center justify-content-center rounded-3"
+                                 style="
+                                    width:38px;
+                                    height:38px;
+                                    min-width:38px;
+                                    background:#f5f7f8;
+                                 ">
+
+                                <i class="bi bi-person-vcard text-muted"></i>
+
+                            </div>
+
+                            <div>
+
+                                <div class="small text-muted">
+                                    رقم الهوية
+                                </div>
+
+                                <div class="fw-semibold">
+
+                                    {{ sponsor.national_number|default:"غير مسجل" }}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- ===============================
+                         Action
+                    ================================ -->
+                    <div class="mt-4">
+
+                        <a href="{% url 'Accounting:sponsor_detail' sponsor.id %}"
+                           class="btn btn-primary w-100">
+
+                            <i class="bi bi-person-lines-fill ms-1"></i>
+                            عرض ملف الكفيل
+
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {% empty %}
+
+        <!-- ===============================
+             Empty State
+        ================================ -->
+        <div class="col-12">
+
+            <div class="card border-0 shadow-sm">
+
+                <div class="card-body text-center py-5">
+
+                    <div class="d-flex align-items-center justify-content-center rounded-circle mx-auto mb-3"
+                         style="
+                            width:80px;
+                            height:80px;
+                            background:#f1f5f4;
+                            color:#009b84;
+                         ">
+
+                        <i class="bi bi-people fs-1"></i>
+
+                    </div>
+
+
+                    {% if query %}
+
+                        <h5 class="fw-bold">
+                            لا توجد نتائج
+                        </h5>
+
+                        <p class="text-muted mb-3">
+                            لم يتم العثور على كفيل مطابق للبحث:
+                            <strong>{{ query }}</strong>
+                        </p>
+
+                        <a href="{% url 'Accounting:sponsors_list' %}"
+                           class="btn btn-outline-secondary">
+
+                            مسح البحث
+
+                        </a>
+
+                    {% else %}
+
+                        <h5 class="fw-bold">
+                            لا يوجد كفلاء
+                        </h5>
+
+                        <p class="text-muted mb-4">
+                            لا يوجد أي كفيل مسجل في النظام حاليًا.
+                        </p>
+
+                        <a href="{% url 'Accounting:sponsor_quick_create' %}"
+                           class="btn btn-primary px-4">
+
+                            <i class="bi bi-person-plus ms-1"></i>
+                            إضافة كفيل
+
+                        </a>
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+
+    <!-- =====================================================
+         Pagination
+    ====================================================== -->
+    {% if page_obj.has_other_pages %}
+
+    <div class="d-flex justify-content-center mt-4">
+
+        <nav aria-label="صفحات الكفلاء">
+
+            <ul class="pagination">
+
+                {% if page_obj.has_previous %}
+
+                    <li class="page-item">
+
+                        <a class="page-link"
+                           href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+
+                            السابق
+
+                        </a>
+
+                    </li>
+
+                {% endif %}
+
+
+                {% for num in page_obj.paginator.page_range %}
+
+                    {% if page_obj.number == num %}
+
+                        <li class="page-item active">
+
+                            <span class="page-link">
+                                {{ num }}
+                            </span>
+
+                        </li>
+
+                    {% elif num > page_obj.number|add:'-2' and num < page_obj.number|add:'2' %}
+
+                        <li class="page-item">
+
+                            <a class="page-link"
+                               href="?page={{ num }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+
+                                {{ num }}
+
+                            </a>
+
+                        </li>
+
+                    {% endif %}
+
+                {% endfor %}
+
+
+                {% if page_obj.has_next %}
+
+                    <li class="page-item">
+
+                        <a class="page-link"
+                           href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query|urlencode }}{% endif %}">
+
+                            التالي
+
+                        </a>
+
+                    </li>
+
+                {% endif %}
+
+            </ul>
+
         </nav>
-      </div>
+
+    </div>
+
     {% endif %}
-  </div>
+
 </div>
 
 
-<div class="modal fade" id="createSponsorModal" tabindex="-1" aria-labelledby="createSponsorModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <form id="create-sponsor-form">
-        <div class="modal-header">
-          <h6 class="modal-title" id="createSponsorModalLabel">
-            <i class="bi bi-person-plus me-1"></i> إضافة كافل جديد
-          </h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-        </div>
+<!-- =====================================================
+     Page Styling
+====================================================== -->
+<style>
 
-        <div class="modal-body">
-          <div class="row g-3">
-            <!-- البريد -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">البريد الإلكتروني (اسم المستخدم)</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input type="email" name="email" class="form-control" required>
-              </div>
-              <div class="text-danger small mt-1 d-none" data-error="email"></div>
-            </div>
+.sponsor-card {
+    transition:
+        transform .18s ease,
+        box-shadow .18s ease;
+}
 
-            <!-- الجوال -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">الجوال (05xxxxxxxx)</label>
-              <div class="input-group">
-                <span class="input-group-text">+966</span>
-                <input type="text" name="phone" class="form-control" maxlength="10" required>
-              </div>
-              <div class="text-danger small mt-1 d-none" data-error="phone"></div>
-            </div>
+.sponsor-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .08) !important;
+}
 
-            <!-- الأسماء -->
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">الاسم الأول</label>
-              <input type="text" name="first_name" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-error="first_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم الأب (اختياري)</label>
-              <input type="text" name="father_name" class="form-control">
-              <div class="text-danger small mt-1 d-none" data-error="father_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم الجد (اختياري)</label>
-              <input type="text" name="grandpa_name" class="form-control">
-              <div class="text-danger small mt-1 d-none" data-error="grandpa_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم العائلة</label>
-              <input type="text" name="last_name" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-error="last_name"></div>
-            </div>
+.sponsor-action-card {
+    transition:
+        transform .18s ease,
+        box-shadow .18s ease;
+    cursor: pointer;
+}
 
-            <!-- الهوية -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">الهوية الوطنية (10 أرقام)</label>
-              <input type="text" name="national_number" class="form-control" maxlength="10" required>
-              <div class="text-danger small mt-1 d-none" data-error="national_number"></div>
-            </div>
+.sponsor-action-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .10) !important;
+}
 
-            <!-- كلمة المرور -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">كلمة المرور</label>
-              <input type="password" name="password1" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-error="password1"></div>
-              <div class="form-text small text-muted">
-                ٨ أحرف على الأقل وتحتوي حرفًا واحدًا ورقمًا واحدًا على الأقل.
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">تأكيد كلمة المرور</label>
-              <input type="password" name="password2" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-error="password2"></div>
-            </div>
-          </div>
+.sponsor-card .btn,
+.sponsor-action-card {
+    border-radius: 12px;
+}
 
-          <div class="alert alert-light border small mt-3 mb-0">
-            <i class="bi bi-info-circle"></i>
-            سيتم إنشاء حساب كافل جديد (User + Profile بدور <strong>DONOR</strong>) ويمكن استخدامه مباشرة في السندات.
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">إلغاء</button>
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="bi bi-check2-circle ms-1"></i> حفظ الكافل
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-
-<div class="modal fade" id="editSponsorModal" tabindex="-1" aria-labelledby="editSponsorModalLabel" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered modal-lg">
-    <div class="modal-content">
-      <form id="edit-sponsor-form">
-        <input type="hidden" name="sponsor_id" id="edit-sponsor-id">
-        <div class="modal-header">
-          <h6 class="modal-title" id="editSponsorModalLabel">
-            <i class="bi bi-pencil-square me-1"></i> تعديل بيانات الكافل
-          </h6>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="إغلاق"></button>
-        </div>
-
-        <div class="modal-body">
-          <div class="row g-3">
-            <!-- البريد -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">البريد الإلكتروني</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                <input type="email" name="email" id="edit-email" class="form-control" required>
-              </div>
-              <div class="text-danger small mt-1 d-none" data-edit-error="email"></div>
-            </div>
-
-            <!-- الجوال -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">الجوال (05xxxxxxxx)</label>
-              <div class="input-group">
-                <span class="input-group-text">+966</span>
-                <input type="text" name="phone" id="edit-phone" class="form-control" maxlength="10" required>
-              </div>
-              <div class="text-danger small mt-1 d-none" data-edit-error="phone"></div>
-            </div>
-
-            <!-- الأسماء -->
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">الاسم الأول</label>
-              <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-edit-error="first_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم الأب (اختياري)</label>
-              <input type="text" name="father_name" id="edit-father-name" class="form-control">
-              <div class="text-danger small mt-1 d-none" data-edit-error="father_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم الجد (اختياري)</label>
-              <input type="text" name="grandpa_name" id="edit-grandpa-name" class="form-control">
-              <div class="text-danger small mt-1 d-none" data-edit-error="grandpa_name"></div>
-            </div>
-            <div class="col-md-3">
-              <label class="form-label small fw-semibold">اسم العائلة</label>
-              <input type="text" name="last_name" id="edit-last-name" class="form-control" required>
-              <div class="text-danger small mt-1 d-none" data-edit-error="last_name"></div>
-            </div>
-
-            <!-- الهوية -->
-            <div class="col-md-6">
-              <label class="form-label small fw-semibold">الهوية الوطنية (10 أرقام)</label>
-              <input type="text" name="national_number" id="edit-national-number" class="form-control" maxlength="10" required>
-              <div class="text-danger small mt-1 d-none" data-edit-error="national_number"></div>
-            </div>
-          </div>
-
-          <div class="alert alert-light border small mt-3 mb-0">
-            <i class="bi bi-info-circle"></i>
-            سيتم تحديث بيانات الكافل مباشرة، مع الحفاظ على نوعه كـ <strong>DONOR</strong>.
-          </div>
-        </div>
-
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">إلغاء</button>
-          <button type="submit" class="btn btn-primary btn-sm">
-            <i class="bi bi-check2-circle ms-1"></i> حفظ التعديلات
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-
-<script>
-(function() {
-  function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== "") {
-      const cookies = document.cookie.split(";");
-      for (let i = 0; i < cookies.length; i++) {
-        const cookie = cookies[i].trim();
-        if (cookie.substring(0, name.length + 1) === (name + "=")) {
-          cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-          break;
-        }
-      }
-    }
-    return cookieValue;
-  }
-
-  const csrftoken = getCookie("csrftoken");
-
-  // ==========================
-  // 1) إرسال إنشاء كافل جديد
-  // ==========================
-  const createForm = document.getElementById("create-sponsor-form");
-  if (createForm) {
-    createForm.addEventListener("submit", function(e) {
-      e.preventDefault();
-
-      const formData = new FormData(createForm);
-
-      // مسح الأخطاء القديمة
-      createForm.querySelectorAll("[data-error]").forEach(el => {
-        el.classList.add("d-none");
-        el.textContent = "";
-      });
-
-      fetch("{% url 'Accounting:sponsor_quick_create' %}", {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": csrftoken,
-        },
-        body: formData,
-      })
-      .then(res => res.json().then(data => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok || !data.success) {
-          if (data.errors) {
-            Object.entries(data.errors).forEach(([field, msg]) => {
-              const errEl = createForm.querySelector("[data-error='" + field + "']");
-              if (errEl) {
-                errEl.textContent = Array.isArray(msg) ? msg.join("، ") : msg;
-                errEl.classList.remove("d-none");
-              }
-            });
-          } else if (data.error) {
-            alert(data.error);
-          }
-          return;
-        }
-
-        // نجاح -> إعادة تحميل الصفحة لظهور الكافل الجديد في الجدول
-        location.reload();
-      })
-      .catch(err => {
-        console.error(err);
-        alert("حدث خطأ غير متوقع أثناء إضافة الكافل.");
-      });
-    });
-  }
-
-  // ==========================
-  // 2) تجهيز مودال التعديل عند الضغط على زر تعديل
-  // ==========================
-  const editModalEl = document.getElementById("editSponsorModal");
-  const editForm = document.getElementById("edit-sponsor-form");
-
-  if (editModalEl && editForm) {
-    editModalEl.addEventListener("show.bs.modal", function(event) {
-      const button = event.relatedTarget;
-      if (!button) return;
-
-      const sponsorId = button.getAttribute("data-id");
-      const email = button.getAttribute("data-email") || "";
-      const firstName = button.getAttribute("data-first-name") || "";
-      const fatherName = button.getAttribute("data-father-name") || "";
-      const grandpaName = button.getAttribute("data-grandpa-name") || "";
-      const lastName = button.getAttribute("data-last-name") || "";
-      const phone = button.getAttribute("data-phone") || "";
-      const nationalNumber = button.getAttribute("data-national-number") || "";
-
-      editForm.querySelector("#edit-sponsor-id").value = sponsorId;
-      editForm.querySelector("#edit-email").value = email;
-      editForm.querySelector("#edit-first-name").value = firstName;
-      editForm.querySelector("#edit-father-name").value = fatherName;
-      editForm.querySelector("#edit-grandpa-name").value = grandpaName;
-      editForm.querySelector("#edit-last-name").value = lastName;
-      editForm.querySelector("#edit-phone").value = phone;
-      editForm.querySelector("#edit-national-number").value = nationalNumber;
-
-      // مسح أخطاء قديمة
-      editForm.querySelectorAll("[data-edit-error]").forEach(el => {
-        el.classList.add("d-none");
-        el.textContent = "";
-      });
-    });
-
-    // ==========================
-    // 3) إرسال تعديل الكافل
-    // ==========================
-    editForm.addEventListener("submit", function(e) {
-      e.preventDefault();
-
-      const sponsorId = editForm.querySelector("#edit-sponsor-id").value;
-      if (!sponsorId) {
-        alert("لم يتم تحديد الكافل.");
-        return;
-      }
-
-      const formData = new FormData(editForm);
-
-      // مسح الأخطاء القديمة
-      editForm.querySelectorAll("[data-edit-error]").forEach(el => {
-        el.classList.add("d-none");
-        el.textContent = "";
-      });
-
-      const updateUrlTemplate = "{% url 'Accounting:sponsor_quick_update' 0 %}";
-      const updateUrl = updateUrlTemplate.replace("0", sponsorId);
-
-      fetch(updateUrl, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": csrftoken,
-        },
-        body: formData,
-      })
-      .then(res => res.json().then(data => ({ ok: res.ok, data })))
-      .then(({ ok, data }) => {
-        if (!ok || !data.success) {
-          if (data.errors) {
-            Object.entries(data.errors).forEach(([field, msg]) => {
-              const errEl = editForm.querySelector("[data-edit-error='" + field + "']");
-              if (errEl) {
-                errEl.textContent = Array.isArray(msg) ? msg.join("، ") : msg;
-                errEl.classList.remove("d-none");
-              }
-            });
-          } else if (data.error) {
-            alert(data.error);
-          }
-          return;
-        }
-
-        // نجاح -> إعادة تحميل الصفحة لعرض التعديلات
-        location.reload();
-      })
-      .catch(err => {
-        console.error(err);
-        alert("حدث خطأ غير متوقع أثناء تعديل بيانات الكافل.");
-      });
-    });
-  }
-
-})();
-</script>
+</style>
 
 {% endblock %}

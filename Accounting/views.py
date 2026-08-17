@@ -1,45 +1,77 @@
-from django.core.paginator import Paginator
+from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
+
+from openpyxl import Workbook
+from django.db.models import Prefetch
 from django.contrib import messages
-# الموديل الجديد للفواتير في تطبيق Accounting
-from .models import Invoice
-# نستفيد من البروفايل والديكوريتر من تطبيق Management
-from Management.views import role_required
-from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.db import IntegrityError, transaction
+from django.db.models import (
+    Case,
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    Min,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
+from django.utils import timezone
+from django.views.decorators.http import require_POST
+
+from Management.models import (
+    AuditLog,
+    Beneficiary,
+    BeneficiarySponsorHistory,
+    MainProgram,
+    Profile,
+    SubProgram,
+)
+from Management.utils.audit import log_activity
+from Management.views import role_required
+
+from .forms import (
+    DonorUserCreateForm,
+    FinancialSponsorshipAllocationForm,
+    FinancialSponsorshipInvoiceForm,
+    GeneralDonationInvoiceForm,
+)
 from .models import (
-    Invoice,
-    GeneralDonationInvoice,
-    FinancialSponsorshipInvoice,
+    AllocationHistory,
+    BeneficiaryBalanceEntry,
+    BeneficiarySupportEntry,
     FinancialSponsorshipAllocation,
+    FinancialSponsorshipInvoice,
     FundEntry,
+    FundReservation,
     FundToMainProgramAllocation,
+    GeneralDonationInvoice,
+    Invoice,
     MainToSubProgramAllocation,
     SubProgramDisbursement,
     SubProgramDisbursementLine,
-    FundReservation ,
-    BeneficiaryBalanceEntry,
 )
-from django.core.exceptions import ValidationError
-from .forms import GeneralDonationInvoiceForm, FinancialSponsorshipInvoiceForm , FinancialSponsorshipAllocationForm
-from django.views.decorators.http import require_POST
-from datetime import date
-from django.http import JsonResponse
-from django.contrib.auth import get_user_model
-from django.db import transaction, IntegrityError
-from decimal import Decimal
-from django.db.models import Sum, Q, F, Value, DecimalField, Case, When, ExpressionWrapper
-from django.db.models.functions import Coalesce
-from Management.models import Profile, MainProgram, SubProgram, Beneficiary
-
-from django.utils import timezone
-
-from django.db.models import OuterRef, Subquery
-
-from django.db.models import Sum, Min
-from Management.models import BeneficiarySponsorHistory
-from Accounting.models import FinancialSponsorshipInvoice
-from Management.models import AuditLog
-from Management.utils.audit import log_activity
+from .services import (
+    allocate_to_main_program,
+    allocate_to_sub_program,
+    get_available_for_allocation,
+    get_fund_balance,
+    get_main_program_balance,
+    get_sub_program_balance,
+    release_from_main_program,
+    release_from_sub_program,
+    spend_from_sub_program,
+    reverse_subprogram_disbursement
+)
 
 User = get_user_model()
 
@@ -116,35 +148,10 @@ def cashier_home(request):
         "Accounting/cashier_home.html",
         context,
     )
-# def fund_available_balance():
-#     from .models import FundEntry, FundToMainProgramAllocation, BeneficiaryBalanceEntry
 
-#     fund_total = FundEntry.objects.aggregate(
-#         t=Coalesce(Sum("amount"), Decimal("0.00"))
-#     )["t"]
-
-#     # (A) محجوز للمستفيدين = رصيد محافظهم الحالي
-#     reserved_beneficiaries = BeneficiaryBalanceEntry.objects.aggregate(
-#         t=Coalesce(Sum("amount"), Decimal("0.00"))
-#     )["t"]
-
-#     # (B) محجوز للبرامج الرئيسية = ما خُصص من الصندوق للبرامج
-#     reserved_main_programs = FundToMainProgramAllocation.objects.aggregate(
-#         t=Coalesce(Sum("amount"), Decimal("0.00"))
-#     )["t"]
-
-#     # المتاح = الصندوق - محفظة المستفيدين - تخصيصات البرامج
-#     available = fund_total - reserved_beneficiaries - reserved_main_programs
-#     if available < 0:
-#         available = Decimal("0.00")
-
-#     return available
 
 def fund_available_balance():
-    from .models import FundEntry, FundReservation
-    from django.db.models import Sum
-    from django.db.models.functions import Coalesce
-    from decimal import Decimal
+
 
     fund_total = FundEntry.objects.aggregate(
         t=Coalesce(Sum("amount"), Decimal("0.00"))
@@ -214,150 +221,6 @@ def sponsorship_allocation_delete(request, pk):
     return redirect("Accounting:sponsorship_allocations_manage", pk=sponsorship.pk)
 
 
-
-
-
-# @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-# def sponsorship_allocations_manage(request, pk):
-#     sponsorship = get_object_or_404(
-#         FinancialSponsorshipInvoice.objects.select_related(
-#             "invoice",
-#             "sponsor__user",
-#         ),
-#         pk=pk,
-#     )
-
-#     allocations = (
-#         sponsorship.allocations
-#         .select_related("beneficiary")
-#         .order_by("-created_at")
-#     )
-
-#     # --------------------------------------
-#     # 🔍 فلترة المستفيدين (عمر - وجود رصيد/دعم)
-#     # --------------------------------------
-#     age_min_raw = request.GET.get("age_min")
-#     age_max_raw = request.GET.get("age_max")
-#     has_alloc = request.GET.get("has_alloc") or "all"
-
-#     # تحويل قيم العمر إلى int إن أمكن
-#     try:
-#         age_min = int(age_min_raw) if age_min_raw not in (None, "") else None
-#     except ValueError:
-#         age_min = None
-
-#     try:
-#         age_max = int(age_max_raw) if age_max_raw not in (None, "") else None
-#     except ValueError:
-#         age_max = None
-
-#     # 👇 نجمع:
-#     # 1) مجموع التخصيصات من "هذا السند" فقط (لعرضه في الجدول)
-#     # 2) مجموع حركات الرصيد الكلي للمستفيد (BeneficiaryBalanceEntry) كرصد نهائي
-#     base_qs = Beneficiary.objects.annotate(
-#         # sponsorship_alloc_total_for_this=Sum(
-#         #     "sponsorship_allocations__amount",
-#         #     filter=Q(sponsorship_allocations__sponsorship_invoice=sponsorship),
-#         # ),
-#         balance_total=Sum("balance_entries__amount"),
-#     )
-
-#     beneficiaries_filtered = []
-
-#     for b in base_qs:
-#         age = b.age_years  # من الـ property في المودل
-
-#         # فلترة بالعمر
-#         if age_min is not None:
-#             if age is None or age < age_min:
-#                 continue
-#         if age_max is not None:
-#             if age is None or age > age_max:
-#                 continue
-
-#         # فلترة بوجود رصيد/دعم (من جميع الفواتير)
-#         total_balance = b.balance_total or 0
-
-#         if has_alloc == "yes" and total_balance <= 0:
-#             continue
-#         if has_alloc == "no" and total_balance > 0:
-#             continue
-
-#         beneficiaries_filtered.append(b)
-
-#     # ترتيب بالاسم
-#     beneficiaries_filtered.sort(key=lambda x: (x.last_name, x.first_name))
-
-#     # --------------------------------------
-#     # 🔁 إضافة تخصيص جديد
-#     # --------------------------------------
-#     if request.method == "POST":
-#         form = FinancialSponsorshipAllocationForm(request.POST)
-#         if form.is_valid():
-#             allocation = form.save(commit=False)
-#             allocation.sponsorship_invoice = sponsorship
-#             try:
-#                 allocation.save()
-#                  # ✅ إضافة رصيد للمستفيد (محفظة داخلية) عند التخصيص
-#                 from .models import BeneficiaryBalanceEntry  # تأكد موجود أعلى الملف أو داخل الفنكشن
-#                 from django.db import IntegrityError
-#                 try:
-#                     BeneficiaryBalanceEntry.objects.create(
-#                         beneficiary=allocation.beneficiary,
-#                         amount=allocation.amount,
-#                         type=BeneficiaryBalanceEntry.Types.SPONSORSHIP_ALLOCATION,
-#                         allocation=allocation,
-#                         program=None,
-#                         description=f"تخصيص كفالة مالية - سند {sponsorship.invoice.number}",
-#                         created_by=request.user,
-#                     )
-#                 except IntegrityError:
-#                     # لو انضافت من قبل لأي سبب
-#                     pass
-
-               
-# # بعد allocation.save() مباشرة
-
-
-
-#             except ValidationError as e:
-#                 if hasattr(e, "message_dict"):
-#                     for _, errors in e.message_dict.items():
-#                         for err in errors:
-#                             form.add_error(None, err)
-#                 else:
-#                     form.add_error(None, e.message)
-#             else:
-#                 messages.success(request, "تم إضافة التخصيص بنجاح.")
-#                 FundReservation.objects.create(
-#                     source_type=FundReservation.Sources.BENEFICIARY,
-#                     beneficiary=allocation.beneficiary,
-#                     amount=allocation.amount,   # حجز
-#                     reference=sponsorship.invoice.number,
-#                     note="حجز كفالة مالية لمستفيد",
-#                     created_by=request.user,
-#                 )
-
-#                 return redirect("Accounting:sponsorship_allocations_manage", pk=sponsorship.pk)
-#     else:
-#         form = FinancialSponsorshipAllocationForm()
-
-#     context = {
-#         "title": f"تخصيص مبلغ الكفالة - سند {sponsorship.invoice.number}",
-#         "sponsorship": sponsorship,
-#         "allocations": allocations,
-#         "form": form,
-#         "total_amount": sponsorship.total_amount,
-#         "allocated_amount": sponsorship.allocated_amount,
-#         "remaining_amount": sponsorship.remaining_amount,
-
-#         # بيانات الفلتر + النتائج
-#         "beneficiaries_filtered": beneficiaries_filtered,
-#         "age_min": age_min_raw or "",
-#         "age_max": age_max_raw or "",
-#         "has_alloc": has_alloc,
-#     }
-#     return render(request, "Accounting/sponsorship_allocations_manage.html", context)
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsorship_allocations_manage(request, pk):
     sponsorship = get_object_or_404(
@@ -427,7 +290,6 @@ def sponsorship_allocations_manage(request, pk):
                 with transaction.atomic():
                     # ✅✅✅ (خطوة 2) تحقق من "المتاح في الصندوق" قبل الحجز للمستفيد
                     # أي حجز جديد للمستفيد (FundReservation +) لازم يمر هنا
-                    from .models import FundReservation
 
                     requested = allocation.amount or Decimal("0.00")
                     if requested <= 0:
@@ -712,18 +574,23 @@ def invoice_create_general(request):
 # --------------------------------------------------
 
 
-
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def invoice_create_sponsorship(request):
+
     if request.method == "POST":
+
         form = FinancialSponsorshipInvoiceForm(request.POST)
+
         if form.is_valid():
+
             cd = form.cleaned_data
 
             with transaction.atomic():
+
                 try:
+
                     invoice = Invoice.objects.create(
-                        number=cd["number"],   # ⬅️ يدوي
+                        number=cd["number"],
                         date=cd["date"],
                         invoice_type=Invoice.Types.FINANCIAL_SPONSORSHIP,
                         receipt_kind=Invoice.ReceiptKinds.RECEIPT,
@@ -731,57 +598,121 @@ def invoice_create_sponsorship(request):
                         notes=cd.get("notes") or "",
                         created_by=request.user,
                     )
+
                 except IntegrityError:
-                    form.add_error("number", "رقم السند مستخدم مسبقاً.")
+
+                    form.add_error(
+                        "number",
+                        "رقم السند مستخدم مسبقاً."
+                    )
+
                 else:
-                    sponsorship: FinancialSponsorshipInvoice = form.save(commit=False)
+
+                    sponsorship = form.save(commit=False)
+
                     sponsorship.invoice = invoice
 
-                    # الخطة الجاهزة → تعبئة تلقائية
-                    if not sponsorship.is_custom_plan and sponsorship.payment_plan:
+                    # -------------------------------------------------
+                    # الخطة الجاهزة → نسخ المبلغ والمدة فعليًا للسند
+                    # -------------------------------------------------
+
+                    if (
+                        not sponsorship.is_custom_plan
+                        and sponsorship.payment_plan
+                    ):
+
                         plan = sponsorship.payment_plan
+
                         if getattr(plan, "amount", None) is not None:
                             sponsorship.custom_amount = plan.amount
-                        if getattr(plan, "duration_months", None) is not None:
-                            sponsorship.custom_duration_months = plan.duration_months
+
+                        if (
+                            getattr(
+                                plan,
+                                "duration_months",
+                                None
+                            )
+                            is not None
+                        ):
+                            sponsorship.custom_duration_months = (
+                                plan.duration_months
+                            )
 
                     sponsorship.save()
 
-                    # حركة دخل لصندوق الجمعية (الكفالة المالية)
+                    # -------------------------------------------------
+                    # حركة دخل لصندوق الجمعية
+                    # -------------------------------------------------
+
                     FundEntry.objects.create(
                         invoice=invoice,
                         type=FundEntry.Types.SPONSORSHIP_INCOME,
                         amount=sponsorship.total_amount,
                         voucher_number=invoice.number,
-                        description=f"دخل كفالة مالية من السند رقم {invoice.number}",
+                        description=(
+                            f"دخل كفالة مالية من السند "
+                            f"رقم {invoice.number}"
+                        ),
                         created_by=request.user,
                     )
+
+                    # -------------------------------------------------
+                    # سجل النشاط
+                    #
+                    # السند عند إنشائه لا يكون مرتبطًا بمستفيد بعد.
+                    # الإلحاق يتم لاحقًا من صفحة المستفيدين.
+                    # -------------------------------------------------
 
                     log_activity(
                         user=request.user,
                         action=AuditLog.Actions.CREATE,
-                        entity=f"انشاء سند كفالة مالية رقم {invoice.number}",
+                        entity=(
+                            f"إنشاء سند كفالة مالية "
+                            f"رقم {invoice.number}"
+                        ),
                         entity_id=invoice.pk,
                         extra={
                             "invoice_number": invoice.number,
                             "sponsor": str(sponsorship.sponsor),
-                            "beneficiaries_count": sponsorship.allocations.count(),
-                            "amount": str(sponsorship.total_amount),
-                            "payment_method": invoice.payment_method,
+                            "beneficiary": None,
+                            "beneficiary_assigned": False,
+                            "amount": str(
+                                sponsorship.total_amount
+                            ),
+                            "payment_method": (
+                                invoice.payment_method
+                            ),
+                            "start_date": str(
+                                sponsorship.start_date
+                            ),
+                            "end_date": str(
+                                sponsorship.end_date
+                            ),
                         },
                     )
 
-                 
-                    messages.success(request, "تم إنشاء سند الكفالة المالية بنجاح.")
-                    return redirect("Accounting:invoice_detail", pk=invoice.pk)
+                    messages.success(
+                        request,
+                        "تم إنشاء سند الكفالة المالية بنجاح."
+                    )
+
+                    return redirect(
+                        "Accounting:invoice_detail",
+                        pk=invoice.pk,
+                    )
+
     else:
+
         form = FinancialSponsorshipInvoiceForm()
 
-    return render(request, "Accounting/invoice_sponsorship_form.html", {
-        "title": "إنشاء سند كفالة مالية",
-        "form": form,
-    })
-
+    return render(
+        request,
+        "Accounting/invoice_sponsorship_form.html",
+        {
+            "title": "إنشاء سند كفالة مالية",
+            "form": form,
+        },
+    )
 
 
 
@@ -891,8 +822,161 @@ def sponsorship_inquiry(request):
     return render(request, "Accounting/sponsorship_inquiry.html", context)
 
 
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def sponsor_detail(request, pk):
 
+    sponsor = get_object_or_404(
+        Profile.objects.select_related("user"),
+        pk=pk,
+        role=Profile.Roles.DONOR,
+    )
 
+    today = timezone.localdate()
+
+    results = []
+
+    active_count = 0
+    expired_count = 0
+    pending_count = 0
+
+    # ---------------------------------------------------------
+    # سجلات إسناد المستفيدين لهذا الكافل
+    # ---------------------------------------------------------
+
+    histories = (
+        BeneficiarySponsorHistory.objects
+        .filter(donor=sponsor)
+        .select_related("beneficiary")
+        .order_by("-start_date", "-id")
+    )
+
+    # ---------------------------------------------------------
+    # جلب تخصيصات السندات لهذا الكافل دفعة واحدة
+    # ---------------------------------------------------------
+
+    allocations = (
+        FinancialSponsorshipAllocation.objects
+        .filter(
+            sponsorship_invoice__sponsor=sponsor,
+        )
+        .select_related(
+            "sponsorship_invoice",
+            "sponsorship_invoice__invoice",
+        )
+    )
+
+    # نربط:
+    # المستفيد + بداية السند + نهاية السند
+    # بالسند المالي
+    allocation_map = {}
+
+    for allocation in allocations:
+
+        invoice = allocation.sponsorship_invoice
+
+        key = (
+            allocation.beneficiary_id,
+            invoice.start_date,
+            invoice.end_date,
+        )
+
+        allocation_map[key] = allocation
+
+    # ---------------------------------------------------------
+    # بناء النتائج
+    # ---------------------------------------------------------
+
+    for h in histories:
+
+        if h.start_date and h.end_date:
+
+            if today < h.start_date:
+
+                status = "لم تبدأ بعد"
+                pending_count += 1
+
+            elif today > h.end_date:
+
+                status = "منتهية"
+                expired_count += 1
+
+            else:
+
+                status = "سارية"
+                active_count += 1
+
+        elif h.start_date:
+
+            status = "سارية"
+            active_count += 1
+
+        else:
+
+            status = "غير محددة"
+
+        # -----------------------------------------------------
+        # البحث عن السند المرتبط بهذا الإسناد
+        # -----------------------------------------------------
+
+        allocation = allocation_map.get(
+            (
+                h.beneficiary_id,
+                h.start_date,
+                h.end_date,
+            )
+        )
+
+        invoice = (
+            allocation.sponsorship_invoice.invoice
+            if allocation
+            else None
+        )
+
+        sponsorship_invoice = (
+            allocation.sponsorship_invoice
+            if allocation
+            else None
+        )
+
+        results.append({
+
+            "beneficiary": h.beneficiary,
+
+            "invoice": invoice,
+
+            "sponsorship_invoice": sponsorship_invoice,
+
+            "start_date": h.start_date,
+
+            "end_date": h.end_date,
+
+            "duration_months": (
+                sponsorship_invoice.custom_duration_months
+                if sponsorship_invoice
+                else None
+            ),
+
+            "status": status,
+
+        })
+
+    return render(
+        request,
+        "Accounting/sponsor_detail.html",
+        {
+            "title": "ملف الكافل",
+
+            "sponsor": sponsor,
+
+            "results": results,
+
+            "active_count": active_count,
+
+            "expired_count": expired_count,
+
+            "pending_count": pending_count,
+        },
+    )
 
 ########################################################################################################################
 #                                                                                                                      #
@@ -900,32 +984,91 @@ def sponsorship_inquiry(request):
 
 
 
-from Accounting.forms import DonorUserCreateForm   # 👈 استيراد الفورم الجديد
+
+# @require_POST
+# @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+# def sponsor_quick_create(request):
+#     """
+#     إنشاء كافل جديد من المودل (بوب-أب) باستخدام DonorUserCreateForm
+#     ويرجع JSON بالنتيجة.
+#     """
+#     form = DonorUserCreateForm(request.POST)
+#     if not form.is_valid():
+#         errors = {}
+#         for field, field_errors in form.errors.items():
+#             errors[field] = " ".join(field_errors)
+#         return JsonResponse({"success": False, "errors": errors}, status=400)
+#     log_activity(
+#         user=request.user,
+#         action=AuditLog.Actions.UPDATE,
+#         entity="Invoice",
+#         entity_id=user.pk,
+#         extra={
+#             "invoice_number": user.number,
+#         },
+#     )
+#     user = form.save()
+#     profile = user.profile  # لأن عندنا OneToOne user.profile
+
+#     label = user.get_full_name() or user.username
+
+#     return JsonResponse(
+#         {
+#             "success": True,
+#             "id": profile.id,
+#             "label": label,
+#         }
+#     )
+
+
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def sponsor_create_page(request):
+    return render(
+        request,
+        "Accounting/sponsor_create.html",
+    )
 
 @require_POST
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsor_quick_create(request):
     """
-    إنشاء كافل جديد من المودل (بوب-أب) باستخدام DonorUserCreateForm
-    ويرجع JSON بالنتيجة.
+    إنشاء كافل جديد من DonorUserCreateForm
+    وإرجاع JSON بالنتيجة.
     """
+
     form = DonorUserCreateForm(request.POST)
+
+    # التحقق من البيانات
     if not form.is_valid():
         errors = {}
+
         for field, field_errors in form.errors.items():
             errors[field] = " ".join(field_errors)
-        return JsonResponse({"success": False, "errors": errors}, status=400)
+
+        return JsonResponse(
+            {
+                "success": False,
+                "errors": errors,
+            },
+            status=400,
+        )
+
+    # إنشاء المستخدم والكفيل
+    user = form.save()
+
+    # Profile المرتبط بالمستخدم
+    profile = user.profile
+
+    # تسجيل العملية في سجل النشاط
     log_activity(
         user=request.user,
-        action=AuditLog.Actions.UPDATE,
-        entity="Invoice",
-        entity_id=user.pk,
+        action=AuditLog.Actions.CREATE,
+        entity="Profile",
+        entity_id=profile.id,
         extra={
-            "invoice_number": user.number,
+            "sponsor_name": user.get_full_name() or user.username,
         },
     )
-    user = form.save()
-    profile = user.profile  # لأن عندنا OneToOne user.profile
 
     label = user.get_full_name() or user.username
 
@@ -937,44 +1080,75 @@ def sponsor_quick_create(request):
         }
     )
 
-
-
+###
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsors_list(request):
-    """
-    صفحة عرض الكفلاء داخل تطبيق المحاسبة (Accounting):
-    - يُعرض فقط من لديهم role = DONOR
-    - فيها بحث بسيط + ترقيم الصفحات
-    """
-
     query = request.GET.get("q", "").strip()
 
     sponsors_qs = (
         Profile.objects
         .filter(role=Profile.Roles.DONOR)
         .select_related("user")
-        .order_by("user__first_name", "user__last_name")
+        .order_by(
+            "user__first_name",
+            "user__last_name",
+        )
     )
 
+    # البحث
     if query:
         sponsors_qs = sponsors_qs.filter(
-            Q(user__first_name__icontains=query) |
-            Q(user__last_name__icontains=query) |
-            Q(phone__icontains=query) |
-            Q(national_number__icontains=query)
+            Q(user__first_name__icontains=query)
+            | Q(user__last_name__icontains=query)
+            | Q(phone__icontains=query)
+            | Q(national_number__icontains=query)
+            | Q(user__email__icontains=query)
         )
 
-    paginator = Paginator(sponsors_qs, 25)  # ٢٥ كافل في الصفحة
+    # Pagination
+    paginator = Paginator(sponsors_qs, 20)
+
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
-    context = {
-        "title": "الكفلاء",
-        "page_obj": page_obj,
-        "query": query,
-        "total_count": paginator.count,
-    }
-    return render(request, "Accounting/sponsors_list.html", context)
+    return render(
+        request,
+        "Accounting/sponsors_list.html",
+        {
+            "title": "الكفلاء",
+
+            # الصفحة الحالية
+            "page_obj": page_obj,
+
+            # البيانات التي يستخدمها التصميم الجديد
+            "sponsors": page_obj.object_list,
+
+            # البحث
+            "query": query,
+
+            # العدد الإجمالي
+            "total_count": paginator.count,
+        },
+    )
+
+
+# @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+# def sponsor_detail(request, pk):
+
+#     sponsor = get_object_or_404(
+#         Profile.objects.select_related("user"),
+#         pk=pk,
+#         role=Profile.Roles.DONOR,
+#     )
+
+#     return render(
+#         request,
+#         "Accounting/sponsor_detail.html",
+#         {
+#             "title": "ملف الكافل",
+#             "sponsor": sponsor,
+#         },
+#     )
 
 
 
@@ -1052,238 +1226,621 @@ def sponsor_quick_update(request, pk):
 
 
 # 1) لوحة المحاسب الرئيسية
+from datetime import date, datetime, timedelta
+from decimal import Decimal
+
+from django.db.models import Sum
+from django.utils import timezone
+from django.shortcuts import render
+
+# تأكد أن هذه الموديلات مستوردة عندك
+# from .models import (
+#     FundEntry,
+#     FinancialSponsorshipInvoice,
+#     SubProgramDisbursement,
+# )
+# from Management.models import Profile, Beneficiary, MainProgram, SubProgram
+# from .decorators import role_required
+
+
 @role_required([Profile.Roles.ACCOUNTANT])
 def accountant_home(request):
+
     today = timezone.localdate()
 
-    # رصيد الصندوق العام
-    fund_balance = FundEntry.total_balance()
+    # =====================================================
+    # تحديد الفترة
+    # =====================================================
 
-    # حركات اليوم
-    today_qs = FundEntry.objects.filter(created_at__date=today)
-    today_revenue = today_qs.filter(amount__gt=0).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
-    today_expense = today_qs.filter(amount__lt=0).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    period = request.GET.get("period", "today").strip()
 
-    # ملخص البرامج الفرعية (مجموع مخصص / مصروف / متبقي)
+    from_date = today
+    to_date = today
+
+    if period == "week":
+
+        from_date = today - timedelta(days=today.weekday())
+        to_date = from_date + timedelta(days=6)
+
+    elif period == "month":
+
+        from_date = today.replace(day=1)
+
+        if today.month == 12:
+            next_month = today.replace(
+                year=today.year + 1,
+                month=1,
+                day=1,
+            )
+        else:
+            next_month = today.replace(
+                month=today.month + 1,
+                day=1,
+            )
+
+        to_date = next_month - timedelta(days=1)
+
+    elif period == "year":
+
+        from_date = date(today.year, 1, 1)
+        to_date = date(today.year, 12, 31)
+
+    elif period == "custom":
+
+        custom_from = request.GET.get(
+            "from_date",
+            ""
+        ).strip()
+
+        custom_to = request.GET.get(
+            "to_date",
+            ""
+        ).strip()
+
+        try:
+
+            from_date = datetime.strptime(
+                custom_from,
+                "%Y-%m-%d",
+            ).date()
+
+            to_date = datetime.strptime(
+                custom_to,
+                "%Y-%m-%d",
+            ).date()
+
+            if from_date > to_date:
+                from_date, to_date = to_date, from_date
+
+        except (ValueError, TypeError):
+
+            period = "today"
+            from_date = today
+            to_date = today
+
+    else:
+
+        period = "today"
+        from_date = today
+        to_date = today
+
+    # =====================================================
+    # رصيد الصندوق الحالي
+    # =====================================================
+
+    fund_balance = (
+        FundEntry.total_balance()
+        or Decimal("0.00")
+    )
+
+    # =====================================================
+    # حركات الصندوق ضمن الفترة
+    # =====================================================
+
+    period_fund_entries = (
+        FundEntry.objects.filter(
+            created_at__date__range=(
+                from_date,
+                to_date,
+            )
+        )
+    )
+
+    # =====================================================
+    # إيرادات الفترة
+    #
+    # فقط الإيرادات الحقيقية:
+    # - تبرعات عامة
+    # - إيرادات كفالات
+    #
+    # لا نعتبر حركة العكس إيرادًا.
+    # =====================================================
+
+    period_revenue = (
+        period_fund_entries
+        .filter(
+            amount__gt=0,
+            type__in=[
+                FundEntry.Types.GENERAL_DONATION_INCOME,
+                FundEntry.Types.SPONSORSHIP_INCOME,
+            ],
+        )
+        .aggregate(
+            total=Sum("amount")
+        )["total"]
+        or Decimal("0.00")
+    )
+
+    # =====================================================
+    # مصروفات الفترة
+    #
+    # نعتمد على PROGRAM_EXPENSE فقط.
+    #
+    # المصروف الأصلي:
+    #       -250
+    #
+    # العكس:
+    #       +250
+    #
+    # لذلك نأخذ صافي PROGRAM_EXPENSE.
+    # =====================================================
+
+    period_expense_raw = (
+        period_fund_entries
+        .filter(
+            type=FundEntry.Types.PROGRAM_EXPENSE,
+        )
+        .aggregate(
+            total=Sum("amount")
+        )["total"]
+        or Decimal("0.00")
+    )
+
+    period_expense = abs(
+        period_expense_raw
+    )
+
+    # =====================================================
+    # عدد الحركات ضمن الفترة
+    # =====================================================
+
+    period_movements_count = (
+        period_fund_entries.count()
+    )
+
+    # =====================================================
+    # البرامج
+    #
+    # أرصدة حالية وليست مرتبطة بالفترة
+    # =====================================================
+
     sub_agg = SubProgram.objects.aggregate(
         allocated_total=Sum("allocated_amount"),
         spent_total=Sum("spent_amount"),
     )
-    allocated_total = sub_agg["allocated_total"] or Decimal("0.00")
-    spent_total = sub_agg["spent_total"] or Decimal("0.00")
-    remaining_total = allocated_total - spent_total
 
-    # أعداد عامة سريعة
-    main_programs_count = MainProgram.objects.count()
-    sub_programs_count = SubProgram.objects.count()
-    beneficiaries_count = Beneficiary.objects.count()
+    allocated_total = (
+        sub_agg["allocated_total"]
+        or Decimal("0.00")
+    )
 
-    # آخر حركات الصندوق
+    spent_total = (
+        sub_agg["spent_total"]
+        or Decimal("0.00")
+    )
+
+    remaining_total = (
+        allocated_total - spent_total
+    )
+
+    # =====================================================
+    # إحصائيات النظام
+    # =====================================================
+
+    main_programs_count = (
+        MainProgram.objects.count()
+    )
+
+    sub_programs_count = (
+        SubProgram.objects.count()
+    )
+
+    beneficiaries_count = (
+        Beneficiary.objects.count()
+    )
+
+    # =====================================================
+    # الكفالات
+    # =====================================================
+
+    expiring_date = (
+        today + timedelta(days=30)
+    )
+
+    sponsorships_total = (
+        FinancialSponsorshipInvoice.objects.count()
+    )
+
+    sponsorships_active = (
+        FinancialSponsorshipInvoice.objects.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+        ).count()
+    )
+
+    sponsorships_expiring = (
+        FinancialSponsorshipInvoice.objects.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+            end_date__lte=expiring_date,
+        ).count()
+    )
+
+    sponsorships_expired = (
+        FinancialSponsorshipInvoice.objects.filter(
+            end_date__lt=today,
+        ).count()
+    )
+
+    # =====================================================
+    # آخر حركات الصندوق ضمن الفترة
+    # =====================================================
+
     last_fund_moves = (
         FundEntry.objects
-        .select_related("main_program", "sub_program", "beneficiary", "created_by")
-        .order_by("-created_at", "-id")[:5]
+        .filter(
+            created_at__date__range=(
+                from_date,
+                to_date,
+            )
+        )
+        .select_related(
+            "main_program",
+            "sub_program",
+            "beneficiary",
+            "created_by",
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:5]
     )
 
-    # آخر أوامر الصرف من البرامج الفرعية
+    # =====================================================
+    # آخر أوامر الصرف ضمن الفترة
+    # =====================================================
+
     last_disbursements = (
         SubProgramDisbursement.objects
-        .select_related("sub_program", "sub_program__main_program", "created_by")
-        .order_by("-created_at", "-id")[:5]
+        .filter(
+            created_at__date__range=(
+                from_date,
+                to_date,
+            )
+        )
+        .select_related(
+            "sub_program",
+            "sub_program__main_program",
+            "created_by",
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:5]
     )
 
+    # =====================================================
+    # اسم الفترة
+    # =====================================================
+
+    period_names = {
+        "today": "اليوم",
+        "week": "هذا الأسبوع",
+        "month": "هذا الشهر",
+        "year": "هذه السنة",
+        "custom": "فترة مخصصة",
+    }
+
+    period_name = period_names.get(
+        period,
+        "اليوم",
+    )
+
+    # =====================================================
+    # Context
+    # =====================================================
+
     context = {
+
         "title": "لوحة المحاسب",
-        "today": today,
+
+        # الفترة
+        "period": period,
+        "period_name": period_name,
+        "from_date": from_date,
+        "to_date": to_date,
+
+        # الصندوق
         "fund_balance": fund_balance,
-        "today_revenue": today_revenue,
-        "today_expense": today_expense,
+
+        # الفترة المالية
+        "period_revenue": period_revenue,
+        "period_expense": period_expense,
+        "period_movements_count": period_movements_count,
+
+        # البرامج
         "allocated_total": allocated_total,
         "spent_total": spent_total,
         "remaining_total": remaining_total,
+
         "main_programs_count": main_programs_count,
         "sub_programs_count": sub_programs_count,
         "beneficiaries_count": beneficiaries_count,
+
+        # الكفالات
+        "sponsorships_total": sponsorships_total,
+        "sponsorships_active": sponsorships_active,
+        "sponsorships_expiring": sponsorships_expiring,
+        "sponsorships_expired": sponsorships_expired,
+
+        "expiring_date": expiring_date,
+
+        # الحركات
         "last_fund_moves": last_fund_moves,
         "last_disbursements": last_disbursements,
     }
-    return render(request, "Accounting/accountant_home.html", context)
 
+    return render(
+        request,
+        "Accounting/accountant_home.html",
+        context,
+    )
+#عكس عملية الصرف
+@role_required([Profile.Roles.ACCOUNTANT])
+def reverse_subprogram_disbursement_view(request, pk):
+
+    if request.method != "POST":
+        return redirect("Accounting:accountant_home")
+
+    disbursement = get_object_or_404(
+        SubProgramDisbursement,
+        pk=pk,
+    )
+
+    reason = (
+        request.POST.get("reason") or ""
+    ).strip()
+
+    if not reason:
+        messages.error(
+            request,
+            "يجب كتابة سبب عكس الصرف."
+        )
+        return redirect(
+            "Accounting:accountant_home"
+        )
+
+    try:
+
+        reverse_subprogram_disbursement(
+            disbursement=disbursement,
+            user=request.user,
+            reason=reason,
+        )
+
+        messages.success(
+            request,
+            f"تم عكس سند الصرف "
+            f"{disbursement.voucher_number} "
+            f"بنجاح وإعادة المبلغ إلى رصيد البرنامج."
+        )
+
+    except ValueError as ex:
+
+        messages.error(
+            request,
+            str(ex)
+        )
+
+    except Exception as ex:
+
+        messages.error(
+            request,
+            f"تعذر عكس السند: {ex}"
+        )
+
+    return redirect(
+        "Accounting:accountant_home"
+    )
 # 2) تخصيص من الصندوق إلى برنامج رئيسي
 
+# Accounting/views.py
 
 
-# @role_required([Profile.Roles.ACCOUNTANT])
-# def fund_to_main_allocate(request):
-#     programs = MainProgram.objects.order_by("name")
 
-#     # رصيد الصندوق الحالي
-#     fund_balance = fund_available_balance()
 
-#     # آخر 5 حركات على الصندوق
-#     last_fund_moves = FundEntry.objects.order_by("-created_at", "-id")[:5]
-
-#     if request.method == "POST":
-#         main_program_id = request.POST.get("main_program")
-#         amount_raw = (request.POST.get("amount") or "0").strip()
-#         notes = (request.POST.get("notes") or "").strip()
-
-#         try:
-#             amount = Decimal(amount_raw)
-
-#             if amount <= 0:
-#                 raise ValidationError("أدخل مبلغ صحيح أكبر من صفر.")
-
-#             # ✅ التحقق الصحيح: التخصيص من الصندوق → لازم لا يتجاوز رصيد الصندوق
-#             if amount > (fund_balance or Decimal("0.00")):
-#                 raise ValidationError("المبلغ أكبر من رصيد الصندوق العام.")
-
-#             mp = MainProgram.objects.get(id=main_program_id)
-
-#             alloc = FundToMainProgramAllocation(
-#                 main_program=mp,
-#                 amount=amount,
-#                 notes=notes,
-#                 created_by=request.user
-#             )
-#             alloc.save()
-
-#             messages.success(request, "تم تخصيص رصيد للبرنامج الرئيسي بنجاح.")
-#             FundReservation.objects.create(
-#                 source_type=FundReservation.Sources.MAIN_PROGRAM,
-#                 main_program=mp,
-#                 amount=amount,
-#                 reference=None,
-#                 note="حجز ميزانية لبرنامج رئيسي",
-#                 created_by=request.user,
-#             )
-
-#             return redirect("Accounting:fund_to_main_allocate")
-
-#         except MainProgram.DoesNotExist:
-#             messages.error(request, "البرنامج الرئيسي غير موجود.")
-#         except (ValidationError, Exception) as e:
-#             messages.error(request, getattr(e, "message", str(e)))
-
-#     # إحصائيات البرامج الرئيسية (للعرض)
-#     main_stats = (
-#         MainProgram.objects
-#         .annotate(
-#             allocated_sum=Sum("sub_programs__allocated_amount"),
-#             spent_sum=Sum("sub_programs__spent_amount"),
-#         )
-#         .order_by("name")
-#     )
-
-#     program_data = []
-#     for p in main_stats:
-#         program_data.append({
-#             "id": p.id,
-#             "name": p.name,
-#             "total": p.total_donation_amount or Decimal("0.00"),
-#             "allocated": p.allocated_sum or Decimal("0.00"),
-#             "spent": p.spent_sum or Decimal("0.00"),
-#         })
-
-#     return render(request, "Accounting/fund_to_main_allocate.html", {
-#         "title": "تخصيص الصندوق للبرنامج الرئيسي",
-#         "programs": programs,
-#         "fund_balance": fund_balance,
-#         "last_fund_moves": last_fund_moves,
-#         "program_data": program_data,
-#     })
 @role_required([Profile.Roles.ACCOUNTANT])
 def fund_to_main_allocate(request):
-    programs = MainProgram.objects.filter(is_active=True).order_by("name")
 
-    # ✅ المتاح الحقيقي بالصندوق بعد الحجوزات (لا تعتمد على FundEntry فقط)
-    fund_balance = FundReservation.available_fund()
+    # =========================================================
+    # سجل التخصيصات الكامل - AJAX داخل Modal
+    # =========================================================
+   
 
-
-    last_fund_moves = FundEntry.objects.order_by("-created_at", "-id")[:5]
-
-    if request.method == "POST":
-        main_program_id = request.POST.get("main_program")
-        amount_raw = (request.POST.get("amount") or "0").strip()
-        notes = (request.POST.get("notes") or "").strip()
-
-        try:
-            amount = Decimal(amount_raw)
-            if amount <= 0:
-                raise ValidationError("أدخل مبلغ صحيح أكبر من صفر.")
-
-            # if amount > (fund_balance or Decimal("0.00")):
-            #     raise ValidationError("المبلغ أكبر من المتاح في الصندوق العام بعد الحجوزات.")
-            if amount > FundReservation.available_fund():
-                raise ValidationError("المبلغ أكبر من رصيد الصندوق العام المتاح (بعد الحجوزات).")
-
-            mp = MainProgram.objects.get(id=main_program_id)
-
-            with transaction.atomic():
-                alloc = FundToMainProgramAllocation.objects.create(
-                    main_program=mp,
-                    amount=amount,
-                    notes=notes,
-                    created_by=request.user
-                )
-
-                # ✅ حجز من الصندوق لصالح الرئيسي
-                FundReservation.objects.create(
-                    source_type=FundReservation.Sources.MAIN_PROGRAM,
-                    main_program=mp,
-                    amount=amount,
-                    reference=alloc,  # الأفضل ربطها
-                    note="حجز ميزانية لبرنامج رئيسي",
-                    created_by=request.user,
-                )
-
-            messages.success(request, "تم تخصيص رصيد للبرنامج الرئيسي بنجاح.")
-            return redirect("Accounting:fund_to_main_allocate")
-
-        except MainProgram.DoesNotExist:
-            messages.error(request, "البرنامج الرئيسي غير موجود.")
-        except (InvalidOperation, ValidationError) as e:
-            messages.error(request, str(e))
-        except Exception as e:
-            messages.error(request, str(e))
-
-    main_stats = (
+    # =========================================================
+    # البرامج
+    # =========================================================
+    programs = (
         MainProgram.objects
-        .annotate(
-            allocated_sum=Sum("sub_programs__allocated_amount"),
-            spent_sum=Sum("sub_programs__spent_amount"),
-        )
+        .filter(is_active=True)
         .order_by("name")
     )
 
+    fund_balance = get_fund_balance()
+    available_for_allocation = get_available_for_allocation()
+
+    # آخر 3 تخصيصات فقط
+    last_allocations = (
+        AllocationHistory.objects
+        .select_related(
+            "to_main_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.FUND_TO_MAIN
+        )
+        .order_by("-created_at", "-id")[:3]
+    )
+
+    # =========================================================
+    # POST
+    # =========================================================
+    if request.method == "POST":
+
+        main_program_id = request.POST.get("main_program")
+        amount_raw = (
+            request.POST.get("amount") or "0"
+        ).strip()
+        notes = (
+            request.POST.get("notes") or ""
+        ).strip()
+
+        try:
+
+            amount = Decimal(amount_raw)
+
+            if amount <= 0:
+                raise ValidationError(
+                    "أدخل مبلغ صحيح أكبر من صفر."
+                )
+
+            mp = get_object_or_404(
+                MainProgram,
+                id=main_program_id,
+                is_active=True,
+            )
+
+            allocate_to_main_program(
+                main_program=mp,
+                amount=amount,
+                user=request.user,
+                note=notes,
+            )
+
+            messages.success(
+                request,
+                "تم تخصيص المبلغ للبرنامج الرئيسي بنجاح."
+            )
+
+            return redirect(
+                "Accounting:fund_to_main_allocate"
+            )
+
+        except MainProgram.DoesNotExist:
+
+            messages.error(
+                request,
+                "البرنامج الرئيسي غير موجود."
+            )
+
+        except (InvalidOperation, ValidationError) as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+    # =========================================================
+    # بيانات البرامج
+    # =========================================================
     program_data = []
-    for p in main_stats:
+
+    for p in programs:
+
+        allocated = (
+            SubProgram.objects
+            .filter(main_program=p)
+            .aggregate(
+                total=Coalesce(
+                    Sum("allocated_amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
+
         program_data.append({
             "id": p.id,
             "name": p.name,
-            "total": p.total_donation_amount or Decimal("0.00"),
-            "allocated": p.allocated_sum or Decimal("0.00"),
-            "spent": p.spent_sum or Decimal("0.00"),
-        })
 
-    return render(request, "Accounting/fund_to_main_allocate.html", {
-        "title": "تخصيص الصندوق للبرنامج الرئيسي",
-        "programs": programs,
-        "fund_balance": fund_balance,
-        "last_fund_moves": last_fund_moves,
-        "program_data": program_data,
-    })
-################################################################################
+            "allocated": allocated,
+
+            "available": get_main_program_balance(p),
+        })
+    allocation_history = (
+    AllocationHistory.objects
+    .select_related(
+        "to_main_program",
+        "created_by",
+    )
+    .filter(
+        action=AllocationHistory.Action.FUND_TO_MAIN
+    )
+    .order_by("-created_at", "-id")[:5]
+    )
+
+    allocation_history_all = (
+            AllocationHistory.objects
+            .select_related(
+                "to_main_program",
+                "created_by",
+            )
+            .filter(
+                action=AllocationHistory.Action.FUND_TO_MAIN
+            )
+            .order_by("-created_at", "-id")
+        )
+    return render(
+        request,
+        "Accounting/fund_to_main_allocate.html",
+        {
+            "title": "تخصيص الصندوق للبرنامج الرئيسي",
+
+            "programs": programs,
+
+            "fund_balance": fund_balance,
+
+            "available_for_allocation": (
+                available_for_allocation
+            ),
+
+            "program_data": program_data,
+
+            "allocation_history": allocation_history,
+
+            "allocation_history_all": allocation_history_all,
+        },
+    )
+    ################################################################################
 
 
 # 3) تحويل من برنامج رئيسي إلى فرعي
 # 
 @role_required([Profile.Roles.ACCOUNTANT])
 def main_to_sub_allocate(request):
-    programs = MainProgram.objects.filter(
-            is_active=True,
-        ).order_by("name")
-    #sub_programs = SubProgram.objects.select_related("main_program").order_by("name")
+
+    programs = (
+        MainProgram.objects
+        .filter(is_active=True)
+        .order_by("name")
+    )
+
     sub_programs = (
         SubProgram.objects
         .select_related("main_program")
@@ -1292,707 +1849,1012 @@ def main_to_sub_allocate(request):
         )
         .order_by("name")
     )
-    last_allocs = (
-        MainToSubProgramAllocation.objects
-        .select_related("main_program", "sub_program")
-        .order_by("-created_at", "-id")[:5]
-    )
 
     if request.method == "POST":
+
         main_program_id = request.POST.get("main_program")
         sub_program_id = request.POST.get("sub_program")
-        amount_raw = (request.POST.get("amount") or "0").strip()
-        notes = (request.POST.get("notes") or "").strip()
+
+        amount_raw = (
+            request.POST.get("amount") or "0"
+        ).strip()
+
+        notes = (
+            request.POST.get("notes") or ""
+        ).strip()
 
         try:
-            amount = Decimal(amount_raw)
-            if amount <= 0:
-                raise ValidationError("أدخل مبلغ صحيح أكبر من صفر.")
 
-            mp = MainProgram.objects.get(id=main_program_id)
-            #sp = SubProgram.objects.get(id=sub_program_id)
+            amount = Decimal(amount_raw)
+
+            if amount <= 0:
+                raise ValidationError(
+                    "أدخل مبلغ صحيح أكبر من صفر."
+                )
+
+            mp = get_object_or_404(
+                MainProgram,
+                id=main_program_id,
+                is_active=True,
+            )
+
             sp = get_object_or_404(
                 SubProgram,
                 id=sub_program_id,
-
                 main_program__is_active=True,
             )
-            # ✅ تأكد الفرعي تابع للرئيسي
-            if sp.main_program_id != mp.id:
-                raise ValidationError("البرنامج الفرعي لا يتبع البرنامج الرئيسي المختار.")
 
-            # ✅ رصيد الرئيسي المتاح من المحافظ (FundReservation) وليس total_donation_amount
-            main_available = (
-                FundReservation.objects
-                .filter(source_type=FundReservation.Sources.MAIN_PROGRAM, main_program=mp)
-                .aggregate(t=Sum("amount"))["t"]
-                or Decimal("0.00")
+            if sp.main_program_id != mp.id:
+                raise ValidationError(
+                    "البرنامج الفرعي لا يتبع البرنامج الرئيسي المختار."
+                )
+
+            allocate_to_sub_program(
+                main_program=mp,
+                sub_program=sp,
+                amount=amount,
+                user=request.user,
+                note=notes,
             )
 
-            if amount > main_available:
-                raise ValidationError("المبلغ أكبر من المتاح في رصيد البرنامج الرئيسي.")
+            messages.success(
+                request,
+                "تم تحويل الرصيد إلى البرنامج الفرعي بنجاح."
+            )
 
-            with transaction.atomic():
-                alloc = MainToSubProgramAllocation.objects.create(
-                    main_program=mp,
-                    sub_program=sp,
-                    amount=amount,
-                    notes=notes,
-                    created_by=request.user
-                )
+            return redirect(
+                "Accounting:main_to_sub_allocate"
+            )
 
-                # تحرير من الرئيسي
-                FundReservation.objects.create(
-                    source_type=FundReservation.Sources.MAIN_PROGRAM,
-                    main_program=mp,
-                    amount=-amount,
-                    reference=alloc,
-                    note="تحويل إلى برنامج فرعي",
-                    created_by=request.user,
-                )
-
-                # حجز للفرعي
-                FundReservation.objects.create(
-                    source_type=FundReservation.Sources.SUB_PROGRAM,
-                    sub_program=sp,
-                    amount=amount,
-                    reference=alloc,
-                    note="استلام من برنامج رئيسي",
-                    created_by=request.user,
-                )
-
-            messages.success(request, "تم تحويل رصيد إلى البرنامج الفرعي بنجاح.")
-            return redirect("Accounting:main_to_sub_allocate")
-
-        except (MainProgram.DoesNotExist, SubProgram.DoesNotExist):
-            messages.error(request, "تحقق من البرنامج الرئيسي/الفرعي.")
         except (InvalidOperation, ValidationError) as e:
-            messages.error(request, str(e))
-        except Exception as e:
-            messages.error(request, str(e))
 
-    main_stats = (
-        MainProgram.objects
-        .annotate(
-            allocated_sum=Sum("sub_programs__allocated_amount"),
-            spent_sum=Sum("sub_programs__spent_amount"),
-        )
-        .order_by("name")
-    )
+            messages.error(
+                request,
+                str(e)
+            )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+    # =========================================================
+    # بيانات البرامج الرئيسية
+    # =========================================================
 
     program_data = []
-    for p in main_stats:
-        total = p.total_donation_amount or Decimal("0.00")
-        allocated = p.allocated_sum or Decimal("0.00")
-        spent = p.spent_sum or Decimal("0.00")
-        available = total - allocated
+
+    for p in programs:
+
+        available = get_main_program_balance(p)
+
         program_data.append({
             "id": p.id,
             "name": p.name,
-            "total": total,
-            "allocated": allocated,
-            "spent": spent,
-            "available": available if available > 0 else Decimal("0.00"),
+            "available": available,
         })
 
+    # =========================================================
+    # بيانات البرامج الفرعية
+    # =========================================================
+
     sub_program_data = []
+
     for sp in sub_programs:
+
+        incoming = (
+            AllocationHistory.objects
+            .filter(
+                action=AllocationHistory.Action.MAIN_TO_SUB,
+                to_sub_program=sp,
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
+
+        returned_to_main = (
+            AllocationHistory.objects
+            .filter(
+                action=AllocationHistory.Action.SUB_TO_MAIN,
+                from_sub_program=sp,
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
+
+        allocated = (
+            incoming
+            - returned_to_main
+        )
+
+        # الرصيد الحقيقي للبرنامج الفرعي
+        available = get_sub_program_balance(sp)
+
+        # المصروف الفعلي
+        spent = max(
+            allocated - available,
+            Decimal("0.00"),
+        )
+
         sub_program_data.append({
             "id": sp.id,
             "name": sp.name,
             "main_id": sp.main_program_id,
-            "allocated": sp.allocated_amount or Decimal("0.00"),
-            "spent": sp.spent_amount or Decimal("0.00"),
+
+            "allocated": allocated,
+            "spent": spent,
+            "available": available,
         })
 
-    return render(request, "Accounting/main_to_sub_allocate.html", {
-        "title": "تحويل رئيسي → فرعي",
-        "programs": programs,
-        "sub_programs": sub_programs,
-        "program_data": program_data,
-        "sub_program_data": sub_program_data,
-        "last_allocs": last_allocs,
-    })
+    # =========================================================
+    # آخر 5 تخصيصات
+    # =========================================================
 
+    allocation_history = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "to_sub_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.MAIN_TO_SUB
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:5]
+    )
 
-# 4) أمر صرف من برنامج فرعي لمستفيدين متعددين
+    # =========================================================
+    # كامل سجل التخصيصات
+    # =========================================================
 
-# @role_required([Profile.Roles.ACCOUNTANT])
-# def subprogram_disburse_create(request):
-#     sub_programs = SubProgram.objects.select_related("main_program").order_by("name")
+    allocation_history_all = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "to_sub_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.MAIN_TO_SUB
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )
+    )
 
-#     # -------- فلترة المستفيدين --------
-#     beneficiaries_qs = Beneficiary.objects.order_by("first_name", "last_name")
+    return render(
+        request,
+        "Accounting/main_to_sub_allocate.html",
+        {
+            "title": "تحويل رئيسي إلى فرعي",
 
-#     # أسماء الفلاتر حسب المودل الحقيقي
-#     education_level = (request.GET.get("education_level") or "").strip()
-#     gender          = (request.GET.get("gender") or "").strip()          # ✅ جديد
-#     health_status   = (request.GET.get("health_status") or "").strip()
-#     type_disease    = (request.GET.get("type_disease") or "").strip()
-#     disease_q       = (request.GET.get("disease_q") or "").strip()
+            "programs": programs,
 
-#     if gender:  # ✅ جديد
-#         beneficiaries_qs = beneficiaries_qs.filter(gender=gender)
+            "sub_programs": sub_programs,
 
-#     if education_level:
-#         beneficiaries_qs = beneficiaries_qs.filter(education_level=education_level)
+            "program_data": program_data,
 
-#     if health_status:
-#         beneficiaries_qs = beneficiaries_qs.filter(health_status=health_status)
+            "sub_program_data": sub_program_data,
 
-#     if type_disease:
-#         beneficiaries_qs = beneficiaries_qs.filter(type_disease=type_disease)
+            "allocation_history": allocation_history,
 
-#     if disease_q:
-#         beneficiaries_qs = beneficiaries_qs.filter(
-#             Q(disease__icontains=disease_q) |
-#             Q(type_disease__icontains=disease_q)
-#         )
+            "allocation_history_all": allocation_history_all,
+        },
+    )
+    # =========================================================
+    # بيانات البرامج الرئيسية
+    # =========================================================
 
-#     # قوائم الفلاتر (Choices من المودل)
-#     education_levels = Beneficiary.EducationLevel.choices
-#     health_statuses  = Beneficiary.HealthStatus.choices
-#     disease_types    = Beneficiary.DiseaseType.choices
+    program_data = []
 
-#     genders = Beneficiary.Gender.choices  # ✅ جديد
+    for p in programs:
 
-#     # -------- آخر أوامر الصرف --------
-#     last_disbursements = (
-#         SubProgramDisbursement.objects
-#         .select_related("sub_program", "sub_program__main_program", "created_by")
-#         .prefetch_related("lines", "lines__beneficiary")
-#         .order_by("-created_at", "-id")[:5]
-#     )
+        available = get_main_program_balance(p)
 
+        program_data.append({
+            "id": p.id,
+            "name": p.name,
+            "available": available,
+        })
 
-#     # -------- تنفيذ الصرف --------
-#     if request.method == "POST":
-#         sub_program_id = request.POST.get("sub_program")
-#         voucher_number = (request.POST.get("voucher_number") or "").strip()
-#         notes = (request.POST.get("notes") or "").strip()
-#         beneficiary_ids = request.POST.getlist("beneficiary_ids[]")
-#         amounts = request.POST.getlist("amounts[]")
+    # =========================================================
+    # بيانات البرامج الفرعية
+    # =========================================================
 
-#         try:
-#             sp = SubProgram.objects.get(id=sub_program_id)
+    sub_program_data = []
 
-#             disb = SubProgramDisbursement.objects.create(
-#                 sub_program=sp,
-#                 voucher_number=voucher_number,
-#                 notes=notes,
-#                 created_by=request.user
-#             )
+    for sp in sub_programs:
 
+        incoming = (
+            AllocationHistory.objects
+            .filter(
+                action=AllocationHistory.Action.MAIN_TO_SUB,
+                to_sub_program=sp,
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
 
-#             lines = []
-#             for bid, amt in zip(beneficiary_ids, amounts):
-#                 if not bid:
-#                     continue
+        returned_to_main = (
+            AllocationHistory.objects
+            .filter(
+                action=AllocationHistory.Action.SUB_TO_MAIN,
+                from_sub_program=sp,
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
 
-#                 amt = Decimal(amt or "0")
-#                 if amt <= 0:
-#                     continue
+        spent = (
+            BeneficiarySupportEntry.objects
+            .filter(
+                sub_program=sp,
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
+        )
 
-#                 b = Beneficiary.objects.get(id=bid)
-#                 lines.append(SubProgramDisbursementLine(
-#                     disbursement=disb,
-#                     beneficiary=b,
-#                     amount=amt
-#                 ))
+        allocated = (
+            incoming
+            - returned_to_main
+        )
 
-#             if not lines:
-#                 disb.delete()
-#                 raise ValidationError("اختر مستفيدًا واحدًا على الأقل مع مبلغ صحيح.")
+        available = max(
+            allocated - spent,
+            Decimal("0.00"),
+        )
 
-#             SubProgramDisbursementLine.objects.bulk_create(lines)
+        sub_program_data.append({
+            "id": sp.id,
+            "name": sp.name,
+            "main_id": sp.main_program_id,
 
-#             # تنفيذ الصرف (يفحص الرصيد ويخصم)
-#             if not voucher_number:
-#                 messages.error(request, "رقم السند مطلوب قبل تنفيذ الصرف.")
-#                 return redirect("Accounting:subprogram_disburse_create")
+            "allocated": allocated,
+            "spent": spent,
+            "available": available,
+        })
 
-#             disb.execute()
+    # =========================================================
+    # آخر 5 تخصيصات
+    # =========================================================
 
-#             messages.success(
-#                    request,
-#                     f"تم تنفيذ الصرف بنجاح. رقم السند: {disb.voucher_number} — إجمالي الصرف: {disb.total_amount:.2f} ر.س"
+    allocation_history = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "to_sub_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.MAIN_TO_SUB
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:5]
+    )
 
-#             )
-#             return redirect("Accounting:subprogram_disburse_create")
+    # =========================================================
+    # كامل سجل التخصيصات
+    # =========================================================
 
-#         except (SubProgram.DoesNotExist, Beneficiary.DoesNotExist):
-#             messages.error(request, "تحقق من البرنامج الفرعي/المستفيدين.")
-#         except (ValidationError, Exception) as e:
-#             messages.error(request, getattr(e, "message", str(e)))
+    allocation_history_all = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "to_sub_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.MAIN_TO_SUB
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )
+    )
 
-#     # -------- بيانات جاهزة للتمبلت لعرض تفاصيل الفرعي --------
-#     sub_program_data = []
-#     for sp in sub_programs:
-#         allocated = sp.allocated_amount or Decimal("0.00")
-#         spent = sp.spent_amount or Decimal("0.00")
-#         remaining = allocated - spent
-#         sub_program_data.append({
-#             "id": sp.id,
-#             "name": sp.name,
-#             "main_name": sp.main_program.name if sp.main_program else "",
-#             "allocated": allocated,
-#             "spent": spent,
-#             "remaining": remaining if remaining > 0 else Decimal("0.00"),
-#         })
+    return render(
+        request,
+        "Accounting/main_to_sub_allocate.html",
+        {
+            "title": "تحويل رئيسي إلى فرعي",
 
-#     return render(request, "Accounting/subprogram_disburse_form.html", {
-#         "title": "أمر صرف من برنامج فرعي",
-#         "sub_programs": sub_programs,
-#         "sub_program_data": sub_program_data,
-#         "beneficiaries": beneficiaries_qs,
+            "programs": programs,
 
-#         # ✅ الفلاتر الصحيحة
-#         "education_levels": education_levels,
-#         "health_statuses": health_statuses,
-#         "disease_types": disease_types,
-#         "genders": genders,
+            "sub_programs": sub_programs,
 
-#        "filters": {
-#             "education_level": education_level,
-#             "gender": gender,                # ✅ جديد
-#             "health_status": health_status,
-#             "type_disease": type_disease,
-#             "disease_q": disease_q,
-#         },
+            "program_data": program_data,
 
+            "sub_program_data": sub_program_data,
 
-#         "last_disbursements": last_disbursements,
-#         "fund_balance": FundEntry.total_balance(),  # مرجعي للعرض
-#     })
+            "allocation_history": allocation_history,
+
+            "allocation_history_all": allocation_history_all,
+        },
+    )# 4) أمر صرف من برنامج فرعي لمستفيدين متعددين
 
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def subprogram_disburse_create(request):
-    #sub_programs = SubProgram.objects.filter(main_program__is_active=True).select_related("main_program").order_by("name")
+
     sub_programs = (
-            SubProgram.objects
-            .filter(main_program__is_active=True)
-            .select_related("main_program")
-            .order_by("name")
+        SubProgram.objects
+        .filter(main_program__is_active=True)
+        .select_related("main_program")
+        .order_by("name")
+    )
+    today = timezone.localdate()
+
+    active_sponsorships = (
+        BeneficiarySponsorHistory.objects
+        .filter(
+            start_date__lte=today,
         )
-    # -------- فلترة المستفيدين + رصيد كل مستفيد --------
-    beneficiaries_qs = (
+        .filter(
+            Q(end_date__isnull=True) |
+            Q(end_date__gte=today)
+        )
+        .select_related(
+            "donor",
+            "donor__user",
+        )
+    )
+    # لا نفلتر في السيرفر، سيتم الفلترة بالكامل بالجافاسكربت
+    beneficiaries = (
         Beneficiary.objects
-        .annotate(
-            balance_total=Coalesce(
-                Sum("balance_entries__amount"),
-                Value(0, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                output_field=DecimalField(max_digits=12, decimal_places=2),
+        .exclude(education_level__isnull=True)
+        .exclude(education_level="")
+        .select_related(
+            "donor",
+            "donor__user",
+        )
+        .prefetch_related(
+            Prefetch(
+                "sponsor_history",
+                queryset=active_sponsorships,
+                to_attr="active_sponsorship_list",
             )
         )
-        .order_by("first_name", "last_name")
-    )
-
-    education_level = (request.GET.get("education_level") or "").strip()
-    gender          = (request.GET.get("gender") or "").strip()
-    health_status   = (request.GET.get("health_status") or "").strip()
-    type_disease    = (request.GET.get("type_disease") or "").strip()
-    disease_q       = (request.GET.get("disease_q") or "").strip()
-
-    if gender:
-        beneficiaries_qs = beneficiaries_qs.filter(gender=gender)
-
-    if education_level:
-        beneficiaries_qs = beneficiaries_qs.filter(education_level=education_level)
-
-    if health_status:
-        beneficiaries_qs = beneficiaries_qs.filter(health_status=health_status)
-
-    if type_disease:
-        beneficiaries_qs = beneficiaries_qs.filter(type_disease=type_disease)
-
-    if disease_q:
-        beneficiaries_qs = beneficiaries_qs.filter(
-            Q(disease__icontains=disease_q) |
-            Q(type_disease__icontains=disease_q)
+        .only(
+            "id",
+            "first_name",
+            "father_name",
+            "education_level",
+            "gender",
+            "health_status",
+            "type_disease",
+            "disease",
+            "national_number",
+            "donor",
+            "donor__national_number",
+            "donor__user__first_name",
+            "donor__user__last_name",
+            "donor__user__username",
         )
-
-    education_levels = Beneficiary.EducationLevel.choices
-    health_statuses  = Beneficiary.HealthStatus.choices
-    disease_types    = Beneficiary.DiseaseType.choices
-    genders          = Beneficiary.Gender.choices
-
-    # -------- آخر أوامر الصرف --------
-    last_disbursements = (
-        SubProgramDisbursement.objects
-        .select_related("sub_program", "sub_program__main_program", "created_by")
-        .prefetch_related("lines", "lines__beneficiary")
-        .order_by("-created_at", "-id")[:5]
+        .order_by("first_name", "father_name")
     )
 
-    # -------- تنفيذ الصرف --------
     if request.method == "POST":
-        sub_program_id = request.POST.get("sub_program")
-        voucher_number = (request.POST.get("voucher_number") or "").strip()
-        source_type    = (request.POST.get("source_type") or "sub_program").strip()
-        notes          = (request.POST.get("notes") or "").strip()
-
-        beneficiary_ids = request.POST.getlist("beneficiary_ids[]")
-        amounts         = request.POST.getlist("amounts[]")
 
         try:
-            sp = SubProgram.objects.get(id=sub_program_id)
 
-            disb = SubProgramDisbursement.objects.create(
-                sub_program=sp,
-                voucher_number=voucher_number,
-                source_type=source_type,
-                notes=notes,
-                created_by=request.user,
-            )
-
-            lines = []
-            for bid, amt in zip(beneficiary_ids, amounts):
-                if not bid:
-                    continue
-                amt = Decimal(amt or "0")
-                if amt <= 0:
-                    continue
-
-                b = Beneficiary.objects.get(id=bid)
-                lines.append(SubProgramDisbursementLine(
-                    disbursement=disb,
-                    beneficiary=b,
-                    amount=amt
-                ))
-
-            if not lines:
-                disb.delete()
-                raise ValidationError("اختر مستفيدًا واحدًا على الأقل مع مبلغ صحيح.")
-
-            # الصرف من رصيد المستفيد: مسموح لمستفيد واحد فقط
-            if source_type == SubProgramDisbursement.SourceTypes.BENEFICIARY and len(lines) != 1:
-                disb.delete()
-                raise ValidationError("الصرف من رصيد المستفيد متاح لمستفيد واحد فقط في الأمر.")
-
-            SubProgramDisbursementLine.objects.bulk_create(lines)
+            voucher_number = (
+                request.POST.get("voucher_number") or ""
+            ).strip()
 
             if not voucher_number:
-                messages.error(request, "رقم السند مطلوب قبل تنفيذ الصرف.")
-                return redirect("Accounting:subprogram_disburse_create")
+                raise ValueError("رقم السند مطلوب.")
 
-            disb.execute()
+            notes = (
+                request.POST.get("notes") or ""
+            ).strip()
+
+            sub_program = (
+                SubProgram.objects
+                .select_related("main_program")
+                .get(pk=request.POST.get("sub_program"))
+            )
+
+            beneficiary_ids = request.POST.getlist("beneficiary_ids[]")
+            amounts = request.POST.getlist("amounts[]")
+
+            beneficiaries_map = {
+                b.id: b
+                for b in Beneficiary.objects.filter(id__in=beneficiary_ids)
+            }
+
+            beneficiaries_data = []
+
+            for beneficiary_id, amount in zip(beneficiary_ids, amounts):
+
+                if not beneficiary_id:
+                    continue
+
+                amount = Decimal(amount or "0")
+
+                if amount <= 0:
+                    continue
+
+                beneficiary = beneficiaries_map.get(int(beneficiary_id))
+
+                if not beneficiary:
+                    continue
+
+                beneficiaries_data.append({
+                    "beneficiary": beneficiary,
+                    "amount": amount,
+                })
+
+            if not beneficiaries_data:
+                raise ValueError("يجب اختيار مستفيد واحد على الأقل.")
+
+            spend_from_sub_program(
+                sub_program=sub_program,
+                beneficiaries=beneficiaries_data,
+                voucher_number=voucher_number,
+                user=request.user,
+                note=notes,
+            )
 
             messages.success(
                 request,
-                f"تم تنفيذ الصرف بنجاح. رقم السند: {disb.voucher_number} — إجمالي الصرف: {disb.total_amount:.2f} ر.س"
+                f"تم تنفيذ الصرف بنجاح. رقم السند: {voucher_number}"
             )
+
             return redirect("Accounting:subprogram_disburse_create")
 
-        except (SubProgram.DoesNotExist, Beneficiary.DoesNotExist):
-            messages.error(request, "تحقق من البرنامج الفرعي/المستفيدين.")
-        except (ValidationError, Exception) as e:
-            messages.error(request, getattr(e, "message", str(e)))
+        except ValueError as ex:
+            messages.error(request, str(ex))
 
-    # -------- بيانات البرامج الفرعية للعرض في الكرت --------
-    sub_program_data = []
-    for sp in sub_programs:
-        allocated = sp.allocated_amount or Decimal("0.00")
-        spent     = sp.spent_amount or Decimal("0.00")
-        remaining = allocated - spent
-        sub_program_data.append({
+        except SubProgram.DoesNotExist:
+            messages.error(request, "البرنامج الفرعي غير موجود.")
+
+        except Beneficiary.DoesNotExist:
+            messages.error(request, "أحد المستفيدين غير موجود.")
+
+        except Exception as ex:
+            messages.error(request, str(ex))
+
+    sub_program_data = [
+        {
             "id": sp.id,
             "name": sp.name,
-            "main_name": sp.main_program.name if sp.main_program else "",
-            "allocated": allocated,
-            "spent": spent,
-            "remaining": remaining if remaining > 0 else Decimal("0.00"),
-        })
+            "main_name": sp.main_program.name,
+            "balance": f"{get_sub_program_balance(sp):.2f}",
+        }
+        for sp in sub_programs
+    ]
 
-    return render(request, "Accounting/subprogram_disburse_form.html", {
-        "title": "أمر صرف من برنامج فرعي",
-        "sub_programs": sub_programs,
-        "sub_program_data": sub_program_data,
-        "beneficiaries": beneficiaries_qs,
+    last_disbursements = (
+        SubProgramDisbursement.objects
+        .select_related(
+            "sub_program",
+            "sub_program__main_program",
+            "created_by",
+        )
+        .order_by("-created_at", "-id")[:10]
+    )
 
-        "education_levels": education_levels,
-        "health_statuses": health_statuses,
-        "disease_types": disease_types,
-        "genders": genders,
+    return render(
+        request,
+        "Accounting/subprogram_disburse_form.html",
+        {
+            "title": "أمر صرف من برنامج فرعي",
 
-        "filters": {
-            "education_level": education_level,
-            "gender": gender,
-            "health_status": health_status,
-            "type_disease": type_disease,
-            "disease_q": disease_q,
+            "sub_programs": sub_programs,
+            "sub_program_data": sub_program_data,
+
+            "beneficiaries": beneficiaries,
+
+            "education_levels": Beneficiary.EducationLevel.choices,
+            "health_statuses": Beneficiary.HealthStatus.choices,
+            "disease_types": Beneficiary.DiseaseType.choices,
+            "genders": Beneficiary.Gender.choices,
+
+            "last_disbursements": last_disbursements,
         },
+    )
 
-        "last_disbursements": last_disbursements,
-        "fund_balance": FundEntry.total_balance(),  # مرجعي للعرض فقط
-    })
-
-
-from decimal import Decimal, InvalidOperation
-from django.contrib import messages
-from django.db.models import Q, Sum
-from django.http import HttpResponse
-from django.shortcuts import render
-from django.utils import timezone
-
-from openpyxl import Workbook
-
-from Management.models import Profile
-from .models import FundEntry
-
-
-from decimal import Decimal, InvalidOperation
-from django.db.models import Q, Sum
-from django.http import HttpResponse
-from django.utils import timezone
-from openpyxl import Workbook
-
-# @role_required([Profile.Roles.ACCOUNTANT])
-# def ledger(request):
-#     base_qs = (
-#         FundEntry.objects
-#         .select_related("invoice", "created_by")
-#         .order_by("-created_at", "-id")
-#     )
-
-#     # Filters
-#     type_filter = (request.GET.get("type") or "").strip()
-#     date_from = (request.GET.get("date_from") or "").strip()
-#     date_to = (request.GET.get("date_to") or "").strip()
-#     q = (request.GET.get("q") or "").strip()
-#     export = (request.GET.get("export") or "").strip()
-
-#     movements = base_qs
-
-#     # نوع الحركة
-#     if type_filter:
-#         if type_filter == "revenue":
-#             movements = movements.filter(amount__gt=0)
-#         elif type_filter == "expense":
-#             movements = movements.filter(amount__lt=0)
-#         else:
-#             movements = movements.filter(type=type_filter)
-
-#     # فلترة التاريخ
-#     if date_from:
-#         movements = movements.filter(created_at__date__gte=date_from)
-#     if date_to:
-#         movements = movements.filter(created_at__date__lte=date_to)
-
-#     # بحث عام: (وصف + رقم سند voucher + رقم فاتورة invoice + مبلغ)
-#     if q:
-#         q_obj = (
-#             Q(description__icontains=q) |
-#             Q(voucher_number__icontains=q) |
-#             Q(invoice__number__icontains=q)
-#         )
-#         try:
-#             q_num = Decimal(q)
-#             q_obj |= Q(amount=q_num)
-#         except (InvalidOperation, TypeError):
-#             pass
-
-#         movements = movements.filter(q_obj)
-
-#     # opening balance قبل أول حركة ضمن النتائج
-#     first = movements.order_by("created_at", "id").values("created_at", "id").first()
-#     opening = Decimal("0.00")
-#     if first:
-#         dt0 = first["created_at"]
-#         id0 = first["id"]
-#         opening = (
-#             FundEntry.objects
-#             .filter(Q(created_at__lt=dt0) | Q(created_at=dt0, id__lt=id0))
-#             .aggregate(t=Sum("amount"))["t"]
-#             or Decimal("0.00")
-#         )
-
-#     # تجهيز العرض
-#     asc = list(movements.order_by("created_at", "id"))
-#     running = opening
-
-#     for m in asc:
-#         # رقم السند: voucher أولاً ثم invoice.number
-#         voucher = (m.voucher_number or "").strip()
-#         if not voucher and m.invoice and getattr(m.invoice, "number", None):
-#             voucher = str(m.invoice.number).strip()
-#         m.display_voucher = voucher or "—"
-
-#         # مصدر التغطية (عرض فقط) بدون تغيير الوصف الحقيقي
-#         desc = (m.description or "")
-#         if "(مصدر: ميزانية الفرعي)" in desc:
-#             m.cover_source = "محفظة برنامج فرعي"
-#         elif "(مصدر: محفظة المستفيد)" in desc or "محفظة المستفيد" in desc:
-#             m.cover_source = "محفظة مستفيد"
-#         else:
-#             m.cover_source = "صندوق عام"
-
-#         # الرصيد بعد الحركة
-#         running += (m.amount or Decimal("0.00"))
-#         m.balance_after = running
-
-#     rows = list(reversed(asc))  # الأحدث أولاً
-
-#     # Export Excel
-#     if export == "1":
-#         wb = Workbook()
-#         ws = wb.active
-#         ws.title = "Ledger"
-#         ws.append(["رقم السند", "التاريخ", "مصدر التغطية", "نوع الحركة", "الوصف", "المبلغ", "الرصيد بعد الحركة"])
-
-#         for m in rows:
-#             ws.append([
-#                 m.display_voucher,
-#                 timezone.localtime(m.created_at).strftime("%Y-%m-%d"),  # ✅ بدون وقت
-#                 getattr(m, "cover_source", "") or "",
-#                 (m.get_type_display() if hasattr(m, "get_type_display") else (m.type or "")),
-#                 (m.description or "").strip() or "—",  # ✅ الوصف الحقيقي
-#                 float(m.amount or 0),
-#                 float(m.balance_after or 0),
-#             ])
-
-#         resp = HttpResponse(
-#             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-#         )
-#         resp["Content-Disposition"] = 'attachment; filename="ledger.xlsx"'
-#         wb.save(resp)
-#         return resp
-
-#     return render(request, "Accounting/ledger.html", {
-#         "title": "سجل الحركات المالية",
-#         "movements": rows,
-#         "filters": {"type": type_filter, "date_from": date_from, "date_to": date_to, "q": q},
-#     })
 @role_required([Profile.Roles.ACCOUNTANT])
 def ledger(request):
-    base_qs = (
+
+    movements = (
         FundEntry.objects
-        .select_related("invoice", "created_by")
+        .select_related(
+            "invoice",
+            "created_by",
+            "main_program",
+            "sub_program",
+            "beneficiary",
+        )
         .order_by("-created_at", "-id")
     )
 
-    type_filter = (request.GET.get("type") or "").strip()
-    date_from = (request.GET.get("date_from") or "").strip()
-    date_to = (request.GET.get("date_to") or "").strip()
-    q = (request.GET.get("q") or "").strip()
-    export = (request.GET.get("export") or "").strip()
+    # =========================
+    # Filters
+    # =========================
 
-    movements = base_qs
+    today = timezone.localdate()
 
-    if type_filter:
-        if type_filter == "revenue":
-            movements = movements.filter(amount__gt=0)
-        elif type_filter == "expense":
-            movements = movements.filter(amount__lt=0)
-        else:
-            movements = movements.filter(type=type_filter)
+    period = (
+        request.GET.get("period") or "month"
+    ).strip()
+
+    date_from = ""
+    date_to = ""
+
+    if period == "today":
+
+        date_from = today
+        date_to = today
+
+    elif period == "week":
+
+        date_from = today - timezone.timedelta(days=6)
+        date_to = today
+
+    elif period == "month":
+
+        date_from = today.replace(day=1)
+        date_to = today
+
+    elif period == "year":
+
+        date_from = today.replace(
+            month=1,
+            day=1,
+        )
+        date_to = today
+
+    elif period == "custom":
+
+        date_from = (
+            request.GET.get("date_from") or ""
+        ).strip()
+
+        date_to = (
+            request.GET.get("date_to") or ""
+        ).strip()
+
+    else:
+
+        date_from = ""
+        date_to = ""
+
+    main_program = (
+        request.GET.get("main_program") or ""
+    ).strip()
+
+    sub_program = (
+        request.GET.get("sub_program") or ""
+    ).strip()
+
+    movement_type = (
+        request.GET.get("type") or ""
+    ).strip()
+
+    q = (
+        request.GET.get("q") or ""
+    ).strip()
+
+    export = request.GET.get("export")
+
+    # =========================
+    # Apply Filters
+    # =========================
 
     if date_from:
-        movements = movements.filter(created_at__date__gte=date_from)
+
+        movements = movements.filter(
+            created_at__date__gte=date_from,
+        )
+
     if date_to:
-        movements = movements.filter(created_at__date__lte=date_to)
+
+        movements = movements.filter(
+            created_at__date__lte=date_to,
+        )
+
+    if main_program:
+
+        movements = movements.filter(
+            main_program_id=main_program,
+        )
+
+    if sub_program:
+
+        movements = movements.filter(
+            sub_program_id=sub_program,
+        )
+
+    if movement_type:
+
+        movements = movements.filter(
+            type=movement_type,
+        )
 
     if q:
-        q_obj = (
-            Q(description__icontains=q) |
-            Q(voucher_number__icontains=q) |
-            Q(invoice__number__icontains=q) |
-            Q(invoice__notes__icontains=q)
+
+        movements = movements.filter(
+            Q(description__icontains=q)
+            |
+            Q(voucher_number__icontains=q)
+            |
+            Q(invoice__number__icontains=q)
         )
-        try:
-            q_num = Decimal(q)
-            q_obj |= Q(amount=q_num)
-        except (InvalidOperation, TypeError):
-            pass
 
-        movements = movements.filter(q_obj)
+    # =========================
+    # الحركات المعكوسة
+    # =========================
+    #
+    # السند الأصلي:
+    # SP-001 = -250
+    #
+    # السند المعكوس:
+    # REV-SP-001 = +250
+    #
+    # لا نعتبر أي منهما إيرادًا أو مصروفًا
+    # في الملخص المحاسبي.
+    #
+    # لكن تبقى الحركتان ظاهرتين في السجل.
+    # =========================
 
-    first = movements.order_by("created_at", "id").values("created_at", "id").first()
-    opening = Decimal("0.00")
+    reversed_vouchers = set(
+        SubProgramDisbursement.objects
+        .filter(
+            is_reversed=True,
+        )
+        .values_list(
+            "voucher_number",
+            flat=True,
+        )
+    )
+
+    reversed_vouchers = {
+        str(voucher)
+        for voucher in reversed_vouchers
+        if voucher
+    }
+
+    reversal_vouchers = {
+        f"REV-{voucher}"
+        for voucher in reversed_vouchers
+    }
+
+    # =========================
+    # Summary
+    # =========================
+
+    # الإيرادات الحقيقية فقط
+    #
+    # نستبعد:
+    # REV-SP-001
+    # لأنها عملية عكس وليست إيرادًا جديدًا.
+    # =========================
+
+    income_queryset = (
+        movements
+        .filter(
+            amount__gt=0,
+        )
+        .exclude(
+            voucher_number__in=reversal_vouchers,
+        )
+    )
+
+    total_income = (
+        income_queryset
+        .aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+    )
+
+    # =========================
+    # المصروفات الحقيقية
+    # =========================
+    #
+    # نستبعد السند الأصلي إذا أصبح معكوسًا.
+    # =========================
+
+    expense_queryset = (
+        movements
+        .filter(
+            amount__lt=0,
+        )
+        .exclude(
+            voucher_number__in=reversed_vouchers,
+        )
+    )
+
+    total_expense = (
+        expense_queryset
+        .aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+    )
+
+    # =========================
+    # الرصيد الحالي الحقيقي
+    # =========================
+
+    current_balance = (
+        get_fund_balance()
+    )
+
+    # =========================
+    # البرامج
+    # =========================
+
+    main_programs = (
+        MainProgram.objects
+        .filter(
+            is_active=True,
+        )
+        .order_by("name")
+    )
+
+    sub_programs = (
+        SubProgram.objects
+        .filter(
+            main_program__is_active=True,
+        )
+        .select_related(
+            "main_program",
+        )
+        .order_by("name")
+    )
+
+    # =========================
+    # Opening Balance
+    # =========================
+
+    first = (
+        movements
+        .order_by(
+            "created_at",
+            "id",
+        )
+        .values(
+            "created_at",
+            "id",
+        )
+        .first()
+    )
+
+    opening_balance = Decimal("0.00")
 
     if first:
-        dt0 = first["created_at"]
-        id0 = first["id"]
-        opening = (
+
+        opening_balance = (
             FundEntry.objects
-            .filter(Q(created_at__lt=dt0) | Q(created_at=dt0, id__lt=id0))
-            .aggregate(t=Sum("amount"))["t"]
-            or Decimal("0.00")
+            .filter(
+                Q(
+                    created_at__lt=first["created_at"]
+                )
+                |
+                Q(
+                    created_at=first["created_at"],
+                    id__lt=first["id"],
+                )
+            )
+            .aggregate(
+                total=Coalesce(
+                    Sum("amount"),
+                    Decimal("0.00"),
+                )
+            )["total"]
         )
 
-    asc = list(movements.order_by("created_at", "id"))
-    running = opening
+    # =========================
+    # Running Balance
+    # =========================
 
-    for m in asc:
-        voucher = (m.voucher_number or "").strip()
-        if not voucher and m.invoice and getattr(m.invoice, "number", None):
-            voucher = str(m.invoice.number).strip()
-        m.display_voucher = voucher or "—"
+    running_balance = opening_balance
 
-        m.display_notes = (
-            m.invoice.notes.strip()
-            if m.invoice and getattr(m.invoice, "notes", None) and m.invoice.notes.strip()
-            else "—"
+    ordered = list(
+        movements.order_by(
+            "created_at",
+            "id",
+        )
+    )
+
+    for movement in ordered:
+
+        movement.display_voucher = (
+            movement.voucher_number
+            or (
+                movement.invoice.number
+                if movement.invoice
+                else "—"
+            )
         )
 
-        desc = (m.description or "")
-        if "(مصدر: ميزانية الفرعي)" in desc:
-            m.cover_source = "محفظة برنامج فرعي"
-        elif "(مصدر: محفظة المستفيد)" in desc or "محفظة المستفيد" in desc:
-            m.cover_source = "محفظة مستفيد"
-        else:
-            m.cover_source = "صندوق عام"
+        running_balance += movement.amount
 
-        running += (m.amount or Decimal("0.00"))
-        m.balance_after = running
+        movement.balance_after = (
+            running_balance
+        )
 
-    rows = list(reversed(asc))
+        # =========================
+        # تحديد هل الحركة معكوسة
+        # =========================
+
+        movement.is_reversal = (
+            movement.voucher_number
+            in reversal_vouchers
+        )
+
+        movement.is_reversed_original = (
+            movement.voucher_number
+            in reversed_vouchers
+        )
+
+    movements = list(
+        reversed(ordered)
+    )
+
+    # =========================
+    # Export
+    # =========================
 
     if export == "1":
+
         wb = Workbook()
+
         ws = wb.active
+
         ws.title = "Ledger"
 
         ws.append([
-            "رقم السند",
+            "السند",
             "التاريخ",
-            "مصدر التغطية",
+            "البرنامج الرئيسي",
+            "البرنامج الفرعي",
             "نوع الحركة",
             "الوصف",
-            "الملاحظات",
-            "المبلغ",
-            "الرصيد بعد الحركة",
+            "مدين",
+            "دائن",
+            "الرصيد",
         ])
 
-        for m in rows:
+        for movement in movements:
+
             ws.append([
-                m.display_voucher,
-                timezone.localtime(m.created_at).strftime("%Y-%m-%d"),
-                getattr(m, "cover_source", "") or "",
-                (m.get_type_display() if hasattr(m, "get_type_display") else (m.type or "")),
-                (m.description or "").strip() or "—",
-                getattr(m, "display_notes", "—"),
-                float(m.amount or 0),
-                float(m.balance_after or 0),
+
+                movement.display_voucher,
+
+                timezone.localtime(
+                    movement.created_at
+                ).strftime(
+                    "%Y-%m-%d %H:%M"
+                ),
+
+                (
+                    movement.main_program.name
+                    if movement.main_program
+                    else ""
+                ),
+
+                (
+                    movement.sub_program.name
+                    if movement.sub_program
+                    else ""
+                ),
+
+                movement.get_type_display(),
+
+                movement.description or "",
+
+                (
+                    float(movement.amount)
+                    if movement.amount > 0
+                    else ""
+                ),
+
+                (
+                    abs(float(movement.amount))
+                    if movement.amount < 0
+                    else ""
+                ),
+
+                float(
+                    movement.balance_after
+                ),
             ])
 
-        resp = HttpResponse(
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        response = HttpResponse(
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
         )
-        resp["Content-Disposition"] = 'attachment; filename="ledger.xlsx"'
-        wb.save(resp)
-        return resp
 
-    return render(request, "Accounting/ledger.html", {
-        "title": "سجل الحركات المالية",
-        "movements": rows,
-        "filters": {
-            "type": type_filter,
-            "date_from": date_from,
-            "date_to": date_to,
-            "q": q,
+        response["Content-Disposition"] = (
+            'attachment; filename="ledger.xlsx"'
+        )
+
+        wb.save(response)
+
+        return response
+
+    # =========================
+    # Render
+    # =========================
+
+    return render(
+        request,
+        "Accounting/ledger.html",
+        {
+            "title": "سجل الحركات المالية",
+
+            "movements": movements,
+
+            "main_programs": main_programs,
+
+            "sub_programs": sub_programs,
+
+            "movement_types": (
+                FundEntry.Types.choices
+            ),
+
+            "total_income": (
+                total_income
+                or Decimal("0.00")
+            ),
+
+            "total_expense": abs(
+                total_expense
+                or Decimal("0.00")
+            ),
+
+            "current_balance": (
+                current_balance
+            ),
+
+            "filters": {
+                "period": period,
+                "date_from": date_from,
+                "date_to": date_to,
+                "main_program": main_program,
+                "sub_program": sub_program,
+                "type": movement_type,
+                "q": q,
+            },
         },
-    })
+    )
 
 # 6) صفحة أرصدة البرامج للمحاسب (Program Balances)
 @role_required([Profile.Roles.ACCOUNTANT])
@@ -2077,1155 +2939,602 @@ def program_balances(request):
         "summary": summary,
     })
 
-from decimal import Decimal, InvalidOperation
-
-from django.contrib import messages
-from django.db import transaction
-from django.db.models import Sum, Q, Value, DecimalField, OuterRef, Subquery
-from django.db.models.functions import Coalesce
-from django.shortcuts import get_object_or_404, redirect, render
-
-from Management.models import Beneficiary, MainProgram, SubProgram
-from .models import FundEntry, FundReservation, BeneficiaryBalanceEntry
-def _redirect_same(request):
-    return redirect(request.path)
-
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def fund_reservations_dashboard(request):
-    """
-    FundReservation Dashboard
-    - يعرض: الصندوق + المحجوزات + المتاح
-    - يعرض محافظ: مستفيد / رئيسي / فرعي
-    - تحرير حجوزات:
-        * تحرير جزئي/كامل للمستفيد/الفرعي/الرئيسي
-        * منع تحرير الرئيسي إذا كان عليه فروع محجوزة أو فروع عليها صرف
-    """
 
-    # =========================
-    # Helpers
-    # =========================
-    def d0(v):
-        return v if v is not None else Decimal("0.00")
+    # =========================================================
+    # AJAX: سجل التحويلات الكامل
+    # =========================================================
+    if request.GET.get("transfer_history") == "1":
 
-    def net_reserved_for(source_type, *, beneficiary_id=None, main_program_id=None, sub_program_id=None):
-        qs = FundReservation.objects.filter(source_type=source_type)
-        if beneficiary_id:
-            qs = qs.filter(beneficiary_id=beneficiary_id)
-        if main_program_id:
-            qs = qs.filter(main_program_id=main_program_id)
-        if sub_program_id:
-            qs = qs.filter(sub_program_id=sub_program_id)
-
-        return qs.aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-    def create_release_row(source_type, amount, *, beneficiary=None, main_program=None, sub_program=None, reference="", note=""):
-        """
-        amount (موجب) => ننشئ سطر تحرير بالسالب
-        """
-        if amount <= 0:
-            return
-
-        FundReservation.objects.create(
-            source_type=source_type,
-            beneficiary=beneficiary,
-            main_program=main_program,
-            sub_program=sub_program,
-            amount=-amount,
-            reference=reference or "",
-            note=note or "تحرير حجز",
-            created_by=request.user,
+        history = (
+            AllocationHistory.objects
+            .select_related(
+                "from_main_program",
+                "to_main_program",
+                "from_sub_program",
+                "to_sub_program",
+                "created_by",
+            )
+            .filter(
+                action__in=[
+                    AllocationHistory.Action.FUND_TO_MAIN,
+                    AllocationHistory.Action.MAIN_TO_FUND,
+                    AllocationHistory.Action.MAIN_TO_SUB,
+                    AllocationHistory.Action.SUB_TO_MAIN,
+                ]
+            )
+            .order_by("-created_at", "-id")
         )
 
-    def parse_amount(raw: str) -> Decimal:
-        try:
-            v = Decimal((raw or "").strip())
-            return v
-        except (InvalidOperation, TypeError):
-            return Decimal("0.00")
-
-    # =========================
-    # POST Actions (release)
-    # =========================
-    if request.method == "POST":
-        action = (request.POST.get("action") or "").strip()
-        source_type = (request.POST.get("source_type") or "").strip()
-        obj_id = (request.POST.get("obj_id") or "").strip()
-
-        # -------------------------
-        # تحرير جزئي من تبويب المحافظ
-        # -------------------------
-        if action == "release_partial_wallet":
-            amount = parse_amount(request.POST.get("amount"))
-            if amount <= 0:
-                messages.error(request, "أدخل مبلغ تحرير صحيح أكبر من صفر.")
-                return _redirect_same(request)
-
-            with transaction.atomic():
-                # ---- Beneficiary ----
-                if source_type == "beneficiary":
-                    b = get_object_or_404(Beneficiary, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id))
-
-                    if current <= 0:
-                        messages.info(request, "لا يوجد حجز لتحريره.")
-                        return _redirect_same(request)
-
-                    release = min(amount, current)
-                    create_release_row(
-                        FundReservation.Sources.BENEFICIARY, release,
-                        beneficiary=b,
-                        reference=f"REL-BEN-{b.id}",
-                        note="تحرير جزئي (محفظة المستفيد)"
-                    )
-                    messages.success(request, f"تم تحرير {release} ر.س من حجز المستفيد.")
-                    return _redirect_same(request)
-
-                # ---- Sub Program ----
-                if source_type == "sub_program":
-                    sp = get_object_or_404(SubProgram, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id))
-
-                    if current <= 0:
-                        messages.info(request, "لا يوجد حجز لتحريره.")
-                        return _redirect_same(request)
-
-                    if d0(sp.spent_amount) > 0:
-                        messages.error(request, "لا يمكن تحرير حجز البرنامج الفرعي لأن عليه مصروفات.")
-                        return _redirect_same(request)
-
-                    release = min(amount, current)
-
-                    create_release_row(
-                        FundReservation.Sources.SUB_PROGRAM, release,
-                        sub_program=sp,
-                        reference=f"REL-SUB-{sp.id}",
-                        note="تحرير جزئي (محفظة الفرعي)"
-                    )
-
-                    sp.allocated_amount = max(d0(sp.allocated_amount) - release, Decimal("0.00"))
-                    sp.save(update_fields=["allocated_amount"])
-
-                    messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الفرعي.")
-                    return _redirect_same(request)
-
-                # ---- Main Program ----
-                # ---- Main Program ----
-                if source_type == "main_program":
-                    mp = get_object_or_404(MainProgram, id=obj_id)
-
-                    # ❌ ممنوع تحرير الرئيسي إذا فيه أي فرعي عليه صرف أو حجز
-                    subs_qs = SubProgram.objects.filter(main_program=mp)
-                    if subs_qs.exists():
-                        if subs_qs.filter(spent_amount__gt=0).exists():
-                            messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-                            return _redirect_same(request)
-
-                        sub_reserved_total = FundReservation.objects.filter(
-                            source_type=FundReservation.Sources.SUB_PROGRAM,
-                            sub_program__main_program=mp,
-                        ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-                        if d0(sub_reserved_total) > 0:
-                            messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-                            return _redirect_same(request)
-
-                    # ✅ نحرر من ميزانية الرئيسي نفسها
-                    budget_current = d0(mp.total_donation_amount)
-                    if budget_current <= 0:
-                        messages.info(request, "ميزانية البرنامج الرئيسي بالفعل 0.")
-                        return _redirect_same(request)
-
-                    release_budget = min(amount, budget_current)
-
-                    # ✅ تحرير FundReservation فقط إذا كان فيه حجز فعلي
-                    main_current = d0(net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id))
-                    if main_current > 0:
-                        create_release_row(
-                            FundReservation.Sources.MAIN_PROGRAM, min(release_budget, main_current),
-                            main_program=mp,
-                            reference=f"REL-MAIN-{mp.id}",
-                            note="تحرير جزئي (محفظة الرئيسي)"
-                        )
-
-                    # ✅ الأهم: تخفيض ميزانية الرئيسي فعليًا
-                    mp.total_donation_amount = max(budget_current - release_budget, Decimal("0.00"))
-                    mp.save(update_fields=["total_donation_amount"])
-
-                    messages.success(request, f"تم تحرير {release_budget} ر.س من ميزانية البرنامج الرئيسي.")
-                    return _redirect_same(request)
-
-
-            messages.error(request, "نوع غير معروف.")
-            return _redirect_same(request)
-
-        # -------------------------
-        # تحرير كامل من تبويب المحافظ
-        # -------------------------
-        if action == "release_all":
-            with transaction.atomic():
-                # ---- Beneficiary ----
-                if source_type == "beneficiary":
-                    b = get_object_or_404(Beneficiary, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id))
-                    if current <= 0:
-                        messages.info(request, "لا يوجد حجز لتحريره.")
-                        return _redirect_same(request)
-
-                    create_release_row(
-                        FundReservation.Sources.BENEFICIARY, current,
-                        beneficiary=b,
-                        reference=f"REL-BEN-{b.id}",
-                        note="تحرير كامل (محفظة المستفيد)"
-                    )
-                    messages.success(request, f"تم تحرير كامل حجز المستفيد ({current} ر.س).")
-                    return _redirect_same(request)
-
-                # ---- Sub Program ----
-                if source_type == "sub_program":
-                    sp = get_object_or_404(SubProgram, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id))
-                    if current <= 0:
-                        messages.info(request, "لا يوجد حجز لتحريره.")
-                        return _redirect_same(request)
-
-                    if d0(sp.spent_amount) > 0:
-                        messages.error(request, "لا يمكن تحرير حجز الفرعي لأنه عليه مصروفات.")
-                        return _redirect_same(request)
-
-                    create_release_row(
-                        FundReservation.Sources.SUB_PROGRAM, current,
-                        sub_program=sp,
-                        reference=f"REL-SUB-{sp.id}",
-                        note="تحرير كامل (محفظة الفرعي)"
-                    )
-
-                    sp.allocated_amount = max(d0(sp.allocated_amount) - current, Decimal("0.00"))
-                    sp.save(update_fields=["allocated_amount"])
-
-                    messages.success(request, f"تم تحرير كامل حجز الفرعي ({current} ر.س).")
-                    return _redirect_same(request)
-
-                # ---- Main Program ----
-                if source_type == "main_program":
-                    mp = get_object_or_404(MainProgram, id=obj_id)
-                    subs_qs = SubProgram.objects.filter(main_program=mp)
-
-                    if subs_qs.filter(spent_amount__gt=0).exists():
-                        messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-                        return _redirect_same(request)
-
-                    sub_reserved_total = FundReservation.objects.filter(
-                        source_type=FundReservation.Sources.SUB_PROGRAM,
-                        sub_program__main_program=mp,
-                    ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-                    if d0(sub_reserved_total) > 0:
-                        messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-                        return _redirect_same(request)
-
-                    main_current = d0(net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id))
-                    budget_current = d0(mp.total_donation_amount)
-
-                    if budget_current <= 0:
-                        messages.info(request, "ميزانية البرنامج الرئيسي بالفعل 0.")
-                        return _redirect_same(request)
-
-                    # ✅ تحرير كامل = تصفير الميزانية
-                    release_budget = budget_current
-
-                    # تحرير FundReservation فقط إذا عليه حجز
-                    if main_current > 0:
-                        create_release_row(
-                            FundReservation.Sources.MAIN_PROGRAM, min(main_current, release_budget),
-                            main_program=mp,
-                            reference=f"REL-MAIN-{mp.id}",
-                            note="تحرير كامل (محفظة الرئيسي)"
-                        )
-
-                    mp.total_donation_amount = Decimal("0.00")
-                    mp.save(update_fields=["total_donation_amount"])
-
-                    messages.success(request, f"تم تحرير كامل ميزانية البرنامج الرئيسي ({release_budget} ر.س).")
-                    return _redirect_same(request)
-
-            messages.error(request, "نوع غير معروف.")
-            return _redirect_same(request)
-
-        # -------------------------
-        # تحرير من سجل الحجوزات
-        # -------------------------
-        if action == "release_amount":
-            amount = parse_amount(request.POST.get("amount"))
-            reference = (request.POST.get("reference") or "").strip()
-
-            if amount <= 0:
-                messages.error(request, "مبلغ التحرير غير صحيح.")
-                return _redirect_same(request)
-
-            with transaction.atomic():
-                if source_type == FundReservation.Sources.BENEFICIARY:
-                    b = get_object_or_404(Beneficiary, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id))
-                    release = min(amount, max(current, Decimal("0.00")))
-                    create_release_row(
-                        FundReservation.Sources.BENEFICIARY, release,
-                        beneficiary=b,
-                        reference=reference or f"REL-BEN-{b.id}",
-                        note="تحرير جزئي (سجل الحجوزات)"
-                    )
-                    messages.success(request, f"تم تحرير {release} ر.س من حجز المستفيد.")
-                    return _redirect_same(request)
-
-                if source_type == FundReservation.Sources.SUB_PROGRAM:
-                    sp = get_object_or_404(SubProgram, id=obj_id)
-                    current = d0(net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id))
-                    release = min(amount, max(current, Decimal("0.00")))
-
-                    if d0(sp.spent_amount) > 0:
-                        messages.error(request, "لا يمكن تحرير حجز البرنامج الفرعي لأن عليه مصروفات.")
-                        return _redirect_same(request)
-
-                    create_release_row(
-                        FundReservation.Sources.SUB_PROGRAM, release,
-                        sub_program=sp,
-                        reference=reference or f"REL-SUB-{sp.id}",
-                        note="تحرير جزئي (سجل الحجوزات)"
-                    )
-
-                    sp.allocated_amount = max(d0(sp.allocated_amount) - release, Decimal("0.00"))
-                    sp.save(update_fields=["allocated_amount"])
-
-                    messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الفرعي.")
-                    return _redirect_same(request)
-
-                if source_type == FundReservation.Sources.MAIN_PROGRAM:
-                    mp = get_object_or_404(MainProgram, id=obj_id)
-                    subs_qs = SubProgram.objects.filter(main_program=mp)
-
-                    if subs_qs.filter(spent_amount__gt=0).exists():
-                        messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-                        return _redirect_same(request)
-
-                    sub_reserved_total = FundReservation.objects.filter(
-                        source_type=FundReservation.Sources.SUB_PROGRAM,
-                        sub_program__main_program=mp,
-                    ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-                    if d0(sub_reserved_total) > 0:
-                        messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-                        return _redirect_same(request)
-
-                    budget_current = d0(mp.total_donation_amount)
-                    if budget_current <= 0:
-                        messages.info(request, "ميزانية البرنامج الرئيسي بالفعل 0.")
-                        return _redirect_same(request)
-
-                    release_budget = min(amount, budget_current)
-
-                    # تحرير FundReservation فقط إذا عليه حجز فعلي
-                    main_current = d0(net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id))
-                    if main_current > 0:
-                        create_release_row(
-                            FundReservation.Sources.MAIN_PROGRAM, min(release_budget, main_current),
-                            main_program=mp,
-                            reference=reference or f"REL-MAIN-{mp.id}",
-                            note="تحرير جزئي (سجل الحجوزات)"
-                        )
-
-                    mp.total_donation_amount = max(budget_current - release_budget, Decimal("0.00"))
-                    mp.save(update_fields=["total_donation_amount"])
-
-                    messages.success(request, f"تم تحرير {release_budget} ر.س من ميزانية البرنامج الرئيسي.")
-                    return _redirect_same(request)
-
-
-            messages.error(request, "نوع الحجز غير معروف.")
-            return _redirect_same(request)
-
-    # =========================
-    # Summary
-    # =========================
-    fund_total = FundEntry.objects.aggregate(
-        t=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-    )["t"]
-
-    reserved_total = FundReservation.objects.aggregate(
-        t=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-    )["t"]
-
-    available_fund = FundReservation.available_fund()
-
-    # =========================
-    # Wallet tables (بدون تضخيم JOIN)
-    # =========================
-
-    # --- Beneficiaries ---
-    bene_wallet_sq = (
-        BeneficiaryBalanceEntry.objects
-        .filter(beneficiary_id=OuterRef("pk"))
-        .values("beneficiary_id")
-        .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
+        date_from = (
+            request.GET.get("date_from") or ""
+        ).strip()
+
+        date_to = (
+            request.GET.get("date_to") or ""
+        ).strip()
+
+        q = (
+            request.GET.get("q") or ""
+        ).strip()
+
+        if date_from:
+            history = history.filter(
+                created_at__date__gte=date_from
+            )
+
+        if date_to:
+            history = history.filter(
+                created_at__date__lte=date_to
+            )
+
+        if q:
+            history = history.filter(
+                Q(note__icontains=q)
+                | Q(reference__icontains=q)
+                | Q(from_main_program__name__icontains=q)
+                | Q(to_main_program__name__icontains=q)
+                | Q(from_sub_program__name__icontains=q)
+                | Q(to_sub_program__name__icontains=q)
+                | Q(created_by__username__icontains=q)
+                | Q(created_by__first_name__icontains=q)
+                | Q(created_by__last_name__icontains=q)
+            )
+
+        results = []
+
+        for item in history:
+
+            if item.from_sub_program:
+                from_name = item.from_sub_program.name
+            elif item.from_main_program:
+                from_name = item.from_main_program.name
+            else:
+                from_name = "الصندوق"
+
+            if item.to_sub_program:
+                to_name = item.to_sub_program.name
+            elif item.to_main_program:
+                to_name = item.to_main_program.name
+            else:
+                to_name = "الصندوق"
+
+            if item.created_by:
+                user_name = (
+                    item.created_by.get_full_name()
+                    or item.created_by.username
+                )
+            else:
+                user_name = "—"
+
+            results.append({
+                "id": item.id,
+
+                "date": timezone.localtime(
+                    item.created_at
+                ).strftime("%Y-%m-%d"),
+
+                "time": timezone.localtime(
+                    item.created_at
+                ).strftime("%H:%M"),
+
+                "from": from_name,
+                "to": to_name,
+
+                "amount": f"{item.amount:,.2f}",
+
+                "note": item.note or "—",
+
+                "user": user_name,
+
+                "reference": (
+                    item.reference
+                    or "—"
+                ),
+            })
+
+        return JsonResponse({
+            "results": results,
+            "count": len(results),
+        })
+
+    # =========================================================
+    # الرصيد الحالي للصندوق
+    # =========================================================
+
+    fund_balance = get_fund_balance()
+
+    available_for_allocation = (
+        get_available_for_allocation()
     )
 
-    bene_reserved_sq = (
-        FundReservation.objects
-        .filter(source_type=FundReservation.Sources.BENEFICIARY, beneficiary_id=OuterRef("pk"))
-        .values("beneficiary_id")
-        .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
-    )
-
-    beneficiaries = (
-        Beneficiary.objects
-        .annotate(
-            wallet_balance=Coalesce(
-                Subquery(bene_wallet_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-            reserved_from_fund=Coalesce(
-                Subquery(bene_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-        )
-        .order_by("first_name", "last_name")
-    )
-
-    beneficiaries_wallets = [
-        b for b in beneficiaries
-        if (d0(b.wallet_balance) != 0 or d0(b.reserved_from_fund) != 0)
-    ]
-
-    # --- Main Programs ---
-    main_reserved_sq = (
-        FundReservation.objects
-        .filter(source_type=FundReservation.Sources.MAIN_PROGRAM, main_program_id=OuterRef("pk"))
-        .values("main_program_id")
-        .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
-    )
-
-    main_allocated_sq = (
-        SubProgram.objects
-        .filter(main_program_id=OuterRef("pk"))
-        .values("main_program_id")
-        .annotate(t=Coalesce(Sum("allocated_amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
-    )
-
-    main_has_sub_reserved_sq = (
-        FundReservation.objects
-        .filter(
-            source_type=FundReservation.Sources.SUB_PROGRAM,
-            sub_program__main_program_id=OuterRef("pk"),
-        )
-        .values("sub_program__main_program_id")
-        .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
-    )
-
-    main_has_sub_spent_sq = (
-        SubProgram.objects
-        .filter(main_program_id=OuterRef("pk"))
-        .values("main_program_id")
-        .annotate(t=Coalesce(Sum("spent_amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
-    )
+    # =========================================================
+    # البرامج
+    # =========================================================
 
     main_programs = (
         MainProgram.objects
-        .annotate(
-            allocated_sum=Coalesce(
-                Subquery(main_allocated_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-            reserved_from_fund=Coalesce(
-                Subquery(main_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-            sub_reserved_total=Coalesce(
-                Subquery(main_has_sub_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-            sub_spent_total=Coalesce(
-                Subquery(main_has_sub_spent_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            ),
-        )
+        .filter(is_active=True)
         .order_by("name")
-    )
-    main_program_wallets = list(main_programs)
-
-    # --- Sub Programs ---
-    sub_reserved_sq = (
-        FundReservation.objects
-        .filter(source_type=FundReservation.Sources.SUB_PROGRAM, sub_program_id=OuterRef("pk"))
-        .values("sub_program_id")
-        .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-        .values("t")[:1]
     )
 
     sub_programs = (
         SubProgram.objects
         .select_related("main_program")
-        .annotate(
-            reserved_from_fund=Coalesce(
-                Subquery(sub_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-                Value(Decimal("0.00"))
-            )
+        .filter(
+            main_program__is_active=True
         )
-        .order_by("name")
+        .order_by(
+            "main_program__name",
+            "name",
+        )
     )
 
-    sub_program_wallets = [
-        sp for sp in sub_programs
-        if (d0(sp.allocated_amount) != 0 or d0(sp.spent_amount) != 0 or d0(sp.reserved_from_fund) != 0)
+    # =========================================================
+    # آخر التحويلات
+    # =========================================================
+
+    transfer_actions = [
+        AllocationHistory.Action.FUND_TO_MAIN,
+        AllocationHistory.Action.MAIN_TO_FUND,
+        AllocationHistory.Action.MAIN_TO_SUB,
+        AllocationHistory.Action.SUB_TO_MAIN,
     ]
 
-    # =========================
-    # Reservations log filters
-    # =========================
-    filters = {
-        "source_type": (request.GET.get("source_type") or "").strip(),
-        "date_from": (request.GET.get("date_from") or "").strip(),
-        "date_to": (request.GET.get("date_to") or "").strip(),
-        "q": (request.GET.get("q") or "").strip(),
-    }
-
-    reservations = FundReservation.objects.select_related("beneficiary", "main_program", "sub_program").all()
-
-    if filters["source_type"]:
-        reservations = reservations.filter(source_type=filters["source_type"])
-
-    if filters["date_from"]:
-        reservations = reservations.filter(created_at__date__gte=filters["date_from"])
-    if filters["date_to"]:
-        reservations = reservations.filter(created_at__date__lte=filters["date_to"])
-
-    if filters["q"]:
-        q = filters["q"]
-        reservations = reservations.filter(
-            Q(reference__icontains=q) |
-            Q(note__icontains=q) |
-            Q(beneficiary__first_name__icontains=q) |
-            Q(beneficiary__last_name__icontains=q) |
-            Q(main_program__name__icontains=q) |
-            Q(sub_program__name__icontains=q)
+    recent_transfers = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "to_main_program",
+            "from_sub_program",
+            "to_sub_program",
+            "created_by",
         )
+        .filter(
+            action__in=transfer_actions
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:10]
+    )
+
+    # =========================================================
+    # إحصائيات
+    # =========================================================
+
+    main_programs_count = (
+        main_programs.count()
+    )
+
+    sub_programs_count = (
+        sub_programs.count()
+    )
+
+    return render(
+        request,
+        "Accounting/fund_reservations_dashboard.html",
+        {
+            "title": "إدارة التخصيصات",
+
+            "fund_balance": fund_balance,
+
+            "available_for_allocation": (
+                available_for_allocation
+            ),
+
+            "main_programs": main_programs,
+
+            "sub_programs": sub_programs,
+
+            "main_programs_count": (
+                main_programs_count
+            ),
+
+            "sub_programs_count": (
+                sub_programs_count
+            ),
+
+            "recent_transfers": (
+                recent_transfers
+            ),
+        },
+    )
+
+def _redirect_same(request):
+    return redirect(request.path)
 
-    reservations = reservations.order_by("-created_at", "-id")[:500]
-
-    return render(request, "Accounting/fund_reservations_dashboard.html", {
-        "fund_total": fund_total,
-        "reserved_total": reserved_total,
-        "available_fund": available_fund,
-
-        "beneficiaries_wallets": beneficiaries_wallets,
-        "main_program_wallets": main_program_wallets,
-        "sub_program_wallets": sub_program_wallets,
-
-        "reservations": reservations,
-        "filters": filters,
-    })
-
-
-# def _redirect_same(request):
-#     return redirect(request.path)
-
-
-# @role_required([Profile.Roles.ACCOUNTANT])
-# def fund_reservations_dashboard(request):
-#     """
-#     FundReservation Dashboard
-#     - يعرض: الصندوق + المحجوزات + المتاح
-#     - يعرض محافظ: مستفيد / رئيسي / فرعي
-#     - تحرير حجوزات:
-#         * تحرير جزئي/كامل للمستفيد/الفرعي/الرئيسي
-#         * منع تحرير الرئيسي إذا كان عليه فروع محجوزة أو فروع عليها صرف
-#     """
-
-#     # =========================
-#     # Helpers
-#     # =========================
-#     def d0(v):
-#         return v if v is not None else Decimal("0.00")
-
-#     def net_reserved_for(source_type, *, beneficiary_id=None, main_program_id=None, sub_program_id=None):
-#         qs = FundReservation.objects.filter(source_type=source_type)
-#         if beneficiary_id:
-#             qs = qs.filter(beneficiary_id=beneficiary_id)
-#         if main_program_id:
-#             qs = qs.filter(main_program_id=main_program_id)
-#         if sub_program_id:
-#             qs = qs.filter(sub_program_id=sub_program_id)
-
-#         return qs.aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-#     def create_release_row(source_type, amount, *, beneficiary=None, main_program=None, sub_program=None, reference="", note=""):
-#         """
-#         amount (موجب) => ننشئ سطر تحرير بالسالب
-#         """
-#         if amount <= 0:
-#             return
-
-#         FundReservation.objects.create(
-#             source_type=source_type,
-#             beneficiary=beneficiary,
-#             main_program=main_program,
-#             sub_program=sub_program,
-#             amount=-amount,
-#             reference=reference or "",
-#             note=note or "تحرير حجز",
-#             created_by=request.user,
-#         )
-
-#     def parse_amount(raw: str) -> Decimal:
-#         try:
-#             v = Decimal((raw or "").strip())
-#             return v
-#         except (InvalidOperation, TypeError):
-#             return Decimal("0.00")
-
-#     # =========================
-#     # POST Actions (release)
-#     # =========================
-#     if request.method == "POST":
-#         action = (request.POST.get("action") or "").strip()
-#         source_type = (request.POST.get("source_type") or "").strip()
-#         obj_id = (request.POST.get("obj_id") or "").strip()
-
-#         # -------------------------
-#         # تحرير جزئي من تبويب المحافظ (NEW)
-#         # -------------------------
-#         if action == "release_partial_wallet":
-#             amount = parse_amount(request.POST.get("amount"))
-#             if amount <= 0:
-#                 messages.error(request, "أدخل مبلغ تحرير صحيح أكبر من صفر.")
-#                 return _redirect_same(request)
-
-#             with transaction.atomic():
-#                 # ---- Beneficiary ----
-#                 if source_type == "beneficiary":
-#                     b = get_object_or_404(Beneficiary, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id)
-
-#                     if current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     release = min(amount, current)
-#                     create_release_row(
-#                         FundReservation.Sources.BENEFICIARY, release,
-#                         beneficiary=b,
-#                         reference=f"REL-BEN-{b.id}",
-#                         note="تحرير جزئي (محفظة المستفيد)"
-#                     )
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز المستفيد.")
-#                     return _redirect_same(request)
-
-#                 # ---- Sub Program ----
-#                 if source_type == "sub_program":
-#                     sp = get_object_or_404(SubProgram, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id)
-
-#                     if current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     if d0(sp.spent_amount) > 0:
-#                         messages.error(request, "لا يمكن تحرير حجز البرنامج الفرعي لأن عليه مصروفات.")
-#                         return _redirect_same(request)
-
-#                     release = min(amount, current)
-
-#                     create_release_row(
-#                         FundReservation.Sources.SUB_PROGRAM, release,
-#                         sub_program=sp,
-#                         reference=f"REL-SUB-{sp.id}",
-#                         note="تحرير جزئي (محفظة الفرعي)"
-#                     )
-
-#                     # تخفيض allocated_amount بنفس مقدار التحرير
-#                     sp.allocated_amount = max(d0(sp.allocated_amount) - release, Decimal("0.00"))
-#                     sp.save(update_fields=["allocated_amount"])
-
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الفرعي.")
-#                     return _redirect_same(request)
-
-#                 # ---- Main Program ----
-#                 if source_type == "main_program":
-#                     mp = get_object_or_404(MainProgram, id=obj_id)
-
-#                     # ❌ شرطك الأساسي: ممنوع تحرير الرئيسي إذا فيه أي فرعي محجوز
-#                     subs_qs = SubProgram.objects.filter(main_program=mp)
-#                     if subs_qs.exists():
-#                         # 1) ممنوع إذا أي فرعي عليه صرف
-#                         if subs_qs.filter(spent_amount__gt=0).exists():
-#                             messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-#                             return _redirect_same(request)
-
-#                         # 2) ممنوع إذا أي فرعي عليه حجز
-#                         sub_reserved_total = FundReservation.objects.filter(
-#                             source_type=FundReservation.Sources.SUB_PROGRAM,
-#                             sub_program__main_program=mp,
-#                         ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-#                         if d0(sub_reserved_total) > 0:
-#                             messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-#                             return _redirect_same(request)
-
-#                     current = net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id)
-#                     if current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     release = min(amount, current)
-
-#                     create_release_row(
-#                         FundReservation.Sources.MAIN_PROGRAM, release,
-#                         main_program=mp,
-#                         reference=f"REL-MAIN-{mp.id}",
-#                         note="تحرير جزئي (محفظة الرئيسي)"
-#                     )
-
-#                     # تخفيض ميزانية الرئيسي
-#                     mp.total_donation_amount = max(d0(mp.total_donation_amount) - release, Decimal("0.00"))
-#                     mp.save(update_fields=["total_donation_amount"])
-
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الرئيسي.")
-#                     return _redirect_same(request)
-
-#             messages.error(request, "نوع غير معروف.")
-#             return _redirect_same(request)
-
-#         # -------------------------
-#         # تحرير كامل من تبويب المحافظ
-#         # -------------------------
-#         if action == "release_all":
-#             with transaction.atomic():
-#                 # ---- Beneficiary ----
-#                 if source_type == "beneficiary":
-#                     b = get_object_or_404(Beneficiary, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id)
-#                     if current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     create_release_row(
-#                         FundReservation.Sources.BENEFICIARY, current,
-#                         beneficiary=b,
-#                         reference=f"REL-BEN-{b.id}",
-#                         note="تحرير كامل (محفظة المستفيد)"
-#                     )
-#                     messages.success(request, f"تم تحرير كامل حجز المستفيد ({current} ر.س).")
-#                     return _redirect_same(request)
-
-#                 # ---- Sub Program ----
-#                 if source_type == "sub_program":
-#                     sp = get_object_or_404(SubProgram, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id)
-#                     if current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     if d0(sp.spent_amount) > 0:
-#                         messages.error(request, "لا يمكن تحرير حجز الفرعي لأنه عليه مصروفات.")
-#                         return _redirect_same(request)
-
-#                     create_release_row(
-#                         FundReservation.Sources.SUB_PROGRAM, current,
-#                         sub_program=sp,
-#                         reference=f"REL-SUB-{sp.id}",
-#                         note="تحرير كامل (محفظة الفرعي)"
-#                     )
-
-#                     sp.allocated_amount = max(d0(sp.allocated_amount) - current, Decimal("0.00"))
-#                     sp.save(update_fields=["allocated_amount"])
-
-#                     messages.success(request, f"تم تحرير كامل حجز الفرعي ({current} ر.س).")
-#                     return _redirect_same(request)
-
-#                 # ---- Main Program (ممنوع إذا عنده فروع محجوزة) ----
-#                 if source_type == "main_program":
-#                     mp = get_object_or_404(MainProgram, id=obj_id)
-#                     subs_qs = SubProgram.objects.filter(main_program=mp)
-
-#                     # ممنوع إذا أي فرعي عليه صرف
-#                     if subs_qs.filter(spent_amount__gt=0).exists():
-#                         messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-#                         return _redirect_same(request)
-
-#                     # ممنوع إذا أي فرعي عليه حجز
-#                     sub_reserved_total = FundReservation.objects.filter(
-#                         source_type=FundReservation.Sources.SUB_PROGRAM,
-#                         sub_program__main_program=mp,
-#                     ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-#                     if d0(sub_reserved_total) > 0:
-#                         messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-#                         return _redirect_same(request)
-
-#                     main_current = net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id)
-#                     if main_current <= 0:
-#                         messages.info(request, "لا يوجد حجز لتحريره.")
-#                         return _redirect_same(request)
-
-#                     create_release_row(
-#                         FundReservation.Sources.MAIN_PROGRAM, main_current,
-#                         main_program=mp,
-#                         reference=f"REL-MAIN-{mp.id}",
-#                         note="تحرير كامل (محفظة الرئيسي)"
-#                     )
-
-#                     mp.total_donation_amount = max(d0(mp.total_donation_amount) - main_current, Decimal("0.00"))
-#                     mp.save(update_fields=["total_donation_amount"])
-
-#                     messages.success(request, f"تم تحرير كامل حجز البرنامج الرئيسي ({main_current} ر.س).")
-#                     return _redirect_same(request)
-
-#             messages.error(request, "نوع غير معروف.")
-#             return _redirect_same(request)
-
-#         # -------------------------
-#         # تحرير من سجل الحجوزات (كما هو عندك)
-#         # -------------------------
-#         if action == "release_amount":
-#             # هنا نخليه يشتغل، لكن نفس قواعد المنع للرئيسي (لا إذا فروع محجوزة)
-#             amount = parse_amount(request.POST.get("amount"))
-#             reference = (request.POST.get("reference") or "").strip()
-
-#             if amount <= 0:
-#                 messages.error(request, "مبلغ التحرير غير صحيح.")
-#                 return _redirect_same(request)
-
-#             with transaction.atomic():
-#                 if source_type == FundReservation.Sources.BENEFICIARY:
-#                     b = get_object_or_404(Beneficiary, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.BENEFICIARY, beneficiary_id=b.id)
-#                     release = min(amount, max(current, Decimal("0.00")))
-#                     create_release_row(
-#                         FundReservation.Sources.BENEFICIARY, release,
-#                         beneficiary=b,
-#                         reference=reference or f"REL-BEN-{b.id}",
-#                         note="تحرير جزئي (سجل الحجوزات)"
-#                     )
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز المستفيد.")
-#                     return _redirect_same(request)
-
-#                 if source_type == FundReservation.Sources.SUB_PROGRAM:
-#                     sp = get_object_or_404(SubProgram, id=obj_id)
-#                     current = net_reserved_for(FundReservation.Sources.SUB_PROGRAM, sub_program_id=sp.id)
-#                     release = min(amount, max(current, Decimal("0.00")))
-
-#                     if d0(sp.spent_amount) > 0:
-#                         messages.error(request, "لا يمكن تحرير حجز البرنامج الفرعي لأن عليه مصروفات.")
-#                         return _redirect_same(request)
-
-#                     create_release_row(
-#                         FundReservation.Sources.SUB_PROGRAM, release,
-#                         sub_program=sp,
-#                         reference=reference or f"REL-SUB-{sp.id}",
-#                         note="تحرير جزئي (سجل الحجوزات)"
-#                     )
-
-#                     sp.allocated_amount = max(d0(sp.allocated_amount) - release, Decimal("0.00"))
-#                     sp.save(update_fields=["allocated_amount"])
-
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الفرعي.")
-#                     return _redirect_same(request)
-
-#                 if source_type == FundReservation.Sources.MAIN_PROGRAM:
-#                     mp = get_object_or_404(MainProgram, id=obj_id)
-#                     subs_qs = SubProgram.objects.filter(main_program=mp)
-
-#                     if subs_qs.filter(spent_amount__gt=0).exists():
-#                         messages.error(request, "لا يمكن تحرير الرئيسي لأن بعض الفروع عليها مصروفات.")
-#                         return _redirect_same(request)
-
-#                     sub_reserved_total = FundReservation.objects.filter(
-#                         source_type=FundReservation.Sources.SUB_PROGRAM,
-#                         sub_program__main_program=mp,
-#                     ).aggregate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))["t"]
-
-#                     if d0(sub_reserved_total) > 0:
-#                         messages.error(request, "لا يمكن تحرير الرئيسي قبل تحرير جميع حجوزات البرامج الفرعية التابعة له.")
-#                         return _redirect_same(request)
-
-#                     current = net_reserved_for(FundReservation.Sources.MAIN_PROGRAM, main_program_id=mp.id)
-#                     release = min(amount, max(current, Decimal("0.00")))
-
-#                     create_release_row(
-#                         FundReservation.Sources.MAIN_PROGRAM, release,
-#                         main_program=mp,
-#                         reference=reference or f"REL-MAIN-{mp.id}",
-#                         note="تحرير جزئي (سجل الحجوزات)"
-#                     )
-
-#                     mp.total_donation_amount = max(d0(mp.total_donation_amount) - release, Decimal("0.00"))
-#                     mp.save(update_fields=["total_donation_amount"])
-
-#                     messages.success(request, f"تم تحرير {release} ر.س من حجز البرنامج الرئيسي.")
-#                     return _redirect_same(request)
-
-#             messages.error(request, "نوع الحجز غير معروف.")
-#             return _redirect_same(request)
-
-#     # =========================
-#     # Summary
-#     # =========================
-#     fund_total = FundEntry.objects.aggregate(
-#         t=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-#     )["t"]
-
-#     reserved_total = FundReservation.objects.aggregate(
-#         t=Coalesce(Sum("amount"), Value(Decimal("0.00")))
-#     )["t"]
-
-#     available_fund = FundReservation.available_fund()
-
-#     # =========================
-#     # Wallet tables (بدون تضخيم JOIN)
-#     # =========================
-
-#     # --- Beneficiaries ---
-#     bene_wallet_sq = (
-#         BeneficiaryBalanceEntry.objects
-#         .filter(beneficiary_id=OuterRef("pk"))
-#         .values("beneficiary_id")
-#         .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     bene_reserved_sq = (
-#         FundReservation.objects
-#         .filter(source_type=FundReservation.Sources.BENEFICIARY, beneficiary_id=OuterRef("pk"))
-#         .values("beneficiary_id")
-#         .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     beneficiaries = (
-#         Beneficiary.objects
-#         .annotate(
-#             wallet_balance=Coalesce(
-#                 Subquery(bene_wallet_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#             reserved_from_fund=Coalesce(
-#                 Subquery(bene_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#         )
-#         .order_by("first_name", "last_name")
-#     )
-
-#     beneficiaries_wallets = [
-#         b for b in beneficiaries
-#         if (d0(b.wallet_balance) != 0 or d0(b.reserved_from_fund) != 0)
-#     ]
-
-#     # --- Main Programs ---
-#     main_reserved_sq = (
-#         FundReservation.objects
-#         .filter(source_type=FundReservation.Sources.MAIN_PROGRAM, main_program_id=OuterRef("pk"))
-#         .values("main_program_id")
-#         .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     main_allocated_sq = (
-#         SubProgram.objects
-#         .filter(main_program_id=OuterRef("pk"))
-#         .values("main_program_id")
-#         .annotate(t=Coalesce(Sum("allocated_amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     # ✅ مؤشر يسمح/يمنع تحرير الرئيسي: ممنوع إذا فيه فروع محجوزة أو مصروفة
-#     main_has_sub_reserved_sq = (
-#         FundReservation.objects
-#         .filter(
-#             source_type=FundReservation.Sources.SUB_PROGRAM,
-#             sub_program__main_program_id=OuterRef("pk"),
-#         )
-#         .values("sub_program__main_program_id")
-#         .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     main_has_sub_spent_sq = (
-#         SubProgram.objects
-#         .filter(main_program_id=OuterRef("pk"))
-#         .values("main_program_id")
-#         .annotate(t=Coalesce(Sum("spent_amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     main_programs = (
-#         MainProgram.objects
-#         .annotate(
-#             allocated_sum=Coalesce(
-#                 Subquery(main_allocated_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#             reserved_from_fund=Coalesce(
-#                 Subquery(main_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#             sub_reserved_total=Coalesce(
-#                 Subquery(main_has_sub_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#             sub_spent_total=Coalesce(
-#                 Subquery(main_has_sub_spent_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             ),
-#         )
-#         .order_by("name")
-#     )
-#     main_program_wallets = list(main_programs)
-
-#     # --- Sub Programs ---
-#     sub_reserved_sq = (
-#         FundReservation.objects
-#         .filter(source_type=FundReservation.Sources.SUB_PROGRAM, sub_program_id=OuterRef("pk"))
-#         .values("sub_program_id")
-#         .annotate(t=Coalesce(Sum("amount"), Value(Decimal("0.00"))))
-#         .values("t")[:1]
-#     )
-
-#     sub_programs = (
-#         SubProgram.objects
-#         .select_related("main_program")
-#         .annotate(
-#             reserved_from_fund=Coalesce(
-#                 Subquery(sub_reserved_sq, output_field=DecimalField(max_digits=12, decimal_places=2)),
-#                 Value(Decimal("0.00"))
-#             )
-#         )
-#         .order_by("name")
-#     )
-
-#     sub_program_wallets = [
-#         sp for sp in sub_programs
-#         if (d0(sp.allocated_amount) != 0 or d0(sp.spent_amount) != 0 or d0(sp.reserved_from_fund) != 0)
-#     ]
-
-#     # =========================
-#     # Reservations log filters
-#     # =========================
-#     filters = {
-#         "source_type": (request.GET.get("source_type") or "").strip(),
-#         "date_from": (request.GET.get("date_from") or "").strip(),
-#         "date_to": (request.GET.get("date_to") or "").strip(),
-#         "q": (request.GET.get("q") or "").strip(),
-#     }
-
-#     reservations = FundReservation.objects.select_related("beneficiary", "main_program", "sub_program").all()
-
-#     if filters["source_type"]:
-#         reservations = reservations.filter(source_type=filters["source_type"])
-
-#     if filters["date_from"]:
-#         reservations = reservations.filter(created_at__date__gte=filters["date_from"])
-#     if filters["date_to"]:
-#         reservations = reservations.filter(created_at__date__lte=filters["date_to"])
-
-#     if filters["q"]:
-#         q = filters["q"]
-#         reservations = reservations.filter(
-#             Q(reference__icontains=q) |
-#             Q(note__icontains=q) |
-#             Q(beneficiary__first_name__icontains=q) |
-#             Q(beneficiary__last_name__icontains=q) |
-#             Q(main_program__name__icontains=q) |
-#             Q(sub_program__name__icontains=q)
-#         )
-
-#     reservations = reservations.order_by("-created_at", "-id")[:500]
-
-#     return render(request, "Accounting/fund_reservations_dashboard.html", {
-#         "fund_total": fund_total,
-#         "reserved_total": reserved_total,
-#         "available_fund": available_fund,
-
-#         "beneficiaries_wallets": beneficiaries_wallets,
-#         "main_program_wallets": main_program_wallets,
-#         "sub_program_wallets": sub_program_wallets,
-
-#         "reservations": reservations,
-#         "filters": filters,
-#     })
-from decimal import Decimal
-from django.db.models import Sum, Q
-from django.db.models.functions import Coalesce
-from django.shortcuts import render
-from django.utils import timezone
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def beneficiary_supports_report(request):
-    from .models import BeneficiarySupportEntry
 
-    date_from = (request.GET.get("date_from") or "").strip()
-    date_to = (request.GET.get("date_to") or "").strip()
-    q = (request.GET.get("q") or "").strip()
+    today = timezone.localdate()
 
-    qs = BeneficiarySupportEntry.objects.select_related(
-        "beneficiary", "sub_program", "main_program"
-    ).order_by("-created_at", "-id")
+    period = (request.GET.get("period") or "month").strip()
 
-    if date_from:
-        qs = qs.filter(created_at__date__gte=date_from)
-    if date_to:
-        qs = qs.filter(created_at__date__lte=date_to)
+    date_from = ""
+    date_to = ""
 
-    if q:
-        qs = qs.filter(
-            Q(voucher_number__icontains=q) |
-            Q(note__icontains=q) |
-            Q(beneficiary__first_name__icontains=q) |
-            Q(beneficiary__last_name__icontains=q)
+    if period == "today":
+
+        date_from = today
+        date_to = today
+
+    elif period == "week":
+
+        date_from = today - timezone.timedelta(days=6)
+        date_to = today
+
+    elif period == "month":
+
+        date_from = today.replace(day=1)
+        date_to = today
+
+    elif period == "year":
+
+        date_from = today.replace(
+            month=1,
+            day=1,
         )
+        date_to = today
 
-    # تجميع لكل مستفيد
-    per_beneficiary = (
-        qs.values("beneficiary_id", "beneficiary__first_name", "beneficiary__last_name")
-        .annotate(total=Coalesce(Sum("amount"), Decimal("0.00")))
-        .order_by("-total")
+    elif period == "custom":
+
+        date_from = (
+            request.GET.get("date_from") or ""
+        ).strip()
+
+        date_to = (
+            request.GET.get("date_to") or ""
+        ).strip()
+
+    beneficiary_id = (
+        request.GET.get("beneficiary") or ""
+    ).strip()
+
+    main_program_id = (
+        request.GET.get("main_program") or ""
+    ).strip()
+
+    sub_program_id = (
+        request.GET.get("sub_program") or ""
+    ).strip()
+
+    voucher = (
+        request.GET.get("voucher") or ""
+    ).strip()
+
+    q = (
+        request.GET.get("q") or ""
+    ).strip()
+
+    export = request.GET.get("export")
+
+    # =========================
+    # جميع العمليات
+    # =========================
+
+    entries = (
+        BeneficiarySupportEntry.objects
+        .select_related(
+            "beneficiary",
+            "main_program",
+            "sub_program",
+            "disbursement",
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )
     )
 
-    # آخر 200 سجل تفصيلي للعرض
-    latest = list(qs[:200])
+    if not beneficiary_id:
+        entries = (
+            BeneficiarySupportEntry.objects.none()
+        )
 
-    return render(request, "Accounting/beneficiary_supports_report.html", {
-        "title": "تقرير دعم المستفيدين من محافظ البرامج",
-        "filters": {"date_from": date_from, "date_to": date_to, "q": q},
-        "per_beneficiary": per_beneficiary,
-        "latest": latest,
+    if date_from:
+
+        entries = entries.filter(
+            created_at__date__gte=date_from
+        )
+
+    if date_to:
+
+        entries = entries.filter(
+            created_at__date__lte=date_to
+        )
+
+    if beneficiary_id:
+
+        entries = entries.filter(
+            beneficiary_id=beneficiary_id
+        )
+
+    if main_program_id:
+
+        entries = entries.filter(
+            main_program_id=main_program_id
+        )
+
+    if sub_program_id:
+
+        entries = entries.filter(
+            sub_program_id=sub_program_id
+        )
+
+    if voucher:
+
+        entries = entries.filter(
+            voucher_number__icontains=voucher
+        )
+
+    if q:
+
+        entries = entries.filter(
+            Q(note__icontains=q)
+            |
+            Q(voucher_number__icontains=q)
+        )
+
+    # =========================
+    # العمليات الفعلية فقط
+    #
+    # العملية التي تم عكسها
+    # تبقى ظاهرة في السجل،
+    # لكنها لا تدخل في الحسابات.
+    # =========================
+
+    active_entries = entries.filter(
+        Q(disbursement__is_reversed=False)
+        |
+        Q(disbursement__isnull=True)
+    )
+
+    # =========================
+    # الإحصائيات
+    # =========================
+
+    support_count = active_entries.count()
+
+    total_support = (
+        active_entries.aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+        or Decimal("0.00")
+    )
+
+    last_support = active_entries.first()
+
+    # =========================
+    # المستفيد المحدد
+    # =========================
+
+    selected_beneficiary = None
+
+    if beneficiary_id:
+
+        selected_beneficiary = get_object_or_404(
+            Beneficiary,
+            pk=beneficiary_id,
+        )
+
+    # =========================
+    # Export
+    # =========================
+
+    if export == "1":
+
+        wb = Workbook()
+
+        ws = wb.active
+
+        ws.title = "Beneficiary Statement"
+
+        ws.append([
+            "التاريخ",
+            "رقم السند",
+            "البرنامج الرئيسي",
+            "البرنامج الفرعي",
+            "المبلغ",
+            "الملاحظات",
+        ])
+
+        for entry in active_entries:
+
+            ws.append([
+                timezone.localtime(
+                    entry.created_at
+                ).strftime(
+                    "%Y-%m-%d %H:%M"
+                ),
+
+                entry.voucher_number,
+
+                (
+                    entry.main_program.name
+                    if entry.main_program
+                    else ""
+                ),
+
+                (
+                    entry.sub_program.name
+                    if entry.sub_program
+                    else ""
+                ),
+
+                float(entry.amount),
+
+                entry.note or "",
+            ])
+
+        ws.append([])
+
+        ws.append([
+            "",
+            "",
+            "",
+            "إجمالي الدعم",
+            float(total_support),
+            "",
+        ])
+
+        response = HttpResponse(
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
+        )
+
+        response["Content-Disposition"] = (
+            'attachment; filename="beneficiary_statement.xlsx"'
+        )
+
+        wb.save(response)
+
+        return response
+
+    # =========================
+    # Render
+    # =========================
+
+    return render(
+        request,
+        "Accounting/beneficiary_supports_report.html",
+        {
+            "title": "كشف حساب المستفيد",
+
+            # نرسل جميع العمليات للجدول
+            # حتى تبقى عملية العكس ظاهرة للتدقيق
+            "entries": active_entries,
+
+            "beneficiaries": (
+                Beneficiary.objects
+                .order_by(
+                    "first_name",
+                    "father_name",
+                )
+            ),
+
+            "main_programs": (
+                MainProgram.objects
+                .filter(
+                    is_active=True,
+                )
+                .order_by("name")
+            ),
+
+            "sub_programs": (
+                SubProgram.objects
+                .filter(
+                    main_program__is_active=True,
+                )
+                .select_related(
+                    "main_program",
+                )
+                .order_by("name")
+            ),
+
+            "selected_beneficiary": (
+                selected_beneficiary
+            ),
+
+            "support_count": (
+                support_count
+            ),
+
+            "total_support": (
+                total_support
+            ),
+
+            "last_support": (
+                last_support
+            ),
+
+            "filters": {
+                "period": period,
+                "date_from": date_from,
+                "date_to": date_to,
+                "beneficiary": beneficiary_id,
+                "main_program": main_program_id,
+                "sub_program": sub_program_id,
+                "voucher": voucher,
+                "q": q,
+            },
+        },
+    )
+@role_required([Profile.Roles.ACCOUNTANT])
+def ajax_beneficiary_search(request):
+
+    q = (request.GET.get("q") or "").strip()
+
+    if len(q) < 2:
+        return JsonResponse({"results": []})
+
+    beneficiaries = (
+    Beneficiary.objects
+    .filter(
+        Q(first_name__icontains=q) |
+        Q(father_name__icontains=q) |
+        Q(grand_name__icontains=q) |
+        Q(last_name__icontains=q) |
+        Q(national_number__icontains=q)
+            )
+            .order_by(
+                "first_name",
+                "father_name",
+            )[:15]
+        )
+
+    results = []
+
+    for b in beneficiaries:
+
+        results.append({
+                "id": b.id,
+                "name": f"{b.first_name} {b.father_name} {b.grand_name} {b.last_name}",
+                "identity_number": b.national_number or "",
+            })
+
+    return JsonResponse({
+        "results": results,
     })
 
-from datetime import date, datetime
-from django.db.models import Sum
-
-from Management.models import (
-    Profile,
-    BeneficiarySponsorHistory,
-)
-
-from Accounting.models import (
-    BeneficiarySupportEntry,
-)
-
-from datetime import date, datetime
-from django.db.models import Q, Sum
 #@login_required
 def sponsorship_report_print(request):
 
     donor_id = request.GET.get("donor")
     report_type = request.GET.get("report_type")
 
-    year = int(request.GET.get("year") or date.today().year)
+    year = int(
+        request.GET.get("year")
+        or date.today().year
+    )
 
     quarter = request.GET.get("quarter")
     half = request.GET.get("half")
@@ -3265,12 +3574,10 @@ def sponsorship_report_print(request):
     elif report_type == "half":
 
         if half == "1":
-
             from_date = date(year, 1, 1)
             to_date = date(year, 6, 30)
 
         else:
-
             from_date = date(year, 7, 1)
             to_date = date(year, 12, 31)
 
@@ -3286,10 +3593,18 @@ def sponsorship_report_print(request):
             "%Y-%m-%d"
         ).date()
 
+    # -----------------------------------------
+    # الكافل
+    # -----------------------------------------
+
     donor = get_object_or_404(
         Profile,
         pk=donor_id
     )
+
+    # -----------------------------------------
+    # سجل الكفالة
+    # -----------------------------------------
 
     sponsor_history = (
         BeneficiarySponsorHistory.objects
@@ -3312,39 +3627,118 @@ def sponsorship_report_print(request):
 
     beneficiaries = []
 
-    grand_total = 0
+    grand_total = Decimal("0.00")
+    grand_sponsorship_amount = Decimal("0.00")
+    grand_sponsorship_used = Decimal("0.00")
+    grand_sponsorship_remaining = Decimal("0.00")
+    grand_extra_amount = Decimal("0.00")
 
     for history in sponsor_history:
 
         beneficiary = history.beneficiary
 
-        supports = (
-            BeneficiarySupportEntry.objects
+        # -----------------------------------------
+        # تحديد فترة الدعم الفعلية
+        # -----------------------------------------
+
+        support_from = from_date
+
+        if (
+            history.start_date
+            and history.start_date > support_from
+        ):
+            support_from = history.start_date
+
+        support_to = to_date
+
+        if (
+            history.end_date
+            and history.end_date < support_to
+        ):
+            support_to = history.end_date
+
+        # -----------------------------------------
+        # سند الكفالة المرتبط بالمستفيد
+        # -----------------------------------------
+
+        allocation = (
+            FinancialSponsorshipAllocation.objects
             .filter(
                 beneficiary=beneficiary,
-                created_at__date__range=(
-                    from_date,
-                    to_date,
-                ),
+                sponsorship_invoice__sponsor=donor,
             )
             .select_related(
-                "sub_program"
+                "sponsorship_invoice",
+                "sponsorship_invoice__invoice",
             )
             .order_by(
-                "created_at"
+                "-sponsorship_invoice__start_date"
             )
+            .first()
         )
 
-        beneficiary_total = 0
+        sponsorship_invoice = (
+            allocation.sponsorship_invoice
+            if allocation
+            else None
+        )
+
+        sponsorship_amount = (
+            allocation.amount
+            if allocation
+            else Decimal("0.00")
+        )
+
+        # -----------------------------------------
+        # المصروفات الفعلية على المستفيد
+        #
+        # نستبعد أمر الصرف إذا تم عكسه.
+        # العملية المعكوسة لا تعتبر دعمًا فعليًا.
+        # -----------------------------------------
+
+        supports = (
+            BeneficiarySupportEntry.objects.none()
+        )
+
+        if support_from <= support_to:
+
+            supports = (
+                BeneficiarySupportEntry.objects
+                .filter(
+                    beneficiary=beneficiary,
+                    created_at__date__range=(
+                        support_from,
+                        support_to,
+                    ),
+                )
+                .filter(
+                    Q(disbursement__is_reversed=False)
+                    |
+                    Q(disbursement__isnull=True)
+                )
+                .select_related(
+                    "sub_program",
+                    "disbursement",
+                )
+                .order_by(
+                    "created_at"
+                )
+            )
+
+        beneficiary_total = Decimal("0.00")
 
         program_rows = []
 
         for support in supports:
 
-            beneficiary_total += support.amount
+            amount = (
+                support.amount
+                or Decimal("0.00")
+            )
+
+            beneficiary_total += amount
 
             program_rows.append({
-
                 "program_name":
                     support.sub_program.name,
 
@@ -3352,80 +3746,194 @@ def sponsorship_report_print(request):
                     support.sub_program.description,
 
                 "amount":
-                    support.amount,
+                    amount,
 
                 "date":
                     support.created_at.date(),
-
             })
+
+        # -----------------------------------------
+        # الحساب المحاسبي للكفالة
+        # -----------------------------------------
+
+        sponsorship_used = min(
+            beneficiary_total,
+            sponsorship_amount,
+        )
+
+        sponsorship_remaining = max(
+            sponsorship_amount - beneficiary_total,
+            Decimal("0.00"),
+        )
+
+        extra_amount = max(
+            beneficiary_total - sponsorship_amount,
+            Decimal("0.00"),
+        )
+
+        # -----------------------------------------
+        # حالة الكفالة
+        # -----------------------------------------
+
+        if sponsorship_amount <= Decimal("0.00"):
+
+            sponsorship_status = "no_sponsorship"
+
+        elif beneficiary_total >= sponsorship_amount:
+
+            sponsorship_status = "fully_used"
+
+        else:
+
+            sponsorship_status = "partially_used"
+
+        # -----------------------------------------
+        # بيانات المستفيد
+        # -----------------------------------------
+
         beneficiaries.append({
 
-            "beneficiary": beneficiary,
+            "beneficiary":
+                beneficiary,
 
-            "history": history,
+            "history":
+                history,
 
-            "programs": program_rows,
+            "sponsorship_invoice":
+                sponsorship_invoice,
 
-            "total": beneficiary_total,
+            "allocation":
+                allocation,
 
-            "support_count": len(program_rows),
+            "programs":
+                program_rows,
 
+            "total":
+                beneficiary_total,
+
+            "support_count":
+                len(program_rows),
+
+            "sponsorship_amount":
+                sponsorship_amount,
+
+            "sponsorship_used":
+                sponsorship_used,
+
+            "sponsorship_remaining":
+                sponsorship_remaining,
+
+            "extra_amount":
+                extra_amount,
+
+            "sponsorship_status":
+                sponsorship_status,
         })
+
+        # -----------------------------------------
+        # الإجماليات
+        # -----------------------------------------
 
         grand_total += beneficiary_total
 
+        grand_sponsorship_amount += (
+            sponsorship_amount
+        )
+
+        grand_sponsorship_used += (
+            sponsorship_used
+        )
+
+        grand_sponsorship_remaining += (
+            sponsorship_remaining
+        )
+
+        grand_extra_amount += (
+            extra_amount
+        )
+
+    # -----------------------------------------
+    # Context
+    # -----------------------------------------
+
     context = {
 
-        "title": "تقرير الكفالة",
+        "title":
+            "تقرير الكفالة",
 
-        "donor": donor,
+        "donor":
+            donor,
 
-        "beneficiaries": beneficiaries,
+        "beneficiaries":
+            beneficiaries,
 
-        "grand_total": grand_total,
+        "grand_total":
+            grand_total,
 
-        "beneficiary_count": len(beneficiaries),
+        "grand_sponsorship_amount":
+            grand_sponsorship_amount,
 
-        "report_type": report_type,
+        "grand_sponsorship_used":
+            grand_sponsorship_used,
 
-        "year": year,
+        "grand_sponsorship_remaining":
+            grand_sponsorship_remaining,
 
-        "quarter": quarter,
+        "grand_extra_amount":
+            grand_extra_amount,
 
-        "half": half,
+        "beneficiary_count":
+            len(beneficiaries),
 
-        "from_date": from_date,
+        "report_type":
+            report_type,
 
-        "to_date": to_date,
+        "year":
+            year,
 
-        "generated_at": datetime.now(),
+        "quarter":
+            quarter,
 
+        "half":
+            half,
+
+        "from_date":
+            from_date,
+
+        "to_date":
+            to_date,
+
+        "generated_at":
+            datetime.now(),
     }
+
+    # -----------------------------------------
+    # تسجيل النشاط
+    # -----------------------------------------
+
     log_activity(
         user=request.user,
         action=AuditLog.Actions.OTHER,
         entity="تقرير كفالة",
         entity_id=donor.pk,
         extra={
-            "report_type": report_type,
-            "from": str(from_date),
-            "to": str(to_date),
+            "report_type":
+                report_type,
+
+            "from":
+                str(from_date),
+
+            "to":
+                str(to_date),
         },
     )
+
     return render(
-
         request,
-
         "Accounting/sponsorship_report_print.html",
-
         context,
-
     )
-
-    ###################################################################################3
-from Management.models import Profile
-from datetime import datetime
-
+#############################################
 def sponsorship_reports(request):
 
     donors = Profile.objects.filter(
@@ -3445,3 +3953,288 @@ def sponsorship_reports(request):
     )
 
 
+# 4) تحرير مبلغ من برنامج فرعي وإعادته إلى البرنامج الرئيسي
+
+@role_required([Profile.Roles.ACCOUNTANT])
+def release_sub_program(request):
+
+    sub_programs = (
+        SubProgram.objects
+        .select_related("main_program")
+        .filter(
+            main_program__is_active=True,
+        )
+        .order_by(
+            "main_program__name",
+            "name",
+        )
+    )
+
+    last_releases = (
+        AllocationHistory.objects
+        .select_related(
+            "from_sub_program",
+            "to_main_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.SUB_TO_MAIN
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:10]
+    )
+
+    if request.method == "POST":
+
+        sub_program_id = request.POST.get("sub_program")
+        amount_raw = (
+            request.POST.get("amount") or "0"
+        ).strip()
+        notes = (
+            request.POST.get("notes") or ""
+        ).strip()
+
+        try:
+
+            amount = Decimal(amount_raw)
+
+            if amount <= 0:
+                raise ValidationError(
+                    "أدخل مبلغ صحيح أكبر من صفر."
+                )
+
+            sub_program = get_object_or_404(
+                SubProgram.objects.select_related(
+                    "main_program"
+                ),
+                id=sub_program_id,
+                main_program__is_active=True,
+            )
+
+            release_from_sub_program(
+                sub_program=sub_program,
+                amount=amount,
+                user=request.user,
+                note=notes,
+            )
+
+            messages.success(
+                request,
+                "تم تحرير المبلغ وإعادته إلى البرنامج الرئيسي بنجاح."
+            )
+
+            return redirect(
+                "Accounting:release_sub_program"
+            )
+
+        except (InvalidOperation, ValidationError) as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+    sub_program_data = []
+
+    for sp in sub_programs:
+
+        sub_program_data.append({
+            "id": sp.id,
+            "name": sp.name,
+            "main_id": sp.main_program_id,
+            "main_name": sp.main_program.name,
+
+            "allocated": (
+                sp.allocated_amount
+                or Decimal("0.00")
+            ),
+
+            "spent": (
+                sp.spent_amount
+                or Decimal("0.00")
+            ),
+
+            "available": get_sub_program_balance(sp),
+        })
+
+    return render(
+        request,
+        "Accounting/release_sub_program.html",
+        {
+            "title": "تحرير من البرنامج الفرعي",
+
+            "sub_programs": sub_programs,
+
+            "sub_program_data": sub_program_data,
+
+            "last_releases": last_releases,
+        },
+    )
+
+# 5) تحرير مبلغ من البرنامج الرئيسي وإعادته إلى الرصيد المتاح في الصندوق
+
+@role_required([Profile.Roles.ACCOUNTANT])
+def release_main_program(request):
+
+    programs = (
+        MainProgram.objects
+        .filter(is_active=True)
+        .order_by("name")
+    )
+
+    last_releases = (
+        AllocationHistory.objects
+        .select_related(
+            "from_main_program",
+            "created_by",
+        )
+        .filter(
+            action=AllocationHistory.Action.MAIN_TO_FUND
+        )
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:10]
+    )
+
+    if request.method == "POST":
+
+        main_program_id = request.POST.get("main_program")
+        amount_raw = (
+            request.POST.get("amount") or "0"
+        ).strip()
+        notes = (
+            request.POST.get("notes") or ""
+        ).strip()
+
+        try:
+
+            amount = Decimal(amount_raw)
+
+            if amount <= 0:
+                raise ValidationError(
+                    "أدخل مبلغ صحيح أكبر من صفر."
+                )
+
+            main_program = get_object_or_404(
+                MainProgram,
+                id=main_program_id,
+                is_active=True,
+            )
+
+            release_from_main_program(
+                main_program=main_program,
+                amount=amount,
+                user=request.user,
+                note=notes,
+            )
+
+            messages.success(
+                request,
+                "تم تحرير المبلغ وإعادته إلى الرصيد المتاح في الصندوق بنجاح."
+            )
+
+            return redirect(
+                "Accounting:release_main_program"
+            )
+
+        except (InvalidOperation, ValidationError) as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+        except Exception as e:
+
+            messages.error(
+                request,
+                str(e)
+            )
+
+    program_data = []
+
+    for p in programs:
+
+        # إجمالي ما تم تحويله من الرئيسي إلى البرامج الفرعية
+        transferred_to_sub = AllocationHistory.objects.filter(
+            action=AllocationHistory.Action.MAIN_TO_SUB,
+            from_main_program=p,
+        ).aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+
+        # إجمالي ما عاد من البرامج الفرعية إلى الرئيسي
+        returned_from_sub = AllocationHistory.objects.filter(
+            action=AllocationHistory.Action.SUB_TO_MAIN,
+            to_main_program=p,
+        ).aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+
+        # إجمالي الصرف الفعلي من البرامج الفرعية التابعة لهذا الرئيسي
+        spent = BeneficiarySupportEntry.objects.filter(
+            main_program=p,
+        ).aggregate(
+            total=Coalesce(
+                Sum("amount"),
+                Decimal("0.00"),
+            )
+        )["total"]
+
+        # صافي المبلغ المحول إلى الفروع
+        allocated_to_sub = (
+            transferred_to_sub
+            - returned_from_sub
+        )
+
+        # الرصيد المتاح فعليًا داخل الرئيسي
+        available = get_main_program_balance(p)
+
+        program_data.append({
+            "id": p.id,
+            "name": p.name,
+
+            # إجمالي تخصيص البرنامج الرئيسي
+            "total": (
+                p.total_donation_amount
+                or Decimal("0.00")
+            ),
+
+            # المبلغ الموجود في الفروع فعليًا
+            "allocated": allocated_to_sub,
+
+            # المصروف الفعلي للمستفيدين
+            "spent": spent,
+
+            # المتاح داخل البرنامج الرئيسي
+            "available": available,
+        })
+        return render(
+        request,
+        "Accounting/release_main_program.html",
+        {
+            "title": "تحرير من البرنامج الرئيسي",
+
+            "programs": programs,
+
+            "program_data": program_data,
+
+            "last_releases": last_releases,
+        },
+    )

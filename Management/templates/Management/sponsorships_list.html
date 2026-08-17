@@ -1,0 +1,524 @@
+{% extends "Management/base.html" %}
+{% load static %}
+
+{% block title %}إدارة الكفالات{% endblock %}
+
+{% block content %}
+
+<div class="container-fluid py-4">
+
+    <!-- عنوان الصفحة -->
+    <div class="card rms mb-4">
+        <div class="card-body d-flex justify-content-between align-items-center">
+
+            <div>
+                <h3 class="fw-bold mb-1">
+                    <i class="bi bi-shield-check me-1"></i>
+                    إدارة الكفالات
+                </h3>
+
+                <div class="text-muted">
+                    متابعة سندات الكفالة وحالاتها والمستفيدين المرتبطين بها
+                </div>
+            </div>
+
+            <div class="text-end">
+                <span class="badge bg-light text-dark fs-6">
+                    {{ total_count }} سند
+                </span>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- الإحصائيات -->
+    <div class="row g-3 mb-4">
+
+        <!-- الإجمالي -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card rms h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+
+                    <div>
+                        <div class="text-muted mb-2">
+                            إجمالي الكفالات
+                        </div>
+
+                        <div class="fs-2 fw-bold">
+                            {{ total_count }}
+                        </div>
+                    </div>
+
+                    <div class="rounded-4 p-3 bg-light">
+                        <i class="bi bi-files fs-3"></i>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+        <!-- السارية -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card rms h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+
+                    <div>
+                        <div class="text-muted mb-2">
+                            الكفالات السارية
+                        </div>
+
+                        <div class="fs-2 fw-bold text-success">
+                            {{ active_count }}
+                        </div>
+                    </div>
+
+                    <div class="rounded-4 p-3 bg-success-subtle text-success">
+                        <i class="bi bi-shield-check fs-3"></i>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+        <!-- قريبة الانتهاء -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card rms h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+
+                    <div>
+                        <div class="text-muted mb-2">
+                            قريبة من الانتهاء
+                        </div>
+
+                        <div class="fs-2 fw-bold text-warning">
+                            {{ expiring_count }}
+                        </div>
+                    </div>
+
+                    <div class="rounded-4 p-3 bg-warning-subtle text-warning">
+                        <i class="bi bi-clock-history fs-3"></i>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+
+        <!-- المنتهية -->
+        <div class="col-xl-3 col-md-6">
+            <div class="card rms h-100">
+                <div class="card-body d-flex align-items-center justify-content-between">
+
+                    <div>
+                        <div class="text-muted mb-2">
+                            الكفالات المنتهية
+                        </div>
+
+                        <div class="fs-2 fw-bold text-danger">
+                            {{ expired_count }}
+                        </div>
+                    </div>
+
+                    <div class="rounded-4 p-3 bg-danger-subtle text-danger">
+                        <i class="bi bi-shield-x fs-3"></i>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+
+    <!-- الفلاتر -->
+    <div class="card rms mb-4">
+        <div class="card-body">
+
+            <form method="get">
+
+                <div class="row g-3 align-items-end">
+
+                    <!-- البحث -->
+                    <div class="col-lg-4">
+                        <label class="form-label fw-semibold">
+                            البحث
+                        </label>
+
+                        <input
+                            type="text"
+                            name="q"
+                            value="{{ request.GET.q|default:'' }}"
+                            class="form-control"
+                            placeholder="رقم السند، اسم الكافل أو المستفيد..."
+                        >
+                    </div>
+
+
+                    <!-- الحالة -->
+                    <div class="col-lg-3">
+                        <label class="form-label fw-semibold">
+                            الحالة
+                        </label>
+
+                        <select name="status" class="form-select">
+
+                            <option value="">
+                                جميع الحالات
+                            </option>
+
+                            <option
+                                value="active"
+                                {% if request.GET.status == "active" %}selected{% endif %}
+                            >
+                                سارية
+                            </option>
+
+                            <option
+                                value="expiring"
+                                {% if request.GET.status == "expiring" %}selected{% endif %}
+                            >
+                                قريبة من الانتهاء
+                            </option>
+
+                            <option
+                                value="expired"
+                                {% if request.GET.status == "expired" %}selected{% endif %}
+                            >
+                                منتهية
+                            </option>
+
+                            <option
+                                value="pending"
+                                {% if request.GET.status == "pending" %}selected{% endif %}
+                            >
+                                لم تبدأ بعد
+                            </option>
+
+                        </select>
+                    </div>
+
+
+                    <!-- زر البحث -->
+                    <div class="col-lg-2">
+
+                        <button
+                            type="submit"
+                            class="btn btn-success w-100"
+                        >
+                            <i class="bi bi-search me-1"></i>
+                            بحث
+                        </button>
+
+                    </div>
+
+
+                    <!-- إعادة ضبط -->
+                    <div class="col-lg-2">
+
+                        <a
+                            href="{% url 'Management:sponsorships_list' %}"
+                            class="btn btn-outline-secondary w-100"
+                        >
+                            <i class="bi bi-arrow-counterclockwise me-1"></i>
+                            إعادة ضبط
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+
+    <!-- جدول الكفالات -->
+    <div class="card rms">
+
+        <div class="card-header bg-transparent border-0 py-3">
+
+            <div class="d-flex justify-content-between align-items-center">
+
+                <div>
+                    <h5 class="fw-bold mb-1">
+                        سندات الكفالة
+                    </h5>
+
+                    <div class="text-muted small">
+                        جميع سندات الكفالة المالية المسجلة في النظام
+                    </div>
+                </div>
+
+                <span class="badge bg-light text-dark">
+                    {{ page_obj.paginator.count|default:total_count }} سند
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th>#</th>
+
+                        <th>
+                            رقم السند
+                        </th>
+
+                        <th>
+                            الكافل
+                        </th>
+
+                        <th>
+                            المستفيد
+                        </th>
+
+                        <th>
+                            مبلغ الكفالة
+                        </th>
+
+                        <th>
+                            تاريخ البداية
+                        </th>
+
+                        <th>
+                            تاريخ النهاية
+                        </th>
+
+                        <th>
+                            المدة
+                        </th>
+
+                        <th>
+                            الحالة
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    {% for item in sponsorships %}
+
+                        <tr>
+
+                            <td>
+                                {{ forloop.counter }}
+                            </td>
+
+
+                            <td>
+
+                                {% if item.invoice %}
+                                    <a
+                                        href="{% url 'Accounting:invoice_detail' pk=item.invoice.pk %}"
+                                        class="fw-bold text-decoration-none"
+                                    >
+                                        {{ item.invoice.number }}
+                                    </a>
+                                {% else %}
+                                    —
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if item.sponsor %}
+                                    {{ item.sponsor.user.get_full_name|default:item.sponsor.user.username }}
+                                {% else %}
+                                    —
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if item.beneficiary %}
+                                    {{ item.beneficiary }}
+                                {% else %}
+                                    <span class="text-muted">
+                                        غير مرتبط
+                                    </span>
+                                {% endif %}
+
+                            </td>
+
+
+                           <td class="fw-semibold text-nowrap">
+
+    {{ item.amount|floatformat:2 }}
+    ر.س
+
+</td>
+
+                            <td>
+
+                                {{ item.start_date|date:"Y-m-d" }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ item.end_date|date:"Y-m-d" }}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if item.duration_months %}
+                                    {{ item.duration_months }} شهر
+                                {% else %}
+                                    —
+                                {% endif %}
+
+                            </td>
+
+
+                            <td>
+
+                                {% if item.status == "active" %}
+
+                                    <span class="badge rounded-pill bg-success-subtle text-success">
+                                        <i class="bi bi-check-circle-fill"></i>
+                                        سارية
+                                    </span>
+
+                                {% elif item.status == "expiring" %}
+
+                                    <span class="badge rounded-pill bg-warning-subtle text-warning">
+                                        <i class="bi bi-clock-fill"></i>
+                                        قريبة من الانتهاء
+                                    </span>
+
+                                {% elif item.status == "expired" %}
+
+                                    <span class="badge rounded-pill bg-danger-subtle text-danger">
+                                        <i class="bi bi-x-circle-fill"></i>
+                                        منتهية
+                                    </span>
+
+                                {% elif item.status == "pending" %}
+
+                                    <span class="badge rounded-pill bg-primary-subtle text-primary">
+                                        <i class="bi bi-hourglass-split"></i>
+                                        لم تبدأ بعد
+                                    </span>
+
+                                {% else %}
+
+                                    <span class="badge rounded-pill bg-secondary-subtle text-secondary">
+                                        غير محددة
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                        </tr>
+
+                    {% empty %}
+
+                        <tr>
+
+                            <td
+                                colspan="9"
+                                class="text-center py-5 text-muted"
+                            >
+
+                                <i class="bi bi-folder2-open fs-1 d-block mb-3"></i>
+
+                                لا توجد سندات كفالة مطابقة للبحث.
+
+                            </td>
+
+                        </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+        <!-- Pagination -->
+        {% if page_obj.has_other_pages %}
+
+            <div class="card-footer bg-transparent">
+
+                <nav>
+
+                    <ul class="pagination justify-content-center mb-0">
+
+                        {% if page_obj.has_previous %}
+
+                            <li class="page-item">
+
+                                <a
+                                    class="page-link"
+                                    href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}"
+                                >
+                                    السابق
+                                </a>
+
+                            </li>
+
+                        {% endif %}
+
+
+                        <li class="page-item active">
+
+                            <span class="page-link">
+                                {{ page_obj.number }}
+                            </span>
+
+                        </li>
+
+
+                        {% if page_obj.has_next %}
+
+                            <li class="page-item">
+
+                                <a
+                                    class="page-link"
+                                    href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}"
+                                >
+                                    التالي
+                                </a>
+
+                            </li>
+
+                        {% endif %}
+
+                    </ul>
+
+                </nav>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}

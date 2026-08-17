@@ -1,0 +1,599 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>KFALAT | نظام إدارة الجمعيات</title>
+
+    <link rel="icon" type="image/png" href="{% static 'images/logo.png' %}">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: "Tahoma", "Arial", sans-serif;
+            background: #f6f8f9;
+            color: #17324d;
+            min-height: 100vh;
+        }
+
+        a {
+            text-decoration: none;
+        }
+
+        /* =========================
+           Header
+        ========================= */
+
+        .header {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+            height: 76px;
+            display: flex;
+            align-items: center;
+        }
+
+        .header-inner {
+            width: min(1180px, 92%);
+            margin: auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .brand img {
+            width: 48px;
+            height: 48px;
+            object-fit: contain;
+        }
+
+        .brand-text {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .brand-text strong {
+            font-size: 22px;
+            color: #111827;
+            letter-spacing: 1px;
+        }
+
+        .brand-text span {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .header-login {
+            border: 1px solid #0f8f78;
+            color: #0f8f78;
+            padding: 11px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: .2s;
+        }
+
+        .header-login:hover {
+            background: #0f8f78;
+            color: #ffffff;
+        }
+
+        /* =========================
+           Hero
+        ========================= */
+
+        .hero {
+                text-align: center;
+
+            padding: 85px 20px 65px;
+            background:
+                radial-gradient(circle at 80% 20%, rgba(15,143,120,.08), transparent 30%),
+                linear-gradient(180deg, #ffffff 0%, #f6f8f9 100%);
+        }
+
+        .hero-inner {
+            width: min(1050px, 92%);
+            margin: auto;
+            text-align: center;
+        }
+
+        .hero-badge {
+            display: inline-block;
+            background: #e8f6f2;
+            color: #0f806d;
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-size: 13px;
+            margin-bottom: 22px;
+        }
+
+        .hero h1 {
+            font-size: clamp(32px, 5vw, 52px);
+            line-height: 1.35;
+            margin-bottom: 18px;
+            color: #102a43;
+        }
+
+        .hero h1 span {
+            color: #0f8f78;
+        }
+
+        .hero p {
+            max-width: 720px;
+            margin: auto;
+            color: #64748b;
+            font-size: 17px;
+            line-height: 2;
+        }
+
+        .hero-actions {
+            margin-top: 32px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .hero-logo {
+    display: block;
+    width: 180px;
+    max-width: 35%;
+    height: auto;
+    margin: 0 auto 18px;
+}
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 145px;
+            padding: 13px 25px;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: .2s;
+        }
+
+        .btn-primary {
+            background: #0f8f78;
+            color: #ffffff;
+        }
+
+        .btn-primary:hover {
+            background: #0b7664;
+        }
+
+        .btn-secondary {
+            background: #ffffff;
+            color: #17324d;
+            border: 1px solid #d8dee5;
+        }
+
+        .btn-secondary:hover {
+            border-color: #0f8f78;
+            color: #0f8f78;
+        }
+
+        /* =========================
+           Features
+        ========================= */
+
+        .features {
+            width: min(1100px, 92%);
+            margin: 0 auto;
+            padding: 20px 0 75px;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 35px;
+        }
+
+        .section-title h2 {
+            font-size: 27px;
+            margin-bottom: 10px;
+        }
+
+        .section-title p {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px;
+        }
+
+        .feature {
+            background: #ffffff;
+            border: 1px solid #e6eaee;
+            border-radius: 12px;
+            padding: 28px 24px;
+            text-align: center;
+            transition: .2s;
+        }
+
+        .feature:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(15, 23, 42, .06);
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 18px;
+            border-radius: 10px;
+            background: #e8f6f2;
+            color: #0f8f78;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 21px;
+        }
+
+        .feature h3 {
+            font-size: 17px;
+            margin-bottom: 10px;
+        }
+
+        .feature p {
+            color: #718096;
+            font-size: 13px;
+            line-height: 1.9;
+        }
+
+        /* =========================
+           Help CTA
+        ========================= */
+
+        .help-section {
+            width: min(1050px, 92%);
+            margin: 0 auto 70px;
+        }
+
+        .help-box {
+            background: #17324d;
+            color: #ffffff;
+            border-radius: 14px;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 30px;
+        }
+
+        .help-box h2 {
+            margin-bottom: 10px;
+            font-size: 23px;
+        }
+
+        .help-box p {
+            color: #cbd5e1;
+            font-size: 14px;
+        }
+
+        .help-box .btn {
+            background: #ffffff;
+            color: #17324d;
+            flex-shrink: 0;
+        }
+
+        /* =========================
+           Footer
+        ========================= */
+
+        footer {
+            background: #ffffff;
+            border-top: 1px solid #e5e7eb;
+            padding: 25px 20px;
+            text-align: center;
+        }
+
+        footer .copyright {
+            color: #64748b;
+            font-size: 12px;
+            margin-bottom: 7px;
+        }
+
+        footer .developer {
+            color: #0f8f78;
+            font-size: 12px;
+        }
+
+        /* =========================
+           Responsive
+        ========================= */
+
+        @media (max-width: 800px) {
+
+            .feature-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .help-box {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header-login {
+                padding: 9px 15px;
+            }
+
+            .brand-text span {
+                display: none;
+            }
+
+            .hero {
+                padding-top: 60px;
+            }
+        }
+
+        @media (max-width: 500px) {
+
+            .header {
+                height: 65px;
+            }
+
+            .brand img {
+                width: 40px;
+                height: 40px;
+            }
+
+            .brand-text strong {
+                font-size: 18px;
+            }
+
+            .header-login {
+                font-size: 12px;
+                padding: 8px 12px;
+            }
+
+            .hero p {
+                font-size: 14px;
+            }
+
+            .help-box {
+                padding: 28px 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header class="header">
+    <div class="header-inner">
+
+        <a href="/" class="brand">
+            <img src="{% static 'Management/images/logo.svg' %}" alt="جمعية الرياحين">
+
+            <div class="brand-text">
+                <strong>KFALAT</strong>
+                <span>نظام إدارة الكفالات</span>
+            </div>
+        </a>
+
+        <a href="{% url 'Management:login' %}" class="header-login">
+            تسجيل الدخول
+        </a>
+
+    </div>
+</header>
+
+
+<main>
+
+    <!-- Hero -->
+
+    <section class="hero">
+
+       <div class="hero-inner">
+
+    <!-- الشعار -->
+    <img
+        src="{% static 'Management/images/logo.svg' %}"
+        class="hero-logo"
+        alt="جمعية الرياحين"
+    >
+
+    <!-- اسم النظام -->
+    <div class="hero-badge">
+        نظام إدارة الكفالات
+    </div>
+
+
+    <h1>
+        إدارة جمعيتك
+        <span>بسهولة واحترافية</span>
+    </h1>
+
+
+    <p>
+        KFALAT هو نظام متكامل يساعد الجمعيات على إدارة البرامج
+        والمستفيدين والكفالات والتخصيصات والصرف والحسابات
+        والتقارير من خلال منصة واحدة.
+    </p>
+
+
+    <div class="hero-actions">
+
+        <a href="{% url 'Management:login' %}" class="btn btn-primary">
+            تسجيل الدخول
+        </a>
+
+        <a href="{% url 'Management:help' %}" class="btn">
+            مركز المساعدة
+        </a>
+
+    </div>
+
+</div>
+    </section>
+
+
+    <!-- Features -->
+
+    <section class="features">
+
+        <div class="section-title">
+            <h2>ماذا يوفر لك KFALAT</h2>
+
+            <p>
+                مجموعة من الأدوات لإدارة العمليات اليومية للجمعية
+                بشكل منظم وواضح.
+            </p>
+        </div>
+
+
+        <div class="feature-grid">
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    📊
+                </div>
+
+                <h3>إدارة البرامج</h3>
+
+                <p>
+                    إدارة البرامج الرئيسية والفرعية ومتابعة أرصدتها
+                    والتخصيصات الخاصة بها.
+                </p>
+
+            </div>
+
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    👥
+                </div>
+
+                <h3>إدارة المستفيدين</h3>
+
+                <p>
+                    تنظيم بيانات المستفيدين ومتابعة الدعم والخدمات
+                    المقدمة لهم.
+                </p>
+
+            </div>
+
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    💰
+                </div>
+
+                <h3>الإدارة المالية</h3>
+
+                <p>
+                    متابعة الصندوق والتخصيصات والتحويلات والصرف
+                    والأرصدة المالية.
+                </p>
+
+            </div>
+
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    🤝
+                </div>
+
+                <h3>إدارة الكفالات</h3>
+
+                <p>
+                    إدارة الكفلاء والمكفولين ومتابعة عمليات الكفالة
+                    والتقارير المرتبطة بها.
+                </p>
+
+            </div>
+
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    📋
+                </div>
+
+                <h3>التقارير</h3>
+
+                <p>
+                    الوصول إلى التقارير والبيانات التي تساعد الإدارة
+                    على متابعة أداء الجمعية.
+                </p>
+
+            </div>
+
+
+            <div class="feature">
+
+                <div class="feature-icon">
+                    🔐
+                </div>
+
+                <h3>الصلاحيات</h3>
+
+                <p>
+                    تنظيم صلاحيات المستخدمين والتحكم في الوصول
+                    إلى وظائف النظام.
+                </p>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <!-- Help -->
+
+    <section class="help-section">
+
+        <div class="help-box">
+
+            <div>
+                <h2>تحتاج إلى مساعدة؟</h2>
+
+                <p>
+                    اطلع على دليل استخدام KFALAT لمعرفة طريقة استخدام
+                    وظائف النظام المختلفة.
+                </p>
+            </div>
+
+            <a href="{% url 'Management:help' %}" class="btn">
+                فتح مركز المساعدة
+            </a>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<footer>
+
+    <div class="copyright">
+        © {% now "Y" %} جميع الحقوق محفوظة لجمعية الرياحين لرعاية الأيتام
+    </div>
+
+    <div class="developer">
+        برمج بواسطة سعد الغانم
+    </div>
+
+</footer>
+
+</body>
+</html>

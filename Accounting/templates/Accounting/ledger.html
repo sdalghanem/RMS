@@ -1,171 +1,618 @@
 {% extends "Management/base.html" %}
-{% block title %}سجل الحركات المالية{% endblock %}
+
+{% block title %}{{ title }} - RMS{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">سجل الحركات المالية</h5>
-    <small class="text-muted">
-      هذا السجل يمثل <strong>دفتر الصندوق الفعلي للجمعية</strong> (الدخول/الخروج الحقيقي).
-      التحويلات الداخلية (رئيسي → فرعي) لا تظهر هنا.
-    </small>
-  </div>
+<div class="container-fluid">
 
-  <div class="d-flex gap-2">
-    <a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}export=1"
-       class="btn btn-outline-secondary btn-sm">
-      <i class="bi bi-download"></i> تصدير Excel
-    </a>
-  </div>
-</div>
+    <!-- Header -->
 
-<!-- Filters -->
-<div class="card shadow-sm border-0 mb-3">
-  <div class="card-body pb-2">
-    <form method="get" class="row g-2 align-items-end">
+    <div class="card shadow-sm border-0 mb-4">
 
-      <div class="col-md-3">
-        <label class="form-label small text-muted">نوع الحركة</label>
-        <select name="type" class="form-select">
-          <option value="" {% if not filters.type %}selected{% endif %}>الكل</option>
-          <option value="revenue" {% if filters.type == "revenue" %}selected{% endif %}>إيراد</option>
-          <option value="expense" {% if filters.type == "expense" %}selected{% endif %}>صرف</option>
+        <div class="card-body">
 
-          {# إذا تبغى تعرض الأنواع الفعلية من FundEntry.Types بدل خيارات ثابتة، علمني وأرتبها لك #}
-        </select>
-      </div>
+            <div class="row align-items-center">
 
-      <div class="col-md-3">
-        <label class="form-label small text-muted">من تاريخ</label>
-        <input type="date" name="date_from" class="form-control" value="{{ filters.date_from }}">
-      </div>
+                <div class="col-md-8">
 
-      <div class="col-md-3">
-        <label class="form-label small text-muted">إلى تاريخ</label>
-        <input type="date" name="date_to" class="form-control" value="{{ filters.date_to }}">
-      </div>
+                    <h2 class="fw-bold mb-2">
+                        سجل الحركات المالية
+                    </h2>
 
-      <div class="col-md-4">
-        <label class="form-label small text-muted">بحث</label>
-        <input type="text" name="q" class="form-control"
-               value="{{ filters.q }}"
-               placeholder="وصف / مبلغ / رقم سند (مرجع) / رقم فاتورة">
-      </div>
+                    <div class="text-muted">
 
-      <div class="col-md-2 d-grid">
-        <button class="btn btn-primary">
-          <i class="bi bi-search"></i> بحث
-        </button>
-      </div>
+                        جميع الحركات المالية الفعلية التي تمت داخل النظام
+                        (إيرادات، مصروفات، أوامر صرف).
 
-    </form>
-  </div>
-</div>
+                    </div>
 
-<!-- Ledger Table -->
-<div class="card shadow-sm border-0">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover align-middle m-0">
-        <thead class="table-light">
-          <tr>
-            <th>السند </th>
-            <th>التاريخ</th>
-            <th>مصدر التغطية</th>
-            <th>نوع الحركة</th>
-            <th>الوصف</th>
-            <th>ملاحظات</th>
-            <th class="text-end">المبلغ</th>
-            <th class="text-end">الرصيد(عام)</th>
-          </tr>
-        </thead>
+                </div>
 
-        <tbody>
-          {% for m in movements %}
-          <tr>
-            <td class="fw-bold">{{ m.display_voucher }}</td>
-            <td class="small">{{ m.created_at|date:"Y-m-d" }}</td>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
 
-            <td class="small">
-             {{ m.cover_source }}
-            </td>
+                    <a href="?period={{ filters.period }}
+                        &date_from={{ filters.date_from }}
+                        &date_to={{ filters.date_to }}
+                        &main_program={{ filters.main_program }}
+                        &sub_program={{ filters.sub_program }}
+                        &type={{ filters.type }}
+                        &q={{ filters.q }}
+                        &export=1"
+                        class="btn btn-outline-success">
 
-            <td class="small">
-              {{ m.get_type_display|default:m.type }}
-            </td>
-            
+                            <i class="bi bi-file-earmark-excel"></i>
 
-            <td class="small text-muted">
-              {{ m.description|default:"—" }}
-            </td>
- <td class="small">
-             {{ m.display_notes }}
-            </td>
-            <td class="text-end fw-bold {% if m.amount < 0 %}text-danger{% else %}text-success{% endif %}">
-              {{ m.amount|floatformat:2 }}
-            </td>
+                            تصدير Excel
 
-            <td class="text-end fw-bold">
-              {{ m.balance_after|floatformat:2 }}
-            </td>
-          </tr>
-          {% empty %}
-          <tr>
-            <td colspan="7" class="text-center text-muted py-4">لا توجد حركات مطابقة.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        
+                        </a>
 
-        <tfoot class="table-light">
-          <tr>
-            <th colspan="6" class="text-end">الإجمالي</th>
+                </div>
 
-            <th id="total_amount" class="text-end fw-bold"></th>
+            </div>
 
-            <th id="general_balance" class="text-end fw-bold"></th>
-          </tr>
-        </tfoot>
+        </div>
 
-      </table>
     </div>
-  </div>
+
+
+    <!-- Summary -->
+
+    <div class="row g-3 mb-4">
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="kpi-card p-3 h-100">
+
+                <div class="small text-muted">
+                    عدد الحركات
+                </div>
+
+                <div class="display-6 fw-bold mt-2">
+
+                    {{ movements|length }}
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="kpi-card p-3 h-100">
+
+                <div class="small text-muted">
+                    إجمالي الإيرادات
+                </div>
+
+                <div class="display-6 fw-bold text-success mt-2">
+
+                    {{ total_income|floatformat:2 }}
+
+                    <span class="fs-6">
+                        ر.س
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="kpi-card p-3 h-100">
+
+                <div class="small text-muted">
+                    إجمالي المصروفات
+                </div>
+
+                <div class="display-6 fw-bold text-danger mt-2">
+
+                    {{ total_expense|floatformat:2 }}
+
+                    <span class="fs-6">
+                        ر.س
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-lg-3 col-md-6">
+
+            <div class="kpi-card p-3 h-100">
+
+                <div class="small text-muted">
+                    الرصيد الحالي
+                </div>
+
+                <div class="display-6 fw-bold text-primary mt-2">
+
+                    {{ current_balance|floatformat:2 }}
+
+                    <span class="fs-6">
+                        ر.س
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- Filters -->
+
+    <div class="card shadow-sm border-0 mb-4">
+
+    <div class="card-body">
+
+        <form method="get">
+
+            <div class="row g-3 align-items-end">
+
+                <div class="col-lg-2">
+
+                    <label class="form-label fw-semibold">
+
+                        الفترة
+
+                    </label>
+
+                    <select
+                        name="period"
+                        class="form-select"
+                        onchange="this.form.submit()">
+
+                        <option value="today"
+                            {% if filters.period == "today" %}selected{% endif %}>
+                            اليوم
+                        </option>
+
+                        <option value="week"
+                            {% if filters.period == "week" %}selected{% endif %}>
+                            هذا الأسبوع
+                        </option>
+
+                        <option value="month"
+                            {% if filters.period == "month" %}selected{% endif %}>
+                            هذا الشهر
+                        </option>
+
+                        <option value="year"
+                            {% if filters.period == "year" %}selected{% endif %}>
+                            هذه السنة
+                        </option>
+
+                        <option value="custom"
+                            {% if filters.period == "custom" %}selected{% endif %}>
+                            فترة مخصصة
+                        </option>
+
+                        <option value="all"
+                            {% if filters.period == "all" %}selected{% endif %}>
+                            كل الفترات
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        من تاريخ
+
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_from"
+                        class="form-control"
+                        value="{{ filters.date_from }}"
+                        {% if filters.period != "custom" %}disabled{% endif %}>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        إلى تاريخ
+
+                    </label>
+
+                    <input
+                        type="date"
+                        name="date_to"
+                        class="form-control"
+                        value="{{ filters.date_to }}"
+                        {% if filters.period != "custom" %}disabled{% endif %}>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        البرنامج الرئيسي
+
+                    </label>
+
+                    <select
+                        name="main_program"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for p in main_programs %}
+
+                        <option
+                            value="{{ p.id }}"
+                            {% if filters.main_program == p.id|stringformat:"s" %}selected{% endif %}>
+
+                            {{ p.name }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        البرنامج الفرعي
+
+                    </label>
+
+                    <select
+                        name="sub_program"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for p in sub_programs %}
+
+                        <option
+                            value="{{ p.id }}"
+                            {% if filters.sub_program == p.id|stringformat:"s" %}selected{% endif %}>
+
+                            {{ p.name }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-2">
+
+                    <label class="form-label">
+
+                        نوع الحركة
+
+                    </label>
+
+                    <select
+                        name="type"
+                        class="form-select">
+
+                        <option value="">
+                            الكل
+                        </option>
+
+                        {% for value,label in movement_types %}
+
+                        <option
+                            value="{{ value }}"
+                            {% if filters.type == value %}selected{% endif %}>
+
+                            {{ label }}
+
+                        </option>
+
+                        {% endfor %}
+
+                    </select>
+
+                </div>
+
+                <div class="col-lg-10">
+
+                    <label class="form-label">
+
+                        بحث
+
+                    </label>
+
+                    <input
+                        type="text"
+                        name="q"
+                        class="form-control"
+                        value="{{ filters.q }}"
+                        placeholder="رقم السند أو الوصف">
+
+                </div>
+
+                <div class="col-lg-2 d-grid">
+
+                    <button
+                        type="submit"
+                        class="btn btn-success">
+
+                        <i class="bi bi-search"></i>
+
+                        بحث
+
+                    </button>
+
+                </div>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+    <!-- Table -->
+
+<div class="card shadow-sm border-0">
+
+    <div class="card-body p-0">
+
+        {% if movements %}
+
+        <div class="table-responsive">
+
+            <table class="table table-hover align-middle mb-0">
+
+                <thead class="table-light">
+
+                    <tr>
+
+                        <th width="110">
+                            السند
+                        </th>
+
+                        <th width="140">
+                            التاريخ
+                        </th>
+
+                        <th width="220">
+                            البرنامج
+                        </th>
+
+                        <th width="180">
+                            نوع الحركة
+                        </th>
+
+                        <th>
+                            الوصف
+                        </th>
+
+                        <th width="120" class="text-end">
+                            مدين
+                        </th>
+
+                        <th width="120" class="text-end">
+                            دائن
+                        </th>
+
+                        <th width="140" class="text-end">
+                            الرصيد
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for m in movements %}
+
+                    <tr>
+
+                        <td>
+
+                            <span class="fw-bold">
+
+                                {{ m.display_voucher }}
+
+                            </span>
+
+                        </td>
+
+                        <td class="small text-muted">
+
+                            {{ m.created_at|date:"Y-m-d" }}
+
+                            <br>
+
+                            {{ m.created_at|date:"H:i" }}
+
+                        </td>
+
+                        <td>
+
+                            {% if m.sub_program %}
+
+                                <div class="fw-semibold">
+
+                                    {{ m.sub_program.main_program.name }}
+
+                                </div>
+
+                                <div class="small text-muted">
+
+                                    {{ m.sub_program.name }}
+
+                                </div>
+
+                            {% elif m.main_program %}
+
+                                <div class="fw-semibold">
+
+                                    {{ m.main_program.name }}
+
+                                </div>
+
+                            {% elif m.beneficiary %}
+
+                                <div class="fw-semibold">
+
+                                    {{ m.beneficiary }}
+
+                                </div>
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+
+                            <span class="badge bg-light text-dark border">
+
+                                {{ m.get_type_display }}
+
+                            </span>
+
+                        </td>
+
+                        <td>
+
+                            {{ m.description|default:"—" }}
+
+                        </td>
+
+                        <td class="text-end">
+
+                            {% if m.amount > 0 %}
+
+                                <span class="text-success fw-bold">
+
+                                    {{ m.amount|floatformat:2 }}
+
+                                </span>
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="text-end">
+
+                            {% if m.amount < 0 %}
+
+                                <span class="text-danger fw-bold">
+
+                                    {{ m.amount|floatformat:2 }}
+
+                                </span>
+
+                            {% else %}
+
+                                —
+
+                            {% endif %}
+
+                        </td>
+
+                        <td class="text-end">
+
+                            <span class="fw-bold">
+
+                                {{ m.balance_after|floatformat:2 }}
+
+                            </span>
+
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="text-center py-5">
+
+            <i class="bi bi-journal-x fs-1 text-muted"></i>
+
+            <div class="mt-3 text-muted">
+
+                لا توجد حركات مالية مطابقة للبحث.
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+{% if movements %}
+
+<div class="card-footer bg-white">
+
+    <div class="row align-items-center">
+
+        <div class="col-md-6">
+
+            <div class="small text-muted">
+
+                عدد الحركات:
+
+                <strong>
+
+                    {{ movements|length }}
+
+                </strong>
+
+            </div>
+
+        </div>
+
+  
+
+    </div>
+
 </div>
 
-<script>
-function parseMoney(value) {
-    value = value.replace(/,/g, "").replace(/\s/g, "").trim();
+{% endif %}
 
-    // لو السالب مكتوب آخر الرقم مثل 500.00-
-    if (value.endsWith("-")) {
-        value = "-" + value.slice(0, -1);
-    }
+</div>
 
-    return parseFloat(value) || 0;
-}
-
-function calculateTotals() {
-    let totalAmount = 0;
-    let totalBalance = 0;
-
-    const rows = document.querySelectorAll("tbody tr");
-
-    rows.forEach(row => {
-        const amountCell = row.querySelector("td:nth-child(7)");
-        const balanceCell = row.querySelector("td:nth-child(8)");
-
-        if (amountCell && balanceCell) {
-            totalAmount += parseMoney(amountCell.innerText);
-            totalBalance += parseMoney(balanceCell.innerText);
-        }
-    });
-
-    document.getElementById("total_amount").innerText = totalAmount.toFixed(2);
-    document.getElementById("general_balance").innerText = totalBalance.toFixed(2);
-}
-
-document.addEventListener("DOMContentLoaded", calculateTotals);
-</script>
+</div>
 
 {% endblock %}
