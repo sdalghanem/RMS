@@ -1,173 +1,923 @@
 {% extends "Management/base.html" %}
 {% load static %}
 
-{% block title %} {{ title }} - RMS{% endblock %}
+{% block title %}{{ title }} - RMS{% endblock %}
 
 {% block content %}
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">{{ title }}</h5>
-    <small class="text-muted">
-      هذه الصفحة مخصّصة لإدارة سندات التبرع العام والكفالات المالية لموظف الاستقبال.
-    </small>
-  </div>
-  <div class="d-flex gap-2">
-    <a href="{% url 'Accounting:invoice_create_general' %}" class="btn btn-primary">
-      <i class="bi bi-receipt-cutoff"></i> + سند تبرع عام
-    </a>
-    <a href="{% url 'Accounting:invoice_create_sponsorship' %}" class="btn btn-outline-primary">
-      <i class="bi bi-people-heart"></i> + سند كفالة مالية
-    </a>
-  </div>
-</div>
+<style>
+  /* =========================================================
+     الصفحة
+     ========================================================= */
 
-<div class="card shadow-sm border-0">
-  <div class="card-body p-0">
+  .invoices-page {
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+
+  /* =========================================================
+     عنوان الصفحة
+     ========================================================= */
+
+  .page-intro {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    padding: 18px 22px;
+    margin-bottom: 16px;
+  }
+
+  .page-intro-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .page-intro-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #eef8f5;
+    color: #12966f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    flex-shrink: 0;
+  }
+
+  .page-intro h5 {
+    margin: 0;
+    font-weight: 700;
+  }
+
+  .page-intro p {
+    margin: 4px 0 0;
+    color: #6b7280;
+    font-size: .82rem;
+  }
+
+  /* =========================================================
+     أزرار الإنشاء
+     ========================================================= */
+
+  .page-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .page-actions .btn {
+    border-radius: 9px;
+    font-size: .82rem;
+    font-weight: 600;
+    padding: 8px 13px;
+  }
+
+  /* =========================================================
+     بطاقة الجدول
+     ========================================================= */
+
+  .table-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    overflow: hidden;
+  }
+
+  .table-card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid #eef0f2;
+    background: #fcfcfd;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .table-card-title {
+    font-weight: 700;
+    font-size: .92rem;
+  }
+
+  .table-card-subtitle {
+    color: #8a9199;
+    font-size: .75rem;
+    margin-top: 2px;
+  }
+
+  /* =========================================================
+     الجدول
+     ========================================================= */
+
+  .invoice-table {
+    margin: 0;
+    white-space: nowrap;
+  }
+
+  .invoice-table thead th {
+    background: #f8fafb;
+    color: #374151;
+    font-size: .78rem;
+    font-weight: 700;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 10px;
+  }
+
+  .invoice-table tbody td {
+    font-size: .8rem;
+    padding: 12px 10px;
+    border-color: #f0f1f3;
+    vertical-align: middle;
+  }
+
+  .invoice-table tbody tr {
+    transition: background-color .15s ease;
+  }
+
+  .invoice-table tbody tr:hover {
+    background: #fafdfc;
+  }
+
+  /* =========================================================
+     رقم السند
+     ========================================================= */
+
+  .invoice-number {
+    font-weight: 700;
+  }
+
+  .invoice-number a {
+    color: #0d6efd;
+    text-decoration: none;
+  }
+
+  .invoice-number a:hover {
+    text-decoration: underline;
+  }
+
+  /* =========================================================
+     المبلغ
+     ========================================================= */
+
+  .invoice-amount {
+    font-weight: 700;
+    color: #15835f;
+    direction: ltr;
+    display: inline-block;
+  }
+
+  /* =========================================================
+     الطرف
+     ========================================================= */
+
+  .party-name {
+    font-weight: 600;
+    color: #374151;
+  }
+
+  /* =========================================================
+     Badges
+     ========================================================= */
+
+  .invoice-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: .7rem;
+    font-weight: 600;
+  }
+
+  .badge-general {
+    background: #eef5ff;
+    color: #2563eb;
+    border: 1px solid #dbeafe;
+  }
+
+  .badge-sponsorship {
+    background: #eef9f4;
+    color: #16845f;
+    border: 1px solid #ccefe1;
+  }
+
+  .badge-receipt {
+    background: #f8fafc;
+    color: #64748b;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* =========================================================
+     الإجراءات
+     ========================================================= */
+
+  .actions-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .actions-group .btn {
+    font-size: .72rem;
+    padding: 5px 9px;
+    border-radius: 7px;
+  }
+
+  /* =========================================================
+     لا توجد بيانات
+     ========================================================= */
+
+  .empty-state {
+    padding: 55px 20px;
+    text-align: center;
+    color: #9ca3af;
+  }
+
+  .empty-state-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 12px;
+    font-size: 21px;
+  }
+
+  .empty-state-title {
+    color: #4b5563;
+    font-weight: 600;
+    font-size: .9rem;
+  }
+
+  .empty-state-text {
+    font-size: .76rem;
+    margin-top: 4px;
+  }
+
+  /* =========================================================
+     الترقيم
+     ========================================================= */
+
+  .pagination-wrapper {
+    padding: 14px 18px;
+    border-top: 1px solid #eef0f2;
+    background: #fff;
+  }
+
+  .pagination {
+    margin: 0;
+  }
+
+  .pagination .page-link {
+    font-size: .78rem;
+    border-radius: 7px;
+    margin: 0 2px;
+    border-color: #e5e7eb;
+    color: #4b5563;
+  }
+
+  .pagination .page-item.active .page-link {
+    background-color: #12966f;
+    border-color: #12966f;
+  }
+
+  /* =========================================================
+     الجوال
+     ========================================================= */
+
+  @media (max-width: 768px) {
+
+    .page-intro {
+      padding: 15px;
+    }
+
+    .page-intro-content {
+      align-items: flex-start;
+    }
+
+    .page-actions {
+      margin-top: 14px;
+    }
+
+    .page-intro {
+      flex-direction: column;
+    }
+
+    .table-card-header {
+      align-items: flex-start;
+    }
+
+  }
+</style>
+
+
+<div class="invoices-page">
+
+
+  <!-- =======================================================
+       عنوان الصفحة
+       ======================================================= -->
+
+  <div class="page-intro">
+
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+
+      <div class="page-intro-content">
+
+        <div class="page-intro-icon">
+          <i class="bi bi-receipt"></i>
+        </div>
+
+        <div>
+
+          <h5>
+            {{ title }}
+          </h5>
+
+          <p>
+            إدارة سندات التبرع العام والكفالات المالية وتسجيل العمليات المالية.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <!-- =====================================================
+           أزرار إنشاء السندات
+           ===================================================== -->
+
+      <div class="page-actions">
+
+        <a
+          href="{% url 'Accounting:invoice_create_general' %}"
+          class="btn btn-primary"
+        >
+
+          <i class="bi bi-receipt-cutoff me-1"></i>
+
+          سند تبرع عام
+
+        </a>
+
+
+        <a
+          href="{% url 'Accounting:invoice_create_sponsorship' %}"
+          class="btn btn-outline-primary"
+        >
+
+          <i class="bi bi-people me-1"></i>
+
+          سند كفالة مالية
+
+        </a>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- =======================================================
+       جدول السندات
+       ======================================================= -->
+
+  <div class="table-card">
+
+
+    <!-- رأس الجدول -->
+
+    <div class="table-card-header">
+
+      <div>
+
+        <div class="table-card-title">
+
+          <i class="bi bi-list-ul me-1"></i>
+
+          السندات المسجلة
+
+        </div>
+
+        <div class="table-card-subtitle">
+
+          عرض آخر السندات المسجلة مع إمكانية التعديل أو الحذف.
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
     <div class="table-responsive">
-      <table class="table table-hover align-middle m-0">
-        <thead class="table-light">
+
+      <table class="table table-hover align-middle invoice-table">
+
+        <thead>
+
           <tr>
+
             <th>#</th>
+
             <th>رقم السند</th>
+
             <th>تاريخ السند</th>
+
             <th>نوع الفاتورة</th>
+
             <th>نوع السند</th>
+
             <th>وسيلة القبض</th>
+
             <th>الطرف</th>
+
             <th>المبلغ</th>
+
             <th>أنشئ بواسطة</th>
-            <th></th>
-            <th></th>
+
+            <th class="text-end">الإجراءات</th>
+
           </tr>
+
         </thead>
+
+
         <tbody>
+
+
           {% if page_obj.object_list %}
+
+
             {% for invoice in page_obj.object_list %}
+
               <tr>
-                <td>{{ forloop.counter0|add:page_obj.start_index }}</td>
-                <td class="fw-semibold">
-                <a href="{% url 'Accounting:invoice_detail' invoice.pk %}">
-                  {{ invoice.number }}
-                </a>
-              </td>
-                <td>{{ invoice.date|date:"Y-m-d" }}</td>
+
+
+                <!-- الرقم -->
+
+                <td class="text-muted">
+
+                  {{ forloop.counter0|add:page_obj.start_index }}
+
+                </td>
+
+
+
+                <!-- رقم السند -->
+
                 <td>
+
+                  <div class="invoice-number">
+
+                    <a
+                      href="{% url 'Accounting:invoice_detail' invoice.pk %}"
+                    >
+
+                      {{ invoice.number }}
+
+                    </a>
+
+                  </div>
+
+                </td>
+
+
+
+                <!-- التاريخ -->
+
+                <td>
+
+                  <span class="text-muted">
+
+                    {{ invoice.date|date:"Y-m-d" }}
+
+                  </span>
+
+                </td>
+
+
+
+                <!-- نوع الفاتورة -->
+
+                <td>
+
                   {% if invoice.invoice_type == "general_donation" %}
-                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle">
+
+                    <span class="invoice-badge badge-general">
+
+                      <i class="bi bi-heart"></i>
+
                       تبرع عام
+
                     </span>
+
+
                   {% elif invoice.invoice_type == "financial_sponsorship" %}
-                    <span class="badge bg-success-subtle text-success border border-success-subtle">
+
+                    <span class="invoice-badge badge-sponsorship">
+
+                      <i class="bi bi-people"></i>
+
                       كفالة مالية
+
                     </span>
+
+
                   {% else %}
-                    <span class="badge bg-secondary-subtle text-secondary">غير محدد</span>
+
+                    <span class="invoice-badge badge-receipt">
+
+                      غير محدد
+
+                    </span>
+
                   {% endif %}
+
                 </td>
-                <td>{{ invoice.get_receipt_kind_display }}</td>
+
+
+
+                <!-- نوع السند -->
+
                 <td>
+
+                  <span class="invoice-badge badge-receipt">
+
+                    {{ invoice.get_receipt_kind_display }}
+
+                  </span>
+
+                </td>
+
+
+
+                <!-- وسيلة القبض -->
+
+                <td>
+
                   {% if invoice.payment_method %}
-                    {{ invoice.get_payment_method_display }}
+
+                    <span class="text-dark">
+
+                      {{ invoice.get_payment_method_display }}
+
+                    </span>
+
                   {% else %}
-                    <span class="text-muted small">غير محدد</span>
+
+                    <span class="text-muted">
+                      غير محدد
+                    </span>
+
                   {% endif %}
+
                 </td>
+
+
+
+                <!-- الطرف -->
+
                 <td>
-                  {# الطرف: اسم الداعم أو الكافل #}
+
                   {% if invoice.invoice_type == "general_donation" and invoice.general_donation %}
-                    {{ invoice.general_donation.supporter_name|default:"—" }}
+
+                    <span class="party-name">
+
+                      {{ invoice.general_donation.supporter_name|default:"—" }}
+
+                    </span>
+
+
                   {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
-                    {{ invoice.financial_sponsorship.sponsor.user.get_full_name|default:invoice.financial_sponsorship.sponsor }}
+
+                    <span class="party-name">
+
+                      {{ invoice.financial_sponsorship.sponsor.user.get_full_name|default:invoice.financial_sponsorship.sponsor }}
+
+                    </span>
+
+
                   {% else %}
-                    <span class="text-muted small">—</span>
+
+                    <span class="text-muted">
+                      —
+                    </span>
+
                   {% endif %}
+
                 </td>
+
+
+
+                <!-- المبلغ -->
+
                 <td>
+
                   {% if invoice.invoice_type == "general_donation" and invoice.general_donation %}
-                    {{ invoice.general_donation.amount }} ر.س
+
+                    <span class="invoice-amount">
+
+                      {{ invoice.general_donation.amount }}
+                      ر.س
+
+                    </span>
+
+
                   {% elif invoice.invoice_type == "financial_sponsorship" and invoice.financial_sponsorship %}
+
                     {% if invoice.financial_sponsorship.custom_amount %}
-                      {{ invoice.financial_sponsorship.custom_amount }} ر.س
+
+                      <span class="invoice-amount">
+
+                        {{ invoice.financial_sponsorship.custom_amount }}
+                        ر.س
+
+                      </span>
+
                     {% else %}
-                      <span class="text-muted small">من خطة الكفالة</span>
+
+                      <span class="text-muted small">
+
+                        من خطة الكفالة
+
+                      </span>
+
                     {% endif %}
+
+
                   {% else %}
-                    <span class="text-muted small">—</span>
+
+                    <span class="text-muted">
+                      —
+                    </span>
+
                   {% endif %}
+
                 </td>
+
+
+
+                <!-- أنشئ بواسطة -->
+
                 <td>
-                  {{ invoice.created_by.get_full_name|default:invoice.created_by.username }}
+
+                  <span class="text-muted">
+
+                    {{ invoice.created_by.get_full_name|default:invoice.created_by.username }}
+
+                  </span>
+
                 </td>
-                <!---->
-                <td class="text-end">
-                <div class="d-flex gap-1 justify-content-end">
-                  <a href="{% url 'Accounting:invoice_update' invoice.pk %}"
-                    class="btn btn-sm btn-outline-warning">
-                    <i class="bi bi-pencil-square"></i> تعديل
+
+
+
+                <!-- الإجراءات -->
+
+                <td>
+
+                  <div class="actions-group">
+
+
+                    <a
+                      href="{% url 'Accounting:invoice_update' invoice.pk %}"
+                      class="btn btn-sm btn-outline-warning"
+                      title="تعديل السند"
+                    >
+
+                      <i class="bi bi-pencil-square"></i>
+
+                      تعديل
+
+                    </a>
+
+
+                    <form
+                      method="post"
+                      action="{% url 'Accounting:invoice_delete' invoice.pk %}"
+                      onsubmit="return confirm('هل أنت متأكد من حذف هذه الفاتورة؟');"
+                      class="d-inline"
+                    >
+
+                      {% csrf_token %}
+
+                      <button
+                        type="submit"
+                        class="btn btn-sm btn-outline-danger"
+                        title="حذف السند"
+                      >
+
+                        <i class="bi bi-trash"></i>
+
+                        حذف
+
+                      </button>
+
+                    </form>
+
+
+                  </div>
+
+                </td>
+
+
+              </tr>
+
+            {% endfor %}
+
+
+          {% else %}
+
+
+            <!-- =================================================
+                 لا توجد بيانات
+                 ================================================= -->
+
+            <tr>
+
+              <td colspan="10">
+
+                <div class="empty-state">
+
+                  <div class="empty-state-icon">
+
+                    <i class="bi bi-receipt"></i>
+
+                  </div>
+
+                  <div class="empty-state-title">
+
+                    لا توجد سندات مسجلة
+
+                  </div>
+
+                  <div class="empty-state-text">
+
+                    يمكنك إنشاء سند تبرع عام أو سند كفالة مالية من الأزرار أعلاه.
+
+                  </div>
+
+                </div>
+
+              </td>
+
+            </tr>
+
+
+          {% endif %}
+
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+
+
+    <!-- =======================================================
+         Pagination
+         ======================================================= -->
+
+    {% if page_obj.has_other_pages %}
+
+      <div class="pagination-wrapper">
+
+        <nav aria-label="Pagination">
+
+          <ul class="pagination justify-content-center mb-0">
+
+
+            <!-- السابق -->
+
+            {% if page_obj.has_previous %}
+
+              <li class="page-item">
+
+                <a
+                  class="page-link"
+                  href="?page={{ page_obj.previous_page_number }}"
+                >
+
+                  <i class="bi bi-chevron-right"></i>
+
+                  السابق
+
+                </a>
+
+              </li>
+
+            {% else %}
+
+              <li class="page-item disabled">
+
+                <span class="page-link">
+
+                  <i class="bi bi-chevron-right"></i>
+
+                  السابق
+
+                </span>
+
+              </li>
+
+            {% endif %}
+
+
+
+            <!-- أرقام الصفحات -->
+
+            {% for num in page_obj.paginator.page_range %}
+
+              {% if num == page_obj.number %}
+
+                <li class="page-item active">
+
+                  <span class="page-link">
+
+                    {{ num }}
+
+                  </span>
+
+                </li>
+
+
+              {% elif num > page_obj.number|add:-3 and num < page_obj.number|add:3 %}
+
+                <li class="page-item">
+
+                  <a
+                    class="page-link"
+                    href="?page={{ num }}"
+                  >
+
+                    {{ num }}
+
                   </a>
 
-                  <form method="post"
-                        action="{% url 'Accounting:invoice_delete' invoice.pk %}"
-                        onsubmit="return confirm('هل أنت متأكد من حذف هذه الفاتورة؟');">
-                    {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-danger">
-                      <i class="bi bi-trash"></i> حذف
-                    </button>
-                  </form>
-                </div>
-              </td>
-                <!---->
-              </tr>
+                </li>
+
+              {% endif %}
+
             {% endfor %}
-          {% else %}
-            <tr>
-              <td colspan="9" class="text-center py-4 text-muted">
-                لا توجد فواتير مسجّلة حتى الآن.
-              </td>
-            </tr>
-          {% endif %}
-      
-        </tbody>
-      </table>
-    </div>
+
+
+
+            <!-- التالي -->
+
+            {% if page_obj.has_next %}
+
+              <li class="page-item">
+
+                <a
+                  class="page-link"
+                  href="?page={{ page_obj.next_page_number }}"
+                >
+
+                  التالي
+
+                  <i class="bi bi-chevron-left"></i>
+
+                </a>
+
+              </li>
+
+            {% else %}
+
+              <li class="page-item disabled">
+
+                <span class="page-link">
+
+                  التالي
+
+                  <i class="bi bi-chevron-left"></i>
+
+                </span>
+
+              </li>
+
+            {% endif %}
+
+
+          </ul>
+
+        </nav>
+
+      </div>
+
+    {% endif %}
+
+
   </div>
 
-  {% if page_obj.has_other_pages %}
-    <div class="card-footer bg-white border-0 pt-3">
-      <nav aria-label="Pagination">
-        <ul class="pagination justify-content-center mb-0">
-          {% if page_obj.has_previous %}
-            <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.previous_page_number }}">السابق</a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">السابق</span></li>
-          {% endif %}
-
-          {% for num in page_obj.paginator.page_range %}
-            {% if num == page_obj.number %}
-              <li class="page-item active">
-                <span class="page-link">{{ num }}</span>
-              </li>
-            {% elif num > page_obj.number|add:-3 and num < page_obj.number|add:3 %}
-              <li class="page-item">
-                <a class="page-link" href="?page={{ num }}">{{ num }}</a>
-              </li>
-            {% endif %}
-          {% endfor %}
-
-          {% if page_obj.has_next %}
-            <li class="page-item">
-              <a class="page-link" href="?page={{ page_obj.next_page_number }}">التالي</a>
-            </li>
-          {% else %}
-            <li class="page-item disabled"><span class="page-link">التالي</span></li>
-          {% endif %}
-        </ul>
-      </nav>
-    </div>
-  {% endif %}
 </div>
 
 {% endblock %}

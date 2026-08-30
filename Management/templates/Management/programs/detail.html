@@ -21,10 +21,11 @@
         <i class="bi bi-arrow-left"></i> رجوع
       </a>
       <!-- زر إضافة برنامج فرعي -->
-      {% if perms.Management.add_subprogram %}
-        <a class="btn btn-primary btn-rms" href="{% url 'Management:subprogram_create' %}?main_program={{ program.id }}">
+               <a class="btn btn-primary btn-rms" href="{% url 'Management:subprogram_create' %}?main_program={{ program.id }}">
           <i class="bi bi-plus-lg"></i> إضافة برنامج فرعي
         </a>
+
+      {% if perms.Management.add_subprogram %}
       {% endif %}
 
     </div>

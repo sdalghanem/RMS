@@ -1,31 +1,61 @@
 from functools import wraps
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required, permission_required
-from django.core.exceptions import PermissionDenied
-from django.shortcuts import render, redirect, get_object_or_404
-from django.db import transaction, IntegrityError
-from django.contrib.auth import get_user_model, login, logout
-from django.core.paginator import Paginator
-from django.db.models import Q
-from django.http import HttpResponseForbidden
-from django.urls import resolve
-
-from .forms import LoginForm, UserWithProfileCreateForm, UserContactEditForm
-from .models import Profile , Beneficiary
-from Accounting.models import FinancialSponsorshipInvoice
-# أعلى الملف:
-from .forms import BeneficiaryForm, BeneficiaryFilterForm, BeneficiaryImportForm, BeneficiariesBulkAssignForm , BeneficiariesBulkEducationForm
-from django.views.decorators.http import require_http_methods
-from django.db.models import Q
-import json
-from django.utils import timezone
-from .models import BeneficiarySponsorHistory
-from Accounting.models import FinancialSponsorshipAllocation
-from django.db.models.functions import TruncMonth
-from django.db.models import Sum
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 import json
+import openpyxl
+from openpyxl import Workbook
+
+from django.contrib import messages
+from django.contrib.auth import get_user_model, login, logout
+from django.contrib.auth.decorators import login_required, permission_required
+from django.core.exceptions import PermissionDenied
+from django.core.paginator import Paginator
+from django.db import transaction, IntegrityError
+from django.db.models import Q, Sum, Prefetch
+from django.db.models.functions import TruncMonth
+from django.http import HttpResponse, HttpResponseForbidden
+from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import resolve, reverse
+from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.http import require_http_methods
+from django.views.generic import TemplateView
+
+from .forms import (
+    LoginForm,
+    UserWithProfileCreateForm,
+    UserContactEditForm,
+    BeneficiaryForm,
+    BeneficiaryFilterForm,
+    BeneficiaryImportForm,
+    BeneficiariesBulkAssignForm,
+    BeneficiariesBulkEducationForm,
+)
+from .models import (
+    Profile,
+    Beneficiary,
+    BeneficiarySponsorHistory,
+    MainProgram,
+)
+from Management.utils.audit import AuditLog
+from Accounting.models import (
+    FinancialSponsorshipInvoice,
+    FinancialSponsorshipAllocation,
+    Invoice,
+    FundEntry,
+)
+
+from django.http import JsonResponse
+from django.db.models import Q
+# url_has_allowed_host_and_scheme and _user_allowed_for_url are used by
+# login_view; keep their existing project-level implementations if available.
+try:
+    from django.utils.http import url_has_allowed_host_and_scheme
+except ImportError:
+    from django.utils.http import is_safe_url as url_has_allowed_host_and_scheme
+
 User = get_user_model()
+
 
 # -------------------------------------------------------------------
 # 🔹 ديكوريتر لتقييد الوصول بالأدوار
@@ -148,7 +178,6 @@ class HomeView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["programs_count"] = MainProgram.objects.count()
-        # ctx["beneficiaries_count"] = Beneficiary.objects.count()
         return ctx
 
 # -------------------------------------------------------------------
@@ -357,7 +386,6 @@ def cashier_home(request):
     })
 
 
-
 @login_required
 def my_profile(request):
     user = request.user
@@ -388,56 +416,91 @@ def my_profile(request):
 #######################################################################################################################################
 
 
-
 def _beneficiary_roles():
     return [Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT]
 
 @role_required(_beneficiary_roles())
 def beneficiaries_list(request):
+    """
+    قائمة المستفيدين.
+
+    الكفيل الحالي لا يُقرأ من Beneficiary.donor.
+    المصدر المعتمد هو سجل الكفالة الساري في BeneficiarySponsorHistory.
+    """
     form = BeneficiaryFilterForm(request.GET or None)
-    qs = Beneficiary.objects.select_related("donor","donor__user").all().order_by("-created_at")
+    today = timezone.localdate()
+
+    active_sponsor_history = Prefetch(
+        "sponsor_history",
+        queryset=(
+            BeneficiarySponsorHistory.objects
+            .filter(start_date__lte=today)
+            .filter(
+                Q(end_date__isnull=True) | Q(end_date__gte=today)
+            )
+            .select_related("donor", "donor__user")
+            .order_by("-start_date", "-id")
+        ),
+        to_attr="current_sponsor_history",
+    )
+
+    qs = (
+        Beneficiary.objects
+        .prefetch_related(active_sponsor_history)
+        .all()
+        .order_by("-created_at")
+    )
 
     if form.is_valid():
         q = form.cleaned_data.get("q") or ""
         gender = form.cleaned_data.get("gender") or ""
         donor = form.cleaned_data.get("donor")
-        edu = form.cleaned_data.get("education_level") or ""   # ← جديد
+        education_level = form.cleaned_data.get("education_level") or ""
 
         if q:
-            qs = qs.filter(
-                Q(first_name__icontains=q) | Q(last_name__icontains=q) |
-                Q(father_name__icontains=q) | Q(grand_name__icontains=q) |
-                Q(national_number__icontains=q)
-            )
+            search_terms = q.split()
+
+            for term in search_terms:
+                qs = qs.filter(
+                    Q(first_name__icontains=term)
+                    | Q(father_name__icontains=term)
+                    | Q(grand_name__icontains=term)
+                    | Q(last_name__icontains=term)
+                    | Q(national_number__icontains=term)
+                )
+
         if gender:
             qs = qs.filter(gender=gender)
-        if donor:
-            qs = qs.filter(donor=donor)
-        if edu:                                           # ← جديد
-            qs = qs.filter(education_level=edu)
 
+        # فلترة الكفيل الحالي من سجل الكفالة، وليس من Beneficiary.donor.
+        if donor:
+            qs = qs.filter(
+                sponsor_history__donor=donor,
+                sponsor_history__start_date__lte=today,
+            ).filter(
+                Q(sponsor_history__end_date__isnull=True)
+                | Q(sponsor_history__end_date__gte=today)
+            ).distinct()
+
+        if education_level:
+            qs = qs.filter(education_level=education_level)
 
     paginator = Paginator(qs, 20)
     page_obj = paginator.get_page(request.GET.get("page"))
 
-    ctx = {
-        "title": "قائمة المستفيدين",
-        "form": form,
-        "page_obj": page_obj,
-    }
-
     bulk_form = BeneficiariesBulkAssignForm()
     bulk_edu_form = BeneficiariesBulkEducationForm()
+
     ctx = {
         "title": "قائمة المستفيدين",
         "form": form,
         "page_obj": page_obj,
-        "bulk_form": bulk_form,   # ← أضفناه
-        "bulk_edu_form": bulk_edu_form,   # ← جديد
-
+        "bulk_form": bulk_form,
+        "bulk_edu_form": bulk_edu_form,
     }
 
     return render(request, "Management/beneficiaries_list.html", ctx)
+
 
 @role_required(_beneficiary_roles())
 def beneficiary_create(request):
@@ -455,62 +518,48 @@ def beneficiary_create(request):
 
 @role_required(_beneficiary_roles())
 def beneficiary_update(request, pk):
+    """
+    تعديل بيانات المستفيد فقط.
+
+    إدارة الكفالة لا تتم من نموذج بيانات المستفيد.
+    الإسناد والنقل بين الكفلاء يتم عبر BeneficiarySponsorHistory
+    ومسار إلحاق سند الكفالة.
+    """
     obj = get_object_or_404(Beneficiary, pk=pk)
 
     if request.method == "POST":
         form = BeneficiaryForm(request.POST, instance=obj)
 
         if form.is_valid():
-
-            old_donor = obj.donor
-
             try:
                 with transaction.atomic():
-
-                    beneficiary = form.save()
-
-                    new_donor = beneficiary.donor
-
-                    # إذا تغير الكافل
-                    if old_donor != new_donor:
-
-                        # إغلاق سجل الكافل السابق
-                        if old_donor:
-                            current_history = (
-                                BeneficiarySponsorHistory.objects
-                                .filter(
-                                    beneficiary=beneficiary,
-                                    donor=old_donor,
-                                    end_date__isnull=True
-                                )
-                                .order_by("-start_date")
-                                .first()
-                            )
-
-                            if current_history:
-                                current_history.end_date = timezone.localdate()
-                                current_history.save(update_fields=["end_date"])
-
-                        # إنشاء سجل جديد للكافل الجديد
-                        if new_donor:
-                            BeneficiarySponsorHistory.objects.create(
-                                beneficiary=beneficiary,
-                                donor=new_donor,
-                                start_date=timezone.localdate(),
-                                assigned_by=request.user,
-                            )
+                    form.save()
 
                 messages.success(request, "تم تعديل بيانات المستفيد.")
                 return redirect("Management:beneficiaries_list")
 
             except Exception as e:
                 messages.error(request, f"حدث خطأ أثناء الحفظ: {e}")
-
         else:
             messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
 
     else:
         form = BeneficiaryForm(instance=obj)
+
+    today = timezone.localdate()
+    current_sponsor = (
+        BeneficiarySponsorHistory.objects
+        .filter(
+            beneficiary=obj,
+            start_date__lte=today,
+        )
+        .filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=today)
+        )
+        .select_related("donor", "donor__user")
+        .order_by("-start_date", "-id")
+        .first()
+    )
 
     return render(
         request,
@@ -518,21 +567,10 @@ def beneficiary_update(request, pk):
         {
             "form": form,
             "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}",
+            "current_sponsor": current_sponsor,
         },
     )
-# @role_required(_beneficiary_roles())
-# def beneficiary_update(request, pk):
-#     obj = get_object_or_404(Beneficiary, pk=pk)
-#     if request.method == "POST":
-#         form = BeneficiaryForm(request.POST, instance=obj)
-#         if form.is_valid():
-#             form.save()
-#             messages.success(request, "تم تعديل بيانات المستفيد.")
-#             return redirect("Management:beneficiaries_list")
-#         messages.error(request, "تعذر الحفظ. تحقق من الحقول.")
-#     else:
-#         form = BeneficiaryForm(instance=obj)
-#     return render(request, "Management/beneficiary_form.html", {"form": form, "title": f"تعديل مستفيد — {obj.first_name} {obj.last_name}"})
+
 
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
@@ -542,6 +580,7 @@ def beneficiary_delete(request, pk):
     messages.success(request, "تم حذف المستفيد.")
     return redirect("Management:beneficiaries_list")
 
+# اضافه المستفيدين 
 @role_required(_beneficiary_roles())
 def beneficiaries_import(request):
     """
@@ -556,14 +595,12 @@ def beneficiaries_import(request):
       - (اختياري) ضبط المرحلة الدراسية/الحالة الصحية/المرض/نوع المرض إذا توفرت.
       - (جديد) قراءة "تاريخ الميلاد بالميلادي" (أو "تاريخ الميلاد"/مرادفات) وتحويله لتاريخ وكتابته في birth_date.
       - حساب العمر من الميلاد (للتحقّق فقط، لا يُخزّن لأنه @property).
-      - استخدام update_or_create على national_number.
+      - الاستيراد إضافة فقط (Insert Only): إذا كانت الهوية موجودة مسبقًا يتم تجاهل السجل بالكامل دون تعديل أي حقل.
     """
     if request.method == "POST":
         form = BeneficiaryImportForm(request.POST, request.FILES)
         if form.is_valid():
             file = form.cleaned_data["file"]
-            import openpyxl
-            from datetime import date, datetime
             from dateutil.relativedelta import relativedelta
             import pandas as pd
 
@@ -813,7 +850,7 @@ def beneficiaries_import(request):
 
             get_cell = lambda row, k: (row[H[k]].value if k and k in H else None)
 
-            created, updated, skipped = 0, 0, 0
+            created, existing, skipped = 0, 0, 0
             errors = []
 
             for r, row in enumerate(ws.iter_rows(min_row=2), start=2):
@@ -829,76 +866,101 @@ def beneficiaries_import(request):
                         errors.append(f"سطر {r}: رقم الهوية غير صالح.")
                         continue
 
-                    # ابحث أو أنشئ بحسب رقم الهوية
-                    obj, is_created = Beneficiary.objects.get_or_create(national_number=nat)
+                    # ---------------------------------------------------------
+                    # سياسة الاستيراد: إضافة فقط (INSERT ONLY)
+                    # ---------------------------------------------------------
+                    # رقم الهوية هو المفتاح المرجعي للمستفيد.
+                    # إذا كانت الهوية موجودة مسبقًا في النظام، يتم تجاهل
+                    # السجل بالكامل ولا يتم تعديل أي حقل في المستفيد الموجود.
+                    # ---------------------------------------------------------
+                    if Beneficiary.objects.filter(national_number=nat).exists():
+                        existing += 1
+                        continue
+
+                    # ---------------------------------------------------------
+                    # المستفيد جديد: نجهز بياناته ثم ننشئه لأول مرة فقط
+                    # ---------------------------------------------------------
 
                     # الاسم
                     f, fa, gr, la = split_ar_name(full_name)
-                    if f:  obj.first_name = str(f)
-                    if fa: obj.father_name = str(fa)
-                    if gr: obj.grand_name = str(gr)
-                    # last_name مطلوب في المودل؛ استخدم المتوفر أو اتركه فارغًا كـ "" (مسموح تقنيًا)
-                    obj.last_name = str(la) if la else (obj.last_name or "")
+                    first_name = str(f).strip() if f else ""
+                    father_name = str(fa).strip() if fa else ""
+                    grand_name = str(gr).strip() if gr else ""
+                    last_name = str(la).strip() if la else ""
+
+                    # تحقق أساسي: وجود first_name قبل إنشاء السجل
+                    if not first_name:
+                        skipped += 1
+                        errors.append(f"سطر {r}: الاسم غير صالح/فارغ.")
+                        continue
 
                     # الجنس
                     gnorm = norm(GENDER_MAP, gender_in, default="")
-                    if gnorm:
-                        obj.gender = gnorm
+                    if not gnorm:
+                        skipped += 1
+                        errors.append(f"سطر {r}: النوع غير صالح أو غير معروف.")
+                        continue
 
                     # المرحلة الدراسية (اختياري)
-                    # edu_in = get_cell(row, edu_key)
-                    # edu = norm(EDUCATION_MAP, edu_in, default="")
-                    # if edu:
-                    #     obj.education_level = edu
                     edu_in = get_cell(row, edu_key)
                     edu = norm(EDUCATION_MAP, edu_in, default="")
                     if not edu:
                         # محاولة تطبيع ذكي بالأنماط
                         edu = map_education(edu_in)
-                    if edu in {"child","kg","p1","p2","p3","p4","p5","p6","m1","m2","m3","h1","h2","h3"}:
-                        obj.education_level = edu
+                    if edu not in {"child","kg","p1","p2","p3","p4","p5","p6","m1","m2","m3","h1","h2","h3"}:
+                        edu = ""
 
-                    # الحالة الصحية (healthy/sick فقط)
+                    # الحالة الصحية (اختياري)
                     health_in = get_cell(row, health_key)
                     hs = norm(HEALTH_STATUS_MAP, health_in, default="")
-                    if hs:
-                        obj.health_status = hs
 
                     # المرض ونوعه (اختياري)
                     dis_in = get_cell(row, disease_key)
-                    if dis_in is not None:
-                        obj.disease = str(dis_in).strip()
+                    disease = str(dis_in).strip() if dis_in is not None else ""
+
                     dtype_in = get_cell(row, dtype_key)
                     dtype = norm(DISEASE_TYPE_MAP, dtype_in, default="")
-                    if dtype:
-                        obj.type_disease = dtype
+                    if not dtype:
+                        dtype = "none"
 
-                    # (جديد) تاريخ الميلاد بالميلادي → birth_date
+                    # تاريخ الميلاد بالميلادي → birth_date
+                    dob = None
                     if dob_key:
                         dob_val = get_cell(row, dob_key)
                         dob = parse_excel_date(dob_val)
                         if dob:
-                            obj.birth_date = dob
-                            # حساب العمر (للتحقق/التقرير فقط، لا يُخزّن)
+                            # العمر يحسب من birth_date داخل الـ Model ولا يُخزّن
                             _ = compute_age_years(dob)
 
-                    # تحقق أساسي: وجود first_name
-                    if not obj.first_name:
-                        skipped += 1
-                        errors.append(f"سطر {r}: الاسم غير صالح/فارغ.")
-                        continue
+                    # ---------------------------------------------------------
+                    # الإنشاء النهائي: لا يوجد update نهائيًا في هذا المستورد
+                    # ---------------------------------------------------------
+                    Beneficiary.objects.create(
+                        first_name=first_name,
+                        father_name=father_name,
+                        grand_name=grand_name,
+                        last_name=last_name,
+                        gender=gnorm,
+                        birth_date=dob,
+                        education_level=edu,
+                        health_status=hs,
+                        disease=disease,
+                        type_disease=dtype,
+                        national_number=nat,
+                    )
 
-                    obj.save()
-                    if is_created:
-                        created += 1
-                    else:
-                        updated += 1
+                    created += 1
 
                 except Exception as ex:
                     skipped += 1
                     errors.append(f"سطر {r}: خطأ غير متوقع — {ex}")
 
-            msg = f"تم الاستيراد: مضافة {created} / محدثة {updated} / متجاوزة {skipped}."
+            msg = (
+                f"تم الاستيراد: مضافة {created} / "
+                f"موجودة مسبقًا {existing} / "
+                f"متجاوزة بسبب أخطاء {skipped}. "
+                "لم يتم تعديل أي مستفيد موجود."
+            )
             if errors:
                 msg += f" أخطاء: {len(errors)} (أظهرنا أول 5)\n- " + "\n- ".join(errors[:5])
                 messages.warning(request, msg)
@@ -1034,7 +1096,7 @@ def beneficiaries_bulk_assign(request):
         )
 
         # إنشاء سجل تاريخ الكفالة
-        # نفس تواريخ السند
+        # BeneficiarySponsorHistory هو المصدر المعتمد للكفيل
         BeneficiarySponsorHistory.objects.create(
             beneficiary=beneficiary,
             donor=sponsorship_invoice.sponsor,
@@ -1042,10 +1104,6 @@ def beneficiaries_bulk_assign(request):
             end_date=sponsorship_invoice.end_date,
             assigned_by=request.user,
         )
-
-        # مؤقتًا للتوافق مع بقية النظام
-        beneficiary.donor = sponsorship_invoice.sponsor
-        beneficiary.save(update_fields=["donor"])
 
     sponsor_name = (
         sponsorship_invoice.sponsor.user.get_full_name()
@@ -1069,9 +1127,7 @@ def beneficiaries_template(request):
     """
     تنزيل قالب Excel بالأعمدة الصحيحة
     """
-    import openpyxl
-    from openpyxl import Workbook
-    from django.http import HttpResponse
+  
 
     wb = Workbook()
     ws = wb.active
@@ -1095,16 +1151,39 @@ def beneficiaries_template(request):
     return response
 
 
-
-
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT])
 def beneficiary_detail(request, pk):
-    b = get_object_or_404(Beneficiary.objects.select_related("donor","donor__user"), pk=pk)
-    return render(request, "Management/beneficiary_detail.html", {
-        "title": f"عرض مستفيد — {b.first_name} {b.last_name}",
-        "b": b,
-    })
-from Management.utils.audit import AuditLog
+    """
+    عرض بيانات المستفيد مع الكفيل الحالي من سجل الكفالة.
+    """
+    b = get_object_or_404(Beneficiary, pk=pk)
+    today = timezone.localdate()
+
+    current_sponsor = (
+        BeneficiarySponsorHistory.objects
+        .filter(
+            beneficiary=b,
+            start_date__lte=today,
+        )
+        .filter(
+            Q(end_date__isnull=True) | Q(end_date__gte=today)
+        )
+        .select_related("donor", "donor__user")
+        .order_by("-start_date", "-id")
+        .first()
+    )
+
+    return render(
+        request,
+        "Management/beneficiary_detail.html",
+        {
+            "title": f"عرض مستفيد — {b.first_name} {b.last_name}",
+            "b": b,
+            "current_sponsor": current_sponsor,
+        },
+    )
+
+
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
 def beneficiaries_bulk_change_education(request):
@@ -1160,21 +1239,22 @@ def dashboard(request):
 
     sponsorships_total = FinancialSponsorshipInvoice.objects.count()
 
-    sponsorships_active = FinancialSponsorshipInvoice.objects.filter(
-        start_date__lte=today,
-        end_date__gte=today,
-    ).count()
-
     sponsorships_expiring = FinancialSponsorshipInvoice.objects.filter(
         start_date__lte=today,
         end_date__gte=today,
         end_date__lte=expiring_date,
     ).count()
 
+    sponsorships_active = FinancialSponsorshipInvoice.objects.filter(
+        start_date__lte=today,
+        end_date__gte=today,
+    ).exclude(
+        end_date__lte=expiring_date,
+    ).count()
+
     sponsorships_expired = FinancialSponsorshipInvoice.objects.filter(
         end_date__lt=today,
     ).count()
-
     # =====================================================
     # الإيرادات / الرصيد
     # =====================================================
@@ -1357,16 +1437,29 @@ def sponsorships_list(request):
     # ---------------------------------------------------------
 
     if q:
-        sponsorships = sponsorships.filter(
-            Q(invoice__number__icontains=q)
-            | Q(sponsor__user__first_name__icontains=q)
-            | Q(sponsor__user__last_name__icontains=q)
-            | Q(sponsor__user__username__icontains=q)
-            | Q(allocation__beneficiary__first_name__icontains=q)
-            | Q(allocation__beneficiary__father_name__icontains=q)
-            | Q(allocation__beneficiary__grand_name__icontains=q)
-            | Q(allocation__beneficiary__last_name__icontains=q)
-        ).distinct()
+
+        search_words = q.split()
+
+        for word in search_words:
+
+            sponsorships = sponsorships.filter(
+                Q(invoice__number__icontains=word)
+
+                # الكافل
+                | Q(sponsor__user__first_name__icontains=word)
+                | Q(sponsor__father_name__icontains=word)
+                | Q(sponsor__grandpa_name__icontains=word)
+                | Q(sponsor__user__last_name__icontains=word)
+                | Q(sponsor__user__username__icontains=word)
+
+                # المستفيد
+                | Q(allocation__beneficiary__first_name__icontains=word)
+                | Q(allocation__beneficiary__father_name__icontains=word)
+                | Q(allocation__beneficiary__grand_name__icontains=word)
+                | Q(allocation__beneficiary__last_name__icontains=word)
+            )
+
+        sponsorships = sponsorships.distinct()
 
     # ---------------------------------------------------------
     # فلترة الحالة
@@ -1405,20 +1498,22 @@ def sponsorships_list(request):
 
     total_count = FinancialSponsorshipInvoice.objects.count()
 
+    expiring_count = FinancialSponsorshipInvoice.objects.filter(
+    start_date__lte=today,
+    end_date__gte=today,
+    end_date__lte=expiring_date,
+    ).count()
+
     active_count = FinancialSponsorshipInvoice.objects.filter(
         start_date__lte=today,
         end_date__gte=today,
-    ).count()
-
-    expiring_count = FinancialSponsorshipInvoice.objects.filter(
-        start_date__lte=today,
-        end_date__gte=today,
+    ).exclude(
         end_date__lte=expiring_date,
     ).count()
 
     expired_count = FinancialSponsorshipInvoice.objects.filter(
-        end_date__lt=today,
-    ).count()
+            end_date__lt=today,
+        ).count()
 
     pending_count = FinancialSponsorshipInvoice.objects.filter(
         start_date__gt=today,
@@ -1460,7 +1555,10 @@ def sponsorships_list(request):
 
             status = "unknown"
 
+        # -----------------------------------------------------
         # التخصيص
+        # -----------------------------------------------------
+
         allocation = getattr(
             sponsorship,
             "allocation",
@@ -1473,7 +1571,23 @@ def sponsorships_list(request):
             else None
         )
 
+        # -----------------------------------------------------
+        # السماح بتعديل التاريخ
+        #
+        # فقط:
+        # 1- الكفالة منتهية
+        # 2- غير مرتبطة بمستفيد
+        # -----------------------------------------------------
+
+        can_edit_dates = (
+            status == "expired"
+            and allocation is None
+        )
+
+        # -----------------------------------------------------
         # مدة الكفالة
+        # -----------------------------------------------------
+
         duration_months = (
             sponsorship.custom_duration_months
             or (
@@ -1488,7 +1602,6 @@ def sponsorships_list(request):
             )
         )
 
-        # نجهز قاموس للعرض بدل تعديل الموديل
         sponsorship_list.append(
             {
                 "object": sponsorship,
@@ -1512,6 +1625,8 @@ def sponsorships_list(request):
                 "allocated_amount": sponsorship.allocated_amount,
 
                 "remaining_amount": sponsorship.remaining_amount,
+
+                "can_edit_dates": can_edit_dates,
             }
         )
 
@@ -1559,3 +1674,160 @@ def sponsorships_list(request):
             "expiring_date": expiring_date,
         },
     )
+
+
+#####################################################
+
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def sponsorship_edit_dates(request, pk):
+
+    sponsorship = get_object_or_404(
+        FinancialSponsorshipInvoice,
+        pk=pk,
+    )
+
+    today = timezone.localdate()
+
+    # ---------------------------------------------------------
+    # لا يسمح بالتعديل إلا للكفالة المنتهية
+    # ---------------------------------------------------------
+
+    if not sponsorship.end_date or sponsorship.end_date >= today:
+
+        messages.error(
+            request,
+            "لا يمكن تعديل تاريخ هذه الكفالة إلا إذا كانت منتهية."
+        )
+
+        return redirect(
+            "Management:sponsorships_list"
+        )
+
+    # ---------------------------------------------------------
+    # التأكد من عدم وجود مستفيد مرتبط
+    # ---------------------------------------------------------
+
+    allocation = getattr(
+        sponsorship,
+        "allocation",
+        None,
+    )
+
+    if allocation is not None:
+
+        messages.error(
+            request,
+            "لا يمكن تعديل تاريخ كفالة مرتبطة بمستفيد."
+        )
+
+        return redirect(
+            "Management:sponsorships_list"
+        )
+
+    # ---------------------------------------------------------
+    # الحفظ
+    # ---------------------------------------------------------
+
+    if request.method == "POST":
+
+        start_date = request.POST.get("start_date")
+        end_date = request.POST.get("end_date")
+
+        if not start_date or not end_date:
+
+            messages.error(
+                request,
+                "يرجى إدخال تاريخ البداية والنهاية."
+            )
+
+            return render(
+                request,
+                "Management/sponsorship_edit_dates.html",
+                {
+                    "sponsorship": sponsorship,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+            )
+
+        try:
+
+            new_start_date = datetime.strptime(
+                start_date,
+                "%Y-%m-%d",
+            ).date()
+
+            new_end_date = datetime.strptime(
+                end_date,
+                "%Y-%m-%d",
+            ).date()
+
+        except ValueError:
+
+            messages.error(
+                request,
+                "صيغة التاريخ غير صحيحة."
+            )
+
+            return render(
+                request,
+                "Management/sponsorship_edit_dates.html",
+                {
+                    "sponsorship": sponsorship,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+            )
+
+        if new_end_date < new_start_date:
+
+            messages.error(
+                request,
+                "تاريخ النهاية يجب أن يكون بعد تاريخ البداية."
+            )
+
+            return render(
+                request,
+                "Management/sponsorship_edit_dates.html",
+                {
+                    "sponsorship": sponsorship,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                },
+            )
+
+        sponsorship.start_date = new_start_date
+        sponsorship.end_date = new_end_date
+
+        sponsorship.save(
+            update_fields=[
+                "start_date",
+                "end_date",
+            ]
+        )
+
+        messages.success(
+            request,
+            "تم تعديل تاريخ الكفالة بنجاح."
+        )
+
+        return redirect(
+            "Management:sponsorships_list"
+        )
+
+    # ---------------------------------------------------------
+    # GET
+    # ---------------------------------------------------------
+
+    return render(
+        request,
+        "Management/sponsorship_edit_dates.html",
+        {
+            "sponsorship": sponsorship,
+            "start_date": sponsorship.start_date,
+            "end_date": sponsorship.end_date,
+        },
+    )
+
+
+

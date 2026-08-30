@@ -12,16 +12,12 @@ from .models import (
     GeneralDonationInvoice,
     FinancialSponsorshipInvoice,
     FinancialSponsorshipAllocation,
-    BeneficiaryBalanceEntry,
-    FundToMainProgramAllocation,
-    MainToSubProgramAllocation,
     SubProgramDisbursement,
-    SubProgramDisbursementLine,
 )
 
 from Management.models import Beneficiary, MainProgram, SubProgram 
 from django.db.models import Sum
-from .models import FundReservation , AllocationHistory
+from .models import AllocationHistory
 
 from Management.models import (
     Beneficiary,
@@ -32,10 +28,7 @@ from Management.models import (
 )
 
 from .models import (
-    
-    FundReservation,
-    BeneficiarySupportEntry,
-    SponsorshipReport,
+        BeneficiarySupportEntry,
     PaymentPlan,
 )
 
@@ -43,121 +36,74 @@ from .models import Invoice
 
 
 
-@admin.register(BeneficiarySponsorHistory)
-class BeneficiarySponsorHistoryAdmin(admin.ModelAdmin):
+# @admin.register(BeneficiarySponsorHistory)
+# class BeneficiarySponsorHistoryAdmin(admin.ModelAdmin):
 
-    list_display = (
-        "beneficiary",
-        "donor",
-        "start_date",
-        "end_date",
-        "assigned_by",
-        "created_at",
-    )
+#     list_display = (
+#         "beneficiary",
+#         "donor",
+#         "start_date",
+#         "end_date",
+#         "assigned_by",
+#         "created_at",
+#     )
 
-    list_display_links = (
-        "beneficiary",
-        "donor",
-    )
+#     list_display_links = (
+#         "beneficiary",
+#         "donor",
+#     )
 
-    list_filter = (
-        "start_date",
-        "end_date",
-        "created_at",
-    )
+#     list_filter = (
+#         "start_date",
+#         "end_date",
+#         "created_at",
+#     )
 
-    search_fields = (
-        "beneficiary__first_name",
-        "beneficiary__father_name",
-        "beneficiary__last_name",
-        "donor__user__first_name",
-        "donor__user__last_name",
-        "donor__phone",
-        "donor__national_number",
-    )
+#     search_fields = (
+#         "beneficiary__first_name",
+#         "beneficiary__father_name",
+#         "beneficiary__last_name",
+#         "donor__user__first_name",
+#         "donor__user__last_name",
+#         "donor__phone",
+#         "donor__national_number",
+#     )
 
-    date_hierarchy = "start_date"
+#     date_hierarchy = "start_date"
 
-    ordering = (
-        "-start_date",
-        "-id",
-    )
+#     ordering = (
+#         "-start_date",
+#         "-id",
+#     )
 
-    readonly_fields = (
-        "created_at",
-    )
+#     readonly_fields = (
+#         "created_at",
+#     )
 
-    fieldsets = (
-        (
-            "بيانات الكفالة",
-            {
-                "fields": (
-                    "beneficiary",
-                    "donor",
-                    "start_date",
-                    "end_date",
-                )
-            },
-        ),
-        (
-            "بيانات الإسناد",
-            {
-                "fields": (
-                    "assigned_by",
-                    "created_at",
-                )
-            },
-        ),
-    )
+#     fieldsets = (
+#         (
+#             "بيانات الكفالة",
+#             {
+#                 "fields": (
+#                     "beneficiary",
+#                     "donor",
+#                     "start_date",
+#                     "end_date",
+#                 )
+#             },
+#         ),
+#         (
+#             "بيانات الإسناد",
+#             {
+#                 "fields": (
+#                     "assigned_by",
+#                     "created_at",
+#                 )
+#             },
+#         ),
+#     )
 
-@admin.register(FundReservation)
-class FundReservationAdmin(admin.ModelAdmin):
-    list_display = (
-        "id",
-        "created_at",
-        "source_type",
-        "amount",
-        "main_program",
-        "sub_program",
-        "beneficiary",
-        "created_by",
-        "note",
-    )
-    list_filter = ("source_type", "created_at")
-    search_fields = (
-        "note",
-        "main_program__name",
-        "sub_program__name",
-        "beneficiary__first_name",
-        "beneficiary__last_name",
-        "beneficiary__national_number",
-    )
-    ordering = ("-created_at", "-id")
-    date_hierarchy = "created_at"
-    readonly_fields = ("created_at",)
 
-    actions = ["release_selected_reservations"]
-
-    @admin.action(description="فك الحجز (إنشاء حركة عكسية) للسجلات المحددة")
-    def release_selected_reservations(self, request, queryset):
-        # نفك فقط السجلات الموجبة (حجز)
-        qs = queryset.filter(amount__gt=0)
-        created = 0
-
-        for r in qs:
-            FundReservation.objects.create(
-                source_type=r.source_type,
-                main_program=r.main_program,
-                sub_program=r.sub_program,
-                beneficiary=r.beneficiary,
-                amount=-r.amount,
-                reference=r.reference,
-                note=f"فك حجز (من الأدمن) - عكس حجز #{r.id}",
-                created_by=request.user,
-            )
-            created += 1
-
-        self.message_user(request, f"تم إنشاء {created} حركة فك حجز بنجاح.")
 
 class AccountingCleanupAdmin(admin.ModelAdmin):
     change_list_template = "admin/accounting_cleanup.html"
@@ -194,7 +140,6 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
 
                     AuditLog.objects.all().delete()
 
-                    SponsorshipReport.objects.all().delete()
 
                     # ==========================================
                     # عمليات الصرف
@@ -202,7 +147,6 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
 
                     BeneficiarySupportEntry.objects.all().delete()
 
-                    SubProgramDisbursementLine.objects.all().delete()
                     SubProgramDisbursement.objects.all().delete()
 
                     # ==========================================
@@ -225,7 +169,6 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
                     # أرصدة المستفيدين
                     # ==========================================
 
-                    BeneficiaryBalanceEntry.objects.all().delete()
 
                     # ==========================================
                     # سجل التخصيصات
@@ -234,14 +177,11 @@ class AccountingCleanupAdmin(admin.ModelAdmin):
 
                     AllocationHistory.objects.all().delete()
 
-                    MainToSubProgramAllocation.objects.all().delete()
-                    FundToMainProgramAllocation.objects.all().delete()
 
                     # ==========================================
                     # الحجوزات والحركات المالية
                     # ==========================================
 
-                    FundReservation.objects.all().delete()
                     FundEntry.objects.all().delete()
 
                     # ==========================================

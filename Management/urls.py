@@ -36,6 +36,7 @@ from .views import (
     beneficiaries_template,
     beneficiary_detail,
     beneficiaries_bulk_change_education,
+    sponsorship_edit_dates ,
 )
 
 from .views_programs import (
@@ -57,7 +58,7 @@ urlpatterns = [
     # =========================
     # الصفحة الرئيسية والدخول
     # =========================
-
+    
     path(
         "",
         landing_page,
@@ -361,4 +362,9 @@ urlpatterns = [
         sponsorships_list,
         name="sponsorships_list",
     ),
+    path(
+    "sponsorships/<int:pk>/edit-dates/",
+    sponsorship_edit_dates,
+    name="sponsorship_edit_dates",
+),
 ]

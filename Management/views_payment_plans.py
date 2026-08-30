@@ -10,22 +10,17 @@ from .forms import PaymentPlanForm
 from django.contrib import messages
 
 
-def _require_superuser(request):
-    if not request.user.is_authenticated:
-        return False
-    return request.user.is_superuser  # أو staff حسب ما تفضّل
+
 
 @login_required
 def payment_plan_list(request):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     plans = PaymentPlan.objects.order_by("-created_at")
     return render(request, "Management/payment_plans/list.html", {"plans": plans, "title": "إدارة الدفعات"})
 
 @login_required
 def payment_plan_create(request):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     if request.method == "POST":
         form = PaymentPlanForm(request.POST)
         if form.is_valid():
@@ -42,8 +37,7 @@ def _require_superuser(request):
 
 @login_required
 def payment_plan_list(request):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     plans = PaymentPlan.objects.order_by("-created_at")
     return render(request, "Management/payment_plans/list.html", {
         "plans": plans,
@@ -52,8 +46,7 @@ def payment_plan_list(request):
 
 @login_required
 def payment_plan_create(request):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     if request.method == "POST":
         form = PaymentPlanForm(request.POST)
         if form.is_valid():
@@ -70,8 +63,7 @@ def payment_plan_create(request):
 
 @login_required
 def payment_plan_update(request, pk):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     plan = get_object_or_404(PaymentPlan, pk=pk)
     if request.method == "POST":
         form = PaymentPlanForm(request.POST, instance=plan)
@@ -90,8 +82,7 @@ def payment_plan_update(request, pk):
 
 @login_required
 def payment_plan_delete(request, pk):
-    if not _require_superuser(request):
-        return HttpResponseForbidden("غير مصرح")
+   
     plan = get_object_or_404(PaymentPlan, pk=pk)
     if request.method == "POST":
         plan.delete()

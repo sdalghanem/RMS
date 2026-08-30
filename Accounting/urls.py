@@ -4,7 +4,11 @@ from . import views
 app_name = "Accounting"
 
 urlpatterns = [
-
+    path(
+                "sponsors/search/",
+               views.sponsor_search,
+                name="sponsor_search",
+            ),
     path(
     "disbursement/<int:pk>/reverse/",
     views.reverse_subprogram_disbursement_view,
@@ -32,22 +36,7 @@ path(
     path("invoices/create/general/", views.invoice_create_general, name="invoice_create_general"),
     path("invoices/create/sponsorship/", views.invoice_create_sponsorship, name="invoice_create_sponsorship"),
     path("invoices/<int:pk>/", views.invoice_detail, name="invoice_detail"),
-    path("sponsorships/<int:pk>/allocations/", views.sponsorship_allocations_manage, name="sponsorship_allocations_manage",),
-    path(
-        "sponsorships/<int:pk>/allocations/",
-        views.sponsorship_allocations_manage,
-        name="sponsorship_allocations_manage",
-    ),
-    path(
-        "sponsorships/allocations/<int:pk>/delete/",
-        views.sponsorship_allocation_delete,
-        name="sponsorship_allocation_delete",
-    ),
-    path(
-        "inquiry/sponsorship/",
-        views.sponsorship_inquiry,
-        name="sponsorship_inquiry",
-    ),
+   
         path(
         "sponsors/quick-create/",
         views.sponsor_quick_create,

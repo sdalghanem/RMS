@@ -1,14 +1,20 @@
-# Managment/forms.py
 from django import forms
 from django.contrib.auth import get_user_model
-from .models import Profile , Beneficiary
 from django.contrib.auth.forms import AuthenticationForm
-from django.contrib.auth.forms import PasswordChangeForm
-from django.forms.models import BaseInlineFormSet
 from django.core.exceptions import ValidationError
-from .models import MainProgram, SubProgram , PaymentPlan
+from django.forms.models import BaseInlineFormSet
 from django.utils import timezone
+
+from .models import (
+    Profile,
+    Beneficiary,
+    MainProgram,
+    SubProgram,
+    PaymentPlan,
+)
+
 from Accounting.models import FinancialSponsorshipInvoice
+
 
 User = get_user_model()
 
@@ -60,74 +66,110 @@ class SponsorshipInvoiceSelect(forms.Select):
 
         return option
     
-# مكسن بسيط يجعل أي فورم يقبل request بدون ما يطيح
+# Mixin اختياري لتمرير request إلى الفورم عند الحاجة.
 class RequestFormMixin:
     def __init__(self, *args, **kwargs):
         self.request = kwargs.pop("request", None)  # 👈 يسحب request بأمان
         super().__init__(*args, **kwargs)
 
 class MainProgramForm(RequestFormMixin, forms.ModelForm):
+
     class Meta:
         model = MainProgram
-        fields = ["name", "description", "total_donation_amount"]
+
+        fields = [
+            "name",
+            "description",
+        ]
+
         labels = {
             "name": "اسم البرنامج الأساسي",
             "description": "الوصف",
-            "total_donation_amount": "إجمالي مبلغ التبرع (سقف البرنامج)",
         }
+
         widgets = {
-            "name": forms.TextInput(attrs={"class":"form-control","placeholder":"مثال: كفالة الأيتام"}),
-            "description": forms.Textarea(attrs={"class":"form-control","rows":3,"placeholder":"وصف مختصر"}),
-            "total_donation_amount": forms.NumberInput(attrs={"class":"form-control","step":"0.01","min":"0","inputmode":"decimal"}),
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "مثال: كفالة الأيتام",
+                }
+            ),
+
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 3,
+                    "placeholder": "وصف مختصر",
+                }
+            ),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)  # RequestFormMixin قام بالمطلوب
-        # إخفاء المبلغ لمدير النظام
-        if self.request and self.request.user.groups.filter(name="system_admin").exists():
-            self.fields.pop("total_donation_amount", None)
+    def save(self, commit=True):
 
-    def clean(self):
-        cleaned = super().clean()
-        if self.request and self.request.user.groups.filter(name="system_admin").exists():
-            cleaned["total_donation_amount"] = 0
-        return cleaned
+        obj = super().save(commit=False)
 
+        # عند إنشاء البرنامج الأساسي يبدأ سقف التبرع بصفر
+        if not obj.pk:
+            obj.total_donation_amount = 0
 
+        if commit:
+            obj.save()
+
+        return obj
+    
 class SubProgramForm(RequestFormMixin, forms.ModelForm):
+
     class Meta:
         model = SubProgram
-        fields = ["main_program", "name", "description", "allocated_amount"]
+
+        fields = [
+            "main_program",
+            "name",
+            "description",
+        ]
+
         labels = {
             "main_program": "البرنامج الأساسي",
             "name": "اسم البرنامج الفرعي",
             "description": "الوصف",
-            "allocated_amount": "المبلغ المخصص",
         }
+
         widgets = {
-            "main_program": forms.Select(attrs={"class":"form-select"}),
-            "name": forms.TextInput(attrs={"class":"form-control","placeholder":"مثال: كسوة الشتاء"}),
-            "description": forms.Textarea(attrs={"class":"form-control","rows":2,"placeholder":"وصف مختصر"}),
-            "allocated_amount": forms.NumberInput(attrs={"class":"form-control","step":"0.01","min":"0","inputmode":"decimal"}),
+            "main_program": forms.Select(
+                attrs={
+                    "class": "form-select",
+                }
+            ),
+
+            "name": forms.TextInput(
+                attrs={
+                    "class": "form-control",
+                    "placeholder": "مثال: كسوة الشتاء",
+                }
+            ),
+
+            "description": forms.Textarea(
+                attrs={
+                    "class": "form-control",
+                    "rows": 2,
+                    "placeholder": "وصف مختصر",
+                }
+            ),
         }
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)  # RequestFormMixin قام بالمطلوب
-        if self.request and self.request.user.groups.filter(name="system_admin").exists():
-            self.fields.pop("allocated_amount", None)
+    def save(self, commit=True):
 
-    def clean(self):
-        cleaned = super().clean()
-        if self.request and self.request.user.groups.filter(name="system_admin").exists():
-            cleaned["allocated_amount"] = 0
-        return cleaned
+        obj = super().save(commit=False)
 
+        # عند إنشاء البرنامج الفرعي يبدأ المبلغ المخصص بصفر
+        if not obj.pk:
+            obj.allocated_amount = 0
 
+        if commit:
+            obj.save()
 
-
-
-
-
+        return obj
+    
 class BeneficiariesBulkEducationForm(forms.Form):
     education_level = forms.ChoiceField(
         label="المرحلة الدراسية الجديدة",
@@ -267,9 +309,6 @@ class UserContactEditForm(forms.Form):
         return email
 
 
-
-
-
 class LoginForm(AuthenticationForm):
     username = forms.EmailField(
         label="البريد الإلكتروني",
@@ -288,36 +327,52 @@ class LoginForm(AuthenticationForm):
             field.widget.attrs.setdefault("class", "form-control")
 
     def clean(self):
-        # طبّع الإدخال: شيل المسافات وحوّله لحروف صغيرة
-        cd = super().clean()  # يملأ self.cleaned_data بالـ username/password
-        raw = self.cleaned_data.get("username", "")
+        """
+        يسمح بتسجيل الدخول باستخدام البريد الإلكتروني أو اسم المستخدم.
+        يتم تحويل البريد إلى username الفعلي قبل التحقق من كلمة المرور.
+        """
+        raw = self.data.get(self.add_prefix("username"), "")
         email_or_username = (raw or "").strip().lower()
 
-        # إذا وجدنا مستخدمًا يطابق الإيميل → مرّر username الحقيقي للتحقق
-        # وإلا اترك القيمة كما هي (قد يكون المستخدم كتب اسم المستخدم مباشرة)
         try:
-            user_by_email = User.objects.filter(email__iexact=email_or_username).first()
-            if user_by_email:
-                self.cleaned_data["username"] = user_by_email.username
-            else:
-                self.cleaned_data["username"] = email_or_username
-        except Exception:
-            self.cleaned_data["username"] = email_or_username
+            user_by_email = (
+                User.objects
+                .filter(email__iexact=email_or_username)
+                .first()
+            )
 
-        # أعد استدعاء التحقق الفعلي الآن بعد تعديل username
-        return super().clean()
+            if user_by_email:
+                self.data = self.data.copy()
+                self.data[self.add_prefix("username")] = user_by_email.username
+        except Exception:
+            pass
+
+        cleaned_data = super().clean()
+
+        if cleaned_data.get("username"):
+            cleaned_data["username"] = cleaned_data["username"].strip().lower()
+
+        return cleaned_data
     
     ##############################################################################################
 
 
 class BeneficiaryForm(forms.ModelForm):
+    """
+    نموذج بيانات المستفيد.
+
+    ملاحظة:
+    الكفالة لا تُدار من هذا النموذج.
+    الكفيل الحالي وتاريخ الكفالة مصدرهما BeneficiarySponsorHistory.
+    """
+
     class Meta:
         model = Beneficiary
         fields = [
             "first_name","father_name","grand_name","last_name","gender","birth_date",
             "education_level","health_status","disease","type_disease",
             "type_housing","housing_fee","beneficiary_rank",
-            "number_of_beneficiary_in_family","national_number","donor"
+            "number_of_beneficiary_in_family","national_number"
         ]
         widgets = {
             "birth_date": forms.DateInput(attrs={"type": "date", "class":"form-control"}),
@@ -330,26 +385,79 @@ class BeneficiaryForm(forms.ModelForm):
             if not getattr(f.widget, "attrs", None):
                 f.widget.attrs = {}
             f.widget.attrs.setdefault("class", "form-control")
-        # اختيار المتبرع (كفيل) فقط
-        self.fields["donor"].queryset = Profile.objects.filter(role=Profile.Roles.DONOR).select_related("user")
-        self.fields["donor"].widget.attrs["class"] = "form-select"
 
 class BeneficiaryFilterForm(forms.Form):
-    q = forms.CharField(required=False, label="بحث", widget=forms.TextInput(attrs={"class":"form-control"}))
-    gender = forms.ChoiceField(required=False, choices=[("", "الجنس (الكل)")] + list(Beneficiary.Gender.choices), widget=forms.Select(attrs={"class":"form-select"}))
+
+    q = forms.CharField(
+        required=False,
+        label="بحث",
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "placeholder": "ابحث بالاسم، الهوية، رقم الجوال أو اسم الكافل..."
+            }
+        )
+    )
+
+    gender = forms.ChoiceField(
+        required=False,
+        choices=[
+            ("", "الجنس (الكل)")
+        ] + list(Beneficiary.Gender.choices),
+        widget=forms.Select(
+            attrs={
+                "class": "form-select"
+            }
+        )
+    )
+
     donor = forms.ModelChoiceField(
         required=False,
-        queryset=Profile.objects.filter(role=Profile.Roles.DONOR).select_related("user"),
+        queryset=Profile.objects.filter(
+            role=Profile.Roles.DONOR
+        ).select_related("user"),
         label="الكافل",
-        widget=forms.Select(attrs={"class":"form-select"})
+        widget=forms.Select(
+            attrs={
+                "class": "form-select"
+            }
+        )
     )
+
     education_level = forms.ChoiceField(
         required=False,
-        choices=[("", "المرحلة الدراسية (الكل)")] + list(Beneficiary.EducationLevel.choices),
-        widget=forms.Select(attrs={"class":"form-select"}),
+        choices=[
+            ("", "المرحلة الدراسية (الكل)")
+        ] + list(Beneficiary.EducationLevel.choices),
+        widget=forms.Select(
+            attrs={
+                "class": "form-select"
+            }
+        ),
         label="المرحلة الدراسية"
     )
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.fields["donor"].label_from_instance = self.get_donor_name
+
+    def get_donor_name(self, obj):
+        parts = [
+            obj.user.first_name,
+            obj.father_name,
+            obj.grandpa_name,
+            obj.user.last_name,
+        ]
+
+        name = " ".join(
+            str(part).strip()
+            for part in parts
+            if part and str(part).strip()
+        )
+
+        return name or obj.user.username
+    
 class BeneficiaryImportForm(forms.Form):
     file = forms.FileField(label="ملف Excel (xlsx)", widget=forms.FileInput(attrs={"accept":".xlsx"}))
 
@@ -427,30 +535,10 @@ class BeneficiariesBulkAssignForm(forms.Form):
         )
 
 
-## البرامج 
+# -------------------------------------------------------------------
+# البرامج
+# -------------------------------------------------------------------
 
-
-
-
-class SubProgramForm(forms.ModelForm):
-    class Meta:
-        model = SubProgram
-        fields = ["main_program", "name", "description", "allocated_amount"]  # لا تضف spent_amount هنا
-        labels = {
-            "main_program": "البرنامج الأساسي",
-            "name": "اسم البرنامج الفرعي",
-            "description": "الوصف",
-            "allocated_amount": "المبلغ المخصص",
-        }
-        widgets = {
-            "main_program": forms.Select(attrs={"class":"form-select"}),
-            "name": forms.TextInput(attrs={"class":"form-control","placeholder":"مثال: كسوة الشتاء"}),
-            "description": forms.Textarea(attrs={"class":"form-control","rows":2,"placeholder":"وصف مختصر"}),
-            "allocated_amount": forms.NumberInput(attrs={"class":"form-control","step":"0.01","min":"0","inputmode":"decimal"}),
-        }
-
-
- 
 
 class SubProgramInlineFormSet(BaseInlineFormSet):
     def clean(self):
@@ -485,4 +573,3 @@ class PaymentPlanForm(forms.ModelForm):
             "duration_months": "المدة (بالأشهر)",
             "is_active": "نشطة",
         }
-

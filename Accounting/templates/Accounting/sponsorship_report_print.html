@@ -65,47 +65,24 @@
             margin: 10mm;
         }
 
-        /* =====================================================
-           الصفحة
-        ===================================================== */
-
         .report-page {
-
             position: relative;
-
             width: 794px;
             min-height: 1123px;
-
             margin: 25px auto;
-
             background: #F7F7EA;
-
             overflow: hidden;
-
             padding: 50px 55px 90px;
-
             box-shadow: 0 0 15px rgba(0, 0, 0, .15);
-
         }
 
-        /* =====================================================
-           الخلفية
-        ===================================================== */
-
         .page-bg {
-
             position: absolute;
-
             inset: 0;
-
             overflow: hidden;
-
             pointer-events: none;
-
             z-index: 0;
-
             opacity: .28;
-
         }
 
         .report-page > * {
@@ -123,789 +100,466 @@
         }
 
         .curve {
-
             position: absolute;
-
             border: 1px solid rgba(147, 145, 115, .35);
-
             border-radius: 50%;
-
         }
 
         .curve1 {
-
             width: 1450px;
             height: 900px;
-
             left: -700px;
             top: 120px;
-
         }
 
         .curve2 {
-
             width: 1600px;
             height: 1050px;
-
             left: -780px;
             top: 180px;
-
         }
 
         .curve3 {
-
             width: 1100px;
             height: 650px;
-
             right: -600px;
             bottom: -180px;
-
             transform: rotate(32deg);
-
         }
-
-        /* =====================================================
-           Page Break
-        ===================================================== */
 
         .cover-page,
         .intro-page {
-
             break-after: page;
             page-break-after: always;
-
         }
 
         .report-page:last-of-type {
-
             break-after: auto !important;
             page-break-after: auto !important;
-
         }
-
-        /* =====================================================
-           زر الطباعة
-        ===================================================== */
 
         .no-print {
-
             position: fixed;
-
             top: 20px;
             left: 20px;
-
             z-index: 9999;
-
         }
 
-        /* =====================================================
-           Header
-        ===================================================== */
-
         .header {
-
             display: flex;
-
             justify-content: space-between;
-
             align-items: flex-start;
-
             margin-bottom: 35px;
-
             page-break-inside: avoid;
-
         }
 
         .logo {
-
             width: 130px;
             height: auto;
-
         }
 
         .title-box {
-
             width: 62%;
-
             margin-top: 15px;
-
         }
 
         .title {
-
             background: #5C8B38;
-
             color: #fff;
-
             text-align: center;
-
             font-size: 28px;
-
             font-weight: bold;
-
             padding: 14px;
-
             border-radius: 18px 18px 0 0;
-
             letter-spacing: .5px;
-
         }
 
         .title-line {
-
             height: 5px;
-
             background: #5C8B38;
-
             margin-top: 4px;
-
         }
 
-        /* =====================================================
-           Sections
-        ===================================================== */
-
         .section {
-
             margin-top: 28px;
-
             page-break-inside: avoid;
-
         }
 
         .section-title {
-
             width: 290px;
-
             margin-right: 0;
-
             margin-left: auto;
-
             display: flex;
-
             justify-content: flex-start;
-
         }
 
         .section-no {
-
             background: #73a94b;
-
             color: #fff;
-
             font-size: 18px;
-
             font-weight: 700;
-
             padding: 6px 16px;
-
             white-space: nowrap;
-
         }
 
         .section-name {
-
             background: #fff;
-
             color: #355425;
-
             font-size: 22px;
-
             font-weight: 700;
-
             padding: 6px 20px;
-
             min-width: 220px;
-
             text-align: center;
-
         }
 
-        /* =====================================================
-           Info Table
-        ===================================================== */
-
         .info-table {
-
             width: 100%;
-
             margin-top: 10px;
-
             border-collapse: separate;
-
             border-spacing: 2px;
-
         }
 
         .info-table td {
-
             padding: 7px 10px;
-
             height: 48px;
-
             vertical-align: middle;
-
             text-align: center;
-
         }
 
         .label {
-
             background: #5C8B38;
-
             color: #fff;
-
             font-size: 17px;
-
             font-weight: 700;
-
             width: 14%;
-
         }
 
         .value {
-
             background: #7ead4d;
-
             color: #fff;
-
             font-size: 18px;
-
             font-weight: 500;
-
             width: 19%;
-
             text-align: center;
-
         }
 
-        /* =====================================================
-           Program Table
-        ===================================================== */
-
         .program-table {
-
             width: 100%;
-
             margin-top: 15px;
-
         }
 
         .program-table th {
-
             background: #5C8B38;
-
             color: #fff;
-
             padding: 9px;
-
             border: 2px solid #fff;
-
             text-align: center;
-
             font-size: 16px;
-
             font-weight: 700;
-
         }
 
         .program-table td {
-
             padding: 10px;
-
             border: 1px solid #ddd;
-
             text-align: center;
-
             font-size: 15px;
-
             line-height: 1.6;
-
             font-weight: 400;
-
         }
 
         .program-table tbody tr:nth-child(even) {
-
             background: #f7f7f7;
-
         }
 
-        /* =====================================================
-           Summary
-        ===================================================== */
-
         .summary {
-
             display: flex;
-
             gap: 20px;
-
             margin-top: 30px;
-
             page-break-inside: avoid;
-
         }
 
         .summary-box {
-
             flex: 1;
-
             background: #5C8B38;
-
             color: #fff;
-
             text-align: center;
-
             padding: 22px;
-
             border-radius: 18px;
-
             font-size: 22px;
-
             font-weight: bold;
-
         }
-
-        /* =====================================================
-           Cover
-        ===================================================== */
-
-        .cover-name {
-
-            font-size: 30px;
-
-            font-weight: bold;
-
-            margin-top: 22px;
-
-            margin-bottom: 8px;
-
-        }
-
-        .cover-label {
-
-            font-size: 18px;
-
-            margin: 6px 0;
-
-        }
-
-        .cover-value {
-
-            font-size: 23px;
-
-            font-weight: bold;
-
-            margin-bottom: 18px;
-
-        }
-
-        .cover-footer {
-
-            font-size: 15px;
-
-            color: #666;
-
-            margin-top: 45px;
-
-        }
-
-        /* =====================================================
-           Message
-        ===================================================== */
 
         .message-box {
-
             width: 75%;
-
             margin: 40px auto;
-
             text-align: right;
-
             font-size: 21px;
-
             line-height: 2.2;
-
         }
 
         .hadith-box {
-
             width: 70%;
-
             margin-top: 50px;
-
             padding: 22px 28px;
-
         }
 
         .hadith-title {
-
             color: #5C8B38;
-
             font-size: 20px;
-
             font-weight: 700;
-
             margin-bottom: 18px;
-
         }
 
         .hadith-text {
-
             font-size: 30px;
-
         }
 
         .hadith-footer {
-
             font-size: 20px;
-
         }
 
-        /* =====================================================
-           Footer
-        ===================================================== */
-
         .page-footer {
-
             position: absolute;
-
             bottom: 0;
-
             left: 0;
-
             right: 0;
-
             height: 58px;
-
             background: #76975B;
-
             color: #fff;
-
             display: flex;
-
             align-items: center;
-
             justify-content: space-between;
-
             padding: 0 35px;
-
             font-size: 14px;
-
             font-weight: 500;
-
             direction: rtl;
-
         }
 
         .page-footer .footer-center {
-
             flex: 1;
-
             text-align: center;
-
         }
 
         .page-footer .footer-left {
-
             text-align: left;
-
             direction: ltr;
-
         }
 
         .page-footer .footer-divider {
-
             width: 2px;
-
             height: 38px;
-
             background: rgba(255,255,255,.85);
-
             margin: 0 25px;
-
         }
 
-        /* =====================================================
-           Financial Summary
-        ===================================================== */
-
         .financial-box {
-
             margin-top: 18px;
-
             border-radius: 16px;
-
             overflow: hidden;
-
             border: 1px solid #dfe8d6;
-
             background: #fff;
-
         }
 
         .financial-table {
-
             width: 100%;
-
             border-collapse: collapse;
-
             font-size: 17px;
-
         }
 
         .financial-table td {
-
             padding: 15px;
-
             text-align: center;
-
         }
 
         .financial-label {
-
             width: 25%;
-
             background: #5C8B38;
-
             color: #fff;
-
             font-weight: 700;
-
         }
 
         .financial-value {
-
             width: 25%;
-
             background: #EEF5E4;
-
             color: #355425;
-
             font-weight: 700;
-
         }
 
         .financial-message {
-
             margin-top: 20px;
-
             padding: 18px 22px;
-
             background: #EEF5E4;
-
             border-right: 6px solid #5C8B38;
-
             border-radius: 12px;
-
             color: #355425;
-
             font-size: 18px;
-
             line-height: 2;
-
             text-align: right;
-
         }
 
         .financial-message.partial {
-
             border-right-color: #73A94B;
-
         }
 
         .financial-message.none {
-
             background: #f8f9fa;
-
             border-right-color: #999;
-
             color: #555;
-
         }
 
-        /* =====================================================
-           Sponsor Summary
-        ===================================================== */
-
         .sponsor-summary {
-
             margin-top: 30px;
-
             background: #EEF5E4;
-
             border: 1px solid #dfe8d6;
-
             border-radius: 18px;
-
             padding: 24px;
-
         }
 
         .sponsor-summary-title {
-
             color: #355425;
-
             font-size: 24px;
-
             font-weight: 700;
-
             text-align: center;
-
             margin-bottom: 20px;
-
         }
 
         .sponsor-summary-table {
-
             width: 100%;
-
             border-collapse: separate;
-
             border-spacing: 3px;
-
         }
 
         .sponsor-summary-table td {
-
             padding: 12px;
-
             text-align: center;
-
             vertical-align: middle;
-
         }
 
         .sponsor-summary-label {
-
             background: #5C8B38;
-
             color: #fff;
-
             font-weight: 700;
-
             width: 16%;
-
         }
 
         .sponsor-summary-value {
-
             background: #fff;
-
             color: #355425;
-
             font-weight: 700;
-
             width: 17%;
-
         }
 
-        /* =====================================================
-           Print
-        ===================================================== */
+        .sponsorship-card {
+            margin-top: 25px;
+            border: 1px solid #dfe8d6;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #fff;
+        }
+
+        .sponsorship-card-header {
+            background: #5C8B38;
+            color: #fff;
+            padding: 12px 16px;
+            font-size: 20px;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .sponsorship-card-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 2px;
+        }
+
+        .sponsorship-card-table td {
+            padding: 10px;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .sponsorship-label {
+            background: #5C8B38;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .sponsorship-value {
+            background: #EEF5E4;
+            color: #355425;
+            font-weight: 700;
+        }
+
+        .sponsorship-separator {
+            margin-top: 30px;
+            height: 4px;
+            background: #73A94B;
+            border-radius: 5px;
+        }
 
         @media print {
 
             html,
             body {
-
                 background: #fff !important;
-
                 padding: 0;
-
                 margin: 0;
-
             }
 
             .no-print {
-
                 display: none !important;
-
             }
 
             .report-page {
-
                 width: 210mm;
-
                 min-height: 297mm;
-
                 margin: 0;
-
                 padding: 10mm;
-
                 box-shadow: none;
-
             }
 
             .header,
             .summary {
-
                 page-break-inside: avoid !important;
-
             }
 
             table {
-
                 page-break-inside: auto;
-
                 direction: rtl;
-
             }
 
             tr {
-
                 page-break-inside: avoid;
-
             }
 
             td,
             th {
-
                 page-break-inside: auto;
-
                 vertical-align: middle;
-
                 text-align: center;
-
             }
 
             .section {
-
                 page-break-inside: auto;
-
             }
 
             .message-box {
-
                 padding: 25px;
-
                 margin: 25px 0;
-
                 line-height: 1.8;
-
                 font-size: 19px;
-
             }
 
             .hadith-box {
-
                 padding: 18px;
-
                 margin-top: 18px;
-
                 font-size: 18px;
-
                 line-height: 1.8;
-
             }
 
             body {
-
                 font-weight: 400;
-
             }
-
         }
 
     </style>
@@ -913,7 +567,6 @@
 </head>
 
 <body>
-
 
 <button
     class="btn btn-success no-print"
@@ -924,7 +577,7 @@
 
 
 <!-- =====================================================
-     صفحة الغلاف
+     الغلاف
 ===================================================== -->
 
 <section class="report-page intro-page">
@@ -956,9 +609,7 @@
             border-radius:24px 24px 0 0;
             line-height:1.3;
         ">
-
             تقرير كفالة الرياحين
-
         </div>
 
         <div style="
@@ -971,9 +622,7 @@
             font-weight:bold;
             padding:14px;
         ">
-
             {{ year }}م
-
         </div>
 
     </div>
@@ -984,7 +633,7 @@
 
 
 <!-- =====================================================
-     صفحة الشكر
+     الشكر
 ===================================================== -->
 
 <section class="report-page intro-page">
@@ -993,33 +642,20 @@
     <div class="curve curve2"></div>
     <div class="curve curve3"></div>
 
-    <div class="page-bg">
-
-        <div class="curve curve1"></div>
-        <div class="curve curve2"></div>
-        <div class="curve curve3"></div>
-
-    </div>
-
     <div class="header">
 
         <div class="title-box">
-
             <div class="title">
                 شكر وتقدير
             </div>
-
             <div class="title-line"></div>
-
         </div>
 
         <div>
-
             <img
                 src="{% static 'Management/images/widelogo.png' %}"
                 class="logo"
             >
-
         </div>
 
     </div>
@@ -1067,7 +703,7 @@
 
 
 <!-- =====================================================
-     معلومات الكافل مرة واحدة فقط
+     معلومات الكافل
 ===================================================== -->
 
 <section class="report-page intro-page">
@@ -1099,7 +735,6 @@
 
     </div>
 
-
     <div class="section">
 
         <div class="section-title">
@@ -1114,7 +749,6 @@
 
         </div>
 
-
         <table class="info-table">
 
             <tr>
@@ -1125,7 +759,17 @@
 
                 <td class="value">
 
-                    {{ donor.user.get_full_name|default:donor.user.username }}
+                    {{ donor.user.first_name }}
+
+                    {% if donor.father_name %}
+                        {{ donor.father_name }}
+                    {% endif %}
+
+                    {% if donor.grandpa_name %}
+                        {{ donor.grandpa_name }}
+                    {% endif %}
+
+                    {{ donor.user.last_name }}
 
                 </td>
 
@@ -1134,9 +778,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ donor.national_number|default:"-" }}
-
                 </td>
 
                 <td class="label">
@@ -1144,9 +786,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ donor.phone|default:"-" }}
-
                 </td>
 
             </tr>
@@ -1159,6 +799,14 @@
 
                 <td class="value">
                     {{ beneficiary_count }}
+                </td>
+
+                <td class="label">
+                    عدد السندات
+                </td>
+
+                <td class="value">
+                    {{ sponsorship_count }}
                 </td>
 
                 <td class="label">
@@ -1179,6 +827,10 @@
 
                 </td>
 
+            </tr>
+
+            <tr>
+
                 <td class="label">
                     السنة
                 </td>
@@ -1186,10 +838,6 @@
                 <td class="value">
                     {{ year }}
                 </td>
-
-            </tr>
-
-            <tr>
 
                 <td class="label">
                     من تاريخ
@@ -1207,15 +855,16 @@
                     {{ to_date }}
                 </td>
 
+            </tr>
+
+            <tr>
+
                 <td class="label">
                     إجمالي المصروف
                 </td>
 
-                <td class="value">
-
-                    {{ grand_total|floatformat:2 }}
-                    ر.س
-
+                <td class="value" colspan="5">
+                    {{ grand_total|floatformat:2 }} ر.س
                 </td>
 
             </tr>
@@ -1224,8 +873,6 @@
 
     </div>
 
-
-    <!-- ملخص عام للكفالات -->
 
     <div class="sponsor-summary">
 
@@ -1279,7 +926,6 @@
 
     </div>
 
-
     <div
         style="
             margin-top:30px;
@@ -1306,17 +952,12 @@
 
 
 <!-- =====================================================
-     صفحة مستقلة لكل مستفيد
+     المستفيدون
 ===================================================== -->
 
 {% for row in beneficiaries %}
 
-
-<!-- =====================================================
-     بيانات المستفيد والكفالة
-===================================================== -->
-
-<section class="report-page intro-page">
+<section class="report-page">
 
     <div class="curve curve1"></div>
     <div class="curve curve2"></div>
@@ -1327,7 +968,7 @@
         <div class="title-box">
 
             <div class="title">
-                تفاصيل الكفالة
+                تفاصيل المستفيد والكفالات
             </div>
 
             <div class="title-line"></div>
@@ -1347,7 +988,7 @@
 
 
     <!-- =================================================
-         أولاً: معلومات المستفيد
+         معلومات المستفيد
     ================================================= -->
 
     <div class="section">
@@ -1374,8 +1015,10 @@
 
                 <td class="value">
 
-                          {{ row.beneficiary.first_name }}
-                        {{ row.beneficiary.father_name }}
+                    {{ row.beneficiary.first_name }}
+                    {{ row.beneficiary.father_name }}
+                    {{ row.beneficiary.grand_name }}
+                    {{ row.beneficiary.last_name }}
 
                 </td>
 
@@ -1384,9 +1027,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ row.beneficiary.get_gender_display }}
-
                 </td>
 
                 <td class="label">
@@ -1394,9 +1035,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ row.beneficiary.age_years|default:"-" }}
-
                 </td>
 
             </tr>
@@ -1408,9 +1047,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ row.beneficiary.get_education_level_display|default:"-" }}
-
                 </td>
 
                 <td class="label">
@@ -1418,9 +1055,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ row.beneficiary.get_type_housing_display|default:"-" }}
-
                 </td>
 
                 <td class="label">
@@ -1428,9 +1063,7 @@
                 </td>
 
                 <td class="value">
-
                     {{ row.beneficiary.get_health_status_display|default:"-" }}
-
                 </td>
 
             </tr>
@@ -1441,7 +1074,7 @@
 
 
     <!-- =================================================
-         ثانياً: معلومات الكفالة
+         ملخص المستفيد
     ================================================= -->
 
     <div class="section">
@@ -1453,153 +1086,76 @@
             </div>
 
             <div class="section-name">
-                معلومات الكفالة
+                ملخص كفالات المستفيد
             </div>
 
         </div>
 
+        <div class="financial-box">
 
-        <table class="info-table">
+            <table class="financial-table">
 
-            <tr>
+                <tr>
 
-                <td class="label">
-                    رقم السند
-                </td>
+                    <td class="financial-label">
+                        عدد السندات
+                    </td>
 
-                <td class="value">
+                    <td class="financial-value">
+                        {{ row.sponsorship_count }}
+                    </td>
 
-                    {% if row.sponsorship_invoice %}
+                    <td class="financial-label">
+                        إجمالي مبالغ الكفالات
+                    </td>
 
-                        {{ row.sponsorship_invoice.invoice.number }}
+                    <td class="financial-value">
+                        {{ row.sponsorship_amount|floatformat:2 }} ر.س
+                    </td>
 
-                    {% else %}
+                </tr>
 
-                        -
+                <tr>
 
-                    {% endif %}
+                    <td class="financial-label">
+                        إجمالي المصروف
+                    </td>
 
-                </td>
+                    <td class="financial-value">
+                        {{ row.total|floatformat:2 }} ر.س
+                    </td>
 
-                <td class="label">
-                    مبلغ الكفالة
-                </td>
+                    <td class="financial-label">
+                        المستخدم من الكفالات
+                    </td>
 
-                <td class="value">
+                    <td class="financial-value">
+                        {{ row.sponsorship_used|floatformat:2 }} ر.س
+                    </td>
 
-                    {{ row.sponsorship_amount|floatformat:2 }}
-                    ر.س
+                </tr>
 
-                </td>
+                <tr>
 
-                <td class="label">
-                    مدة الكفالة
-                </td>
+                    <td class="financial-label">
+                        المتبقي من الكفالات
+                    </td>
 
-                <td class="value">
+                    <td class="financial-value">
+                        {{ row.sponsorship_remaining|floatformat:2 }} ر.س
+                    </td>
 
-                    {% if row.sponsorship_invoice %}
+                    <td class="financial-label">
+                        المصروف الزائد
+                    </td>
 
-                        {% if row.sponsorship_invoice.custom_duration_months %}
+                    <td class="financial-value">
+                        {{ row.extra_amount|floatformat:2 }} ر.س
+                    </td>
 
-                            {{ row.sponsorship_invoice.custom_duration_months }}
-                            شهر
+                </tr>
 
-                        {% elif row.sponsorship_invoice.payment_plan %}
-
-                            {{ row.sponsorship_invoice.payment_plan.duration_months }}
-                            شهر
-
-                        {% else %}
-
-                            -
-
-                        {% endif %}
-
-                    {% else %}
-
-                        -
-
-                    {% endif %}
-
-                </td>
-
-            </tr>
-
-            <tr>
-
-                <td class="label">
-                    بداية الكفالة
-                </td>
-
-                <td class="value">
-
-                    {{ row.history.start_date }}
-
-                </td>
-
-                <td class="label">
-                    نهاية الكفالة
-                </td>
-
-                <td class="value">
-
-                    {{ row.history.end_date|default:"مستمرة" }}
-
-                </td>
-
-                <td class="label">
-                    فترة التقرير
-                </td>
-
-                <td class="value">
-
-                    {{ from_date }}
-                    -
-                    {{ to_date }}
-
-                </td>
-
-            </tr>
-
-        </table>
-
-    </div>
-
-
-    {% include "Accounting/report_footer.html" %}
-
-</section>
-
-
-<!-- =====================================================
-     الملخص المالي والمصروفات للمستفيد
-===================================================== -->
-
-<section class="report-page intro-page">
-
-    <div class="curve curve1"></div>
-    <div class="curve curve2"></div>
-    <div class="curve curve3"></div>
-
-    <div class="header">
-
-        <div class="title-box">
-
-            <div class="title">
-                تفاصيل الكفالة
-            </div>
-
-            <div class="title-line"></div>
-
-        </div>
-
-        <div>
-
-            <img
-                src="{% static 'Management/images/widelogo.png' %}"
-                class="logo"
-            >
+            </table>
 
         </div>
 
@@ -1607,7 +1163,7 @@
 
 
     <!-- =================================================
-         ثالثاً: الملخص المالي
+         السندات
     ================================================= -->
 
     <div class="section">
@@ -1619,275 +1175,199 @@
             </div>
 
             <div class="section-name">
-                الملخص المالي للكفالة
+                تفاصيل السندات
             </div>
 
         </div>
 
 
-        <div class="financial-box">
+        {% for sponsorship in row.sponsorships %}
 
-            <table class="financial-table">
+        <div class="sponsorship-card">
+
+            <div class="sponsorship-card-header">
+
+                سند كفالة رقم
+                {{ sponsorship.invoice_number }}
+
+            </div>
+
+            <table class="sponsorship-card-table">
 
                 <tr>
 
-                    <td class="financial-label">
+                    <td class="sponsorship-label">
+                        رقم السند
+                    </td>
+
+                    <td class="sponsorship-value">
+                        {{ sponsorship.invoice_number }}
+                    </td>
+
+                    <td class="sponsorship-label">
                         مبلغ الكفالة
                     </td>
 
-                    <td class="financial-value">
-
-                        {{ row.sponsorship_amount|floatformat:2 }}
+                    <td class="sponsorship-value">
+                        {{ sponsorship.sponsorship_amount|floatformat:2 }}
                         ر.س
-
                     </td>
 
-                    <td class="financial-label">
+                </tr>
+
+                <tr>
+
+                    <td class="sponsorship-label">
+                        بداية الكفالة
+                    </td>
+
+                    <td class="sponsorship-value">
+                        {{ sponsorship.start_date }}
+                    </td>
+
+                    <td class="sponsorship-label">
+                        نهاية الكفالة
+                    </td>
+
+                    <td class="sponsorship-value">
+                        {{ sponsorship.end_date }}
+                    </td>
+
+                </tr>
+
+                <tr>
+
+                    <td class="sponsorship-label">
                         إجمالي المصروف
                     </td>
 
-                    <td class="financial-value">
-
-                        {{ row.total|floatformat:2 }}
+                    <td class="sponsorship-value">
+                        {{ sponsorship.total|floatformat:2 }}
                         ر.س
-
                     </td>
 
-                </tr>
-
-                <tr>
-
-                    <td class="financial-label">
+                    <td class="sponsorship-label">
                         المستخدم من الكفالة
                     </td>
 
-                    <td class="financial-value">
-
-                        {{ row.sponsorship_used|floatformat:2 }}
+                    <td class="sponsorship-value">
+                        {{ sponsorship.sponsorship_used|floatformat:2 }}
                         ر.س
-
-                    </td>
-
-                    <td class="financial-label">
-                        المتبقي من الكفالة
-                    </td>
-
-                    <td class="financial-value">
-
-                        {{ row.sponsorship_remaining|floatformat:2 }}
-                        ر.س
-
                     </td>
 
                 </tr>
 
                 <tr>
 
-                    <td class="financial-label">
+                    <td class="sponsorship-label">
+                        المتبقي
+                    </td>
+
+                    <td class="sponsorship-value">
+                        {{ sponsorship.sponsorship_remaining|floatformat:2 }}
+                        ر.س
+                    </td>
+
+                    <td class="sponsorship-label">
                         المصروف الزائد
                     </td>
 
-                    <td
-                        class="financial-value"
-                        colspan="3"
-                    >
-
-                        {{ row.extra_amount|floatformat:2 }}
+                    <td class="sponsorship-value">
+                        {{ sponsorship.extra_amount|floatformat:2 }}
                         ر.س
-
                     </td>
 
                 </tr>
 
             </table>
 
+
+            <!-- =================================================
+                 مصروفات السند
+            ================================================= -->
+
+            <table class="program-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th style="width:6%">
+                            #
+                        </th>
+
+                        <th style="width:22%">
+                            اسم البرنامج
+                        </th>
+
+                        <th style="width:15%">
+                            مبلغ الصرف
+                        </th>
+
+                        <th>
+                            نبذة عن البرنامج
+                        </th>
+
+                        <th style="width:18%">
+                            تاريخ الصرف
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for program in sponsorship.programs %}
+
+                    <tr>
+
+                        <td>
+                            {{ forloop.counter }}
+                        </td>
+
+                        <td>
+                            {{ program.program_name }}
+                        </td>
+
+                        <td>
+                            {{ program.amount|floatformat:2 }}
+                            ر.س
+                        </td>
+
+                        <td>
+                            {{ program.description|default:"-" }}
+                        </td>
+
+                        <td>
+                            {{ program.date }}
+                        </td>
+
+                    </tr>
+
+                    {% empty %}
+
+                    <tr>
+
+                        <td colspan="5">
+                            لا توجد مصروفات على هذا السند خلال الفترة المحددة.
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
         </div>
 
-
-        <!-- =================================================
-             حالة الكفالة
-        ================================================= -->
-
-        {% if row.sponsorship_status == "fully_used" %}
-
-        <div class="financial-message">
-
-            <strong>
-                تم استنفاد كامل مبلغ الكفالة.
-            </strong>
-
-            بلغ إجمالي المصروف على المستفيد
-
-            <strong>
-                {{ row.total|floatformat:2 }} ر.س
-            </strong>
-
-            {% if row.extra_amount > 0 %}
-
-                ، منها
-
-                <strong>
-                    {{ row.sponsorship_used|floatformat:2 }} ر.س
-                </strong>
-
-                مغطاة من مبلغ الكفالة، وبلغت المصروفات الإضافية
-
-                <strong>
-                    {{ row.extra_amount|floatformat:2 }} ر.س
-                </strong>
-
-                ، وهي مصروفات تجاوزت قيمة الكفالة وتم تمويلها من الموارد العامة للجمعية.
-
-            {% else %}
-
-                ، وقد تم استخدام كامل مبلغ الكفالة دون تجاوز.
-
-            {% endif %}
-
-        </div>
-
-
-        {% elif row.sponsorship_status == "partially_used" %}
-
-        <div class="financial-message partial">
-
-            تم استخدام مبلغ
-
-            <strong>
-                {{ row.sponsorship_used|floatformat:2 }} ر.س
-            </strong>
-
-            من إجمالي مبلغ الكفالة البالغ
-
-            <strong>
-                {{ row.sponsorship_amount|floatformat:2 }} ر.س
-            </strong>
-
-            ، ويتبقى من مبلغ الكفالة
-
-            <strong>
-                {{ row.sponsorship_remaining|floatformat:2 }} ر.س
-            </strong>
-
-            .
-
-        </div>
-
-
-        {% elif row.sponsorship_status == "no_sponsorship" %}
-
-        <div class="financial-message none">
-
-            لا يوجد سند كفالة مالي مرتبط بهذا المستفيد ضمن بيانات التقرير.
-
-        </div>
-
+        {% if not forloop.last %}
+            <div class="sponsorship-separator"></div>
         {% endif %}
 
-    </div>
-
-
-    <!-- =================================================
-         رابعاً: تفاصيل المصروفات
-    ================================================= -->
-
-    <div class="section">
-
-        <div class="section-title">
-
-            <div class="section-no">
-                رابعاً :
-            </div>
-
-            <div class="section-name">
-                تفاصيل المصروفات
-            </div>
-
-        </div>
-
-
-        <table class="program-table">
-
-            <thead>
-
-                <tr>
-
-                    <th style="width:6%">
-                        #
-                    </th>
-
-                    <th style="width:22%">
-                        اسم البرنامج
-                    </th>
-
-                    <th style="width:15%">
-                        مبلغ الصرف
-                    </th>
-
-                    <th>
-                        نبذة عن البرنامج
-                    </th>
-
-                    <th style="width:18%">
-                        تاريخ الصرف
-                    </th>
-
-                </tr>
-
-            </thead>
-
-            <tbody>
-
-                {% for program in row.programs %}
-
-                <tr>
-
-                    <td>
-                        {{ forloop.counter }}
-                    </td>
-
-                    <td>
-                        {{ program.program_name }}
-                    </td>
-
-                    <td>
-
-                        {{ program.amount|floatformat:2 }}
-                        ر.س
-
-                    </td>
-
-                    <td>
-
-                        {{ program.description|default:"-" }}
-
-                    </td>
-
-                    <td>
-
-                        {{ program.date }}
-
-                    </td>
-
-                </tr>
-
-                {% empty %}
-
-                <tr>
-
-                    <td colspan="5">
-
-                        لا توجد مصروفات خلال الفترة المحددة.
-
-                    </td>
-
-                </tr>
-
-                {% endfor %}
-
-            </tbody>
-
-        </table>
+        {% endfor %}
 
     </div>
 
@@ -1896,12 +1376,11 @@
 
 </section>
 
-
 {% endfor %}
 
 
 <!-- =====================================================
-     صفحة النهاية
+     النهاية
 ===================================================== -->
 
 <section class="report-page intro-page">
@@ -1909,7 +1388,6 @@
     <div class="curve curve1"></div>
     <div class="curve curve2"></div>
     <div class="curve curve3"></div>
-
 
     <div style="
         text-align:center;
@@ -1922,7 +1400,6 @@
         >
 
     </div>
-
 
     <div style="
         text-align:center;
@@ -1942,11 +1419,7 @@
 
     </div>
 
-
     <div style="margin-top:55px;">
-
-
-        <!-- الصف الأول -->
 
         <div style="
             display:flex;
@@ -1954,7 +1427,6 @@
             justify-content:center;
             margin-bottom:24px;
         ">
-
 
             <div style="
                 width:360px;
@@ -2036,15 +1508,12 @@
         </div>
 
 
-        <!-- الصف الثاني -->
-
         <div style="
             display:flex;
             gap:35px;
             justify-content:center;
             margin-bottom:24px;
         ">
-
 
             <div style="
                 width:360px;
@@ -2126,8 +1595,6 @@
         </div>
 
 
-        <!-- الصف الثالث -->
-
         <div style="
             display:flex;
             justify-content:center;
@@ -2175,12 +1642,9 @@
 
     </div>
 
-
     {% include "Accounting/report_footer.html" %}
 
 </section>
 
-
 </body>
-
 </html>

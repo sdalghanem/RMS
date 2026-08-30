@@ -417,9 +417,7 @@
 
                         </th>
 
-                        <th style="width:70px">
-                            #
-                        </th>
+                        
 
                         <th>
                             الاسم الكامل
@@ -482,14 +480,7 @@
                         </td>
 
 
-                        <!-- ID -->
-
-                        <td class="text-muted">
-
-                            {{ b.id }}
-
-                        </td>
-
+                       
 
                         <!-- الاسم -->
 
@@ -574,27 +565,53 @@
                         </td>
 
 
-                        <!-- الكافل الحالي -->
+                       <!-- الكافل الحالي -->
 
-                        <td>
+<td>
 
-                            {% if b.donor %}
+    {% if b.current_sponsor_history %}
 
-                                <span class="fw-semibold">
+        {% with history=b.current_sponsor_history.0 %}
 
-                                    {{ b.donor.user.get_full_name|default:b.donor.user.username }}
+            {% if history.donor %}
 
-                                </span>
+                <span class="fw-semibold">
 
-                            {% else %}
+                    {{ history.donor.user.first_name }}
 
-                                <span class="text-muted">
-                                    غير مكفول
-                                </span>
+                    {% if history.donor.father_name %}
+                        {{ history.donor.father_name }}
+                    {% endif %}
 
-                            {% endif %}
+                    {% if history.donor.grandpa_name %}
+                        {{ history.donor.grandpa_name }}
+                    {% endif %}
 
-                        </td>
+                    {% if history.donor.user.last_name %}
+                        {{ history.donor.user.last_name }}
+                    {% endif %}
+
+                </span>
+
+            {% else %}
+
+                <span class="text-muted">
+                    غير مكفول
+                </span>
+
+            {% endif %}
+
+        {% endwith %}
+
+    {% else %}
+
+        <span class="text-muted">
+            غير مكفول
+        </span>
+
+    {% endif %}
+
+</td>
 
 
                         <!-- الإجراءات -->

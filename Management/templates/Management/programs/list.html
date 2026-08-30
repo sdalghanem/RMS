@@ -17,10 +17,11 @@
     <h5 class="m-0">البرامج</h5>
     <div class="d-flex gap-2">
       <!-- زر إضافة برنامج جديد (يوجه للأدمن) -->
-      {% if perms.Management.add_mainprogram %}
-        <a class="btn btn-primary btn-rms" href="{% url 'Management:program_create' %}">
+               <a class="btn btn-primary btn-rms" href="{% url 'Management:program_create' %}">
           <i class="bi bi-plus-lg"></i> إضافة برنامج جديد
         </a>
+      {% if perms.Management.add_mainprogram %}
+
       {% endif %}
     </div>
   </div>

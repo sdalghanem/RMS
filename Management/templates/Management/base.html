@@ -420,14 +420,108 @@
            SYSTEM MESSAGES
         ========================================================= */
 
-        #rms-messages {
-            position: relative;
-            z-index: 1050;
-        }
+       /* =========================================================
+   SYSTEM MESSAGES
+========================================================= */
 
-        .alert:last-child {
-            margin-bottom: 0;
-        }
+#rms-messages {
+    position: relative;
+    z-index: 1050;
+    margin-top: 12px;
+}
+
+.rms-alert {
+    border-radius: 12px;
+    border-width: 1px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    font-size: 14px;
+    font-weight: 500;
+
+    box-shadow: 0 4px 14px rgba(15, 23, 42, .06);
+}
+
+.rms-alert-icon {
+    width: 34px;
+    height: 34px;
+
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 10px;
+
+    font-size: 17px;
+}
+
+.rms-alert-content {
+    flex: 1;
+    line-height: 1.7;
+}
+
+/* نجاح */
+.rms-alert-success {
+    color: #166534;
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.rms-alert-success .rms-alert-icon {
+    color: #15803d;
+    background: #dcfce7;
+}
+
+/* خطأ / منع */
+.rms-alert-danger {
+    color: #991b1b;
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.rms-alert-danger .rms-alert-icon {
+    color: #dc2626;
+    background: #fee2e2;
+}
+
+/* تحذير */
+.rms-alert-warning {
+    color: #92400e;
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.rms-alert-warning .rms-alert-icon {
+    color: #d97706;
+    background: #fef3c7;
+}
+
+/* معلومات */
+.rms-alert-info {
+    color: #075985;
+    background: #f0f9ff;
+    border-color: #bae6fd;
+}
+
+.rms-alert-info .rms-alert-icon {
+    color: #0284c7;
+    background: #e0f2fe;
+}
+
+.rms-alert .btn-close {
+    opacity: .55;
+    flex-shrink: 0;
+}
+
+.rms-alert .btn-close:hover {
+    opacity: 1;
+}
 
 
         /* =========================================================
@@ -656,26 +750,10 @@
                     </li>
 
 
-                    <li class="nav-item">
-                        <a
-                            class="rms-nav-link {% if request.resolver_match.url_name == 'cashier_inquiries' %}active{% endif %}"
-                            href="{% url 'Accounting:sponsorship_inquiry' %}"
-                        >
-                            <i class="bi bi-search"></i>
-                            الاستعلامات
-                        </a>
-                    </li>
+                    
 
 
-                    <li class="nav-item">
-                        <a
-                            class="rms-nav-link {% if request.resolver_match.url_name == 'payment_plan_list' %}active{% endif %}"
-                            href="{% url 'Management:payment_plan_list' %}"
-                        >
-                            <i class="bi bi-wallet2"></i>
-                            الدفعات
-                        </a>
-                    </li>
+                    
 
 
                     <li class="nav-item">
@@ -1043,36 +1121,103 @@
 ========================================================= -->
 
 <div class="container">
+{% if messages %}
 
-    {% if messages %}
+    <div id="rms-messages">
 
-        <div id="rms-messages" class="mt-2">
+        {% for m in messages %}
 
-            {% for m in messages %}
+            {% if m.tags == "error" %}
 
-                <div
-                    class="alert alert-{{ m.tags }} d-flex justify-content-between align-items-center"
-                    role="alert"
-                >
+                <div class="rms-alert rms-alert-danger" role="alert">
 
-                    <div>
+                    <div class="rms-alert-icon">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                    </div>
+
+                    <div class="rms-alert-content">
                         {{ m }}
                     </div>
 
                     <button
                         type="button"
                         class="btn-close"
-                        data-bs-dismiss="alert"
                         aria-label="إغلاق"
+                        onclick="this.parentElement.style.display='none';"
                     ></button>
 
                 </div>
 
-            {% endfor %}
+            {% elif m.tags == "success" %}
 
-        </div>
+                <div class="rms-alert rms-alert-success" role="alert">
 
-    {% endif %}
+                    <div class="rms-alert-icon">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+
+                    <div class="rms-alert-content">
+                        {{ m }}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        aria-label="إغلاق"
+                        onclick="this.parentElement.style.display='none';"
+                    ></button>
+
+                </div>
+
+            {% elif m.tags == "warning" %}
+
+                <div class="rms-alert rms-alert-warning" role="alert">
+
+                    <div class="rms-alert-icon">
+                        <i class="bi bi-exclamation-circle-fill"></i>
+                    </div>
+
+                    <div class="rms-alert-content">
+                        {{ m }}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        aria-label="إغلاق"
+                        onclick="this.parentElement.style.display='none';"
+                    ></button>
+
+                </div>
+
+            {% else %}
+
+                <div class="rms-alert rms-alert-info" role="alert">
+
+                    <div class="rms-alert-icon">
+                        <i class="bi bi-info-circle-fill"></i>
+                    </div>
+
+                    <div class="rms-alert-content">
+                        {{ m }}
+                    </div>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        aria-label="إغلاق"
+                        onclick="this.parentElement.style.display='none';"
+                    ></button>
+
+                </div>
+
+            {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+{% endif %}
 
 </div>
 
@@ -1119,6 +1264,22 @@
      BOOTSTRAP JS
 ========================================================= -->
 
+
+<!-- jQuery -->
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<!-- Select2 CSS -->
+<link
+    href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css"
+    rel="stylesheet"
+/>
+
+<!-- Select2 JS -->
+<script
+    src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js">
+</script>
+
+<!-- Bootstrap -->
 <script
     src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js">
 </script>
@@ -1148,7 +1309,5 @@
 {% block extra_js %}
 
 {% endblock %}
-
-
 </body>
 </html>

@@ -1,6 +1,5 @@
 # Create your models here.
 from django.conf import settings
-from django.core.validators import RegexValidator
 from django.db import models
 from django.core.validators import MinValueValidator, RegexValidator
 from datetime import date
@@ -290,7 +289,6 @@ class BeneficiarySponsorHistory(models.Model):
 
 from decimal import Decimal
 from django.core.exceptions import ValidationError
-from django.db.models import Sum
 from django.db.models.functions import Coalesce
 
 

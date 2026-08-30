@@ -13,10 +13,7 @@ from django.db.models import (
     DecimalField,
     ExpressionWrapper,
     F,
-    Min,
-    OuterRef,
     Q,
-    Subquery,
     Sum,
     Value,
     When,
@@ -24,7 +21,6 @@ from django.db.models import (
 from django.db.models.functions import Coalesce
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 
@@ -47,18 +43,13 @@ from .forms import (
 )
 from .models import (
     AllocationHistory,
-    BeneficiaryBalanceEntry,
     BeneficiarySupportEntry,
     FinancialSponsorshipAllocation,
     FinancialSponsorshipInvoice,
     FundEntry,
-    FundReservation,
-    FundToMainProgramAllocation,
     GeneralDonationInvoice,
     Invoice,
-    MainToSubProgramAllocation,
     SubProgramDisbursement,
-    SubProgramDisbursementLine,
 )
 from .services import (
     allocate_to_main_program,
@@ -74,8 +65,6 @@ from .services import (
 )
 
 User = get_user_model()
-
-
 
 
 #@login_required
@@ -150,215 +139,6 @@ def cashier_home(request):
     )
 
 
-def fund_available_balance():
-
-
-    fund_total = FundEntry.objects.aggregate(
-        t=Coalesce(Sum("amount"), Decimal("0.00"))
-    )["t"]
-
-    reserved = FundReservation.objects.aggregate(
-        t=Coalesce(Sum("amount"), Decimal("0.00"))
-    )["t"]
-
-    available = fund_total - reserved
-    return max(available, Decimal("0.00"))
-
-
-
-def generate_next_invoice_number(prefix="INV-"):
-    """
-    توليد رقم سند جديد متسلسل بالشكل:
-    INV-0001, INV-0002, ...
-    ويمكن تغيير البادئة prefix مثل:
-    SP- للكفالات المالية
-    GDN- للتبرعات العامة
-    """
-    last_invoice = (
-        Invoice.objects
-        .filter(number__startswith=prefix)
-        .order_by("-id")
-        .first()
-    )
-
-    if not last_invoice:
-        return f"{prefix}0001"
-
-    last_number = last_invoice.number.replace(prefix, "")
-    try:
-        last_int = int(last_number)
-    except ValueError:
-        # لو الرقم السابق كان بصيغة غير متوقعة
-        return f"{prefix}0001"
-
-    new_int = last_int + 1
-    return f"{prefix}{new_int:04d}"
-
-
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-@require_POST
-def sponsorship_allocation_delete(request, pk):
-    """
-    حذف تخصيص كفالة معيّن.
-    """
-    allocation = get_object_or_404(
-        FinancialSponsorshipAllocation.objects.select_related("sponsorship_invoice"),
-        pk=pk,
-    )
-    sponsorship = allocation.sponsorship_invoice  # نحتاجه للرجوع للصفحة
-
-    allocation.delete()  # سيحذف أيضًا BeneficiaryBalanceEntry بسبب on_delete=CASCADE
-    FundReservation.objects.create(
-        source_type=FundReservation.Sources.BENEFICIARY,
-        beneficiary=allocation.beneficiary,
-        amount=-(allocation.amount or 0),   # ✅ فك الحجز
-        reference=allocation,
-        note="فك حجز تخصيص كفالة (حذف التخصيص)",
-        created_by=request.user,
-    )
-
-    messages.success(request, "تم حذف التخصيص بنجاح.")
-    return redirect("Accounting:sponsorship_allocations_manage", pk=sponsorship.pk)
-
-
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-def sponsorship_allocations_manage(request, pk):
-    sponsorship = get_object_or_404(
-        FinancialSponsorshipInvoice.objects.select_related(
-            "invoice",
-            "sponsor__user",
-        ),
-        pk=pk,
-    )
-
-    allocations = (
-        sponsorship.allocations
-        .select_related("beneficiary")
-        .order_by("-created_at")
-    )
-
-    # --------------------------------------
-    # 🔍 فلترة المستفيدين (عمر - وجود رصيد/دعم)
-    # --------------------------------------
-    age_min_raw = request.GET.get("age_min")
-    age_max_raw = request.GET.get("age_max")
-    has_alloc = request.GET.get("has_alloc") or "all"
-
-    try:
-        age_min = int(age_min_raw) if age_min_raw not in (None, "") else None
-    except ValueError:
-        age_min = None
-
-    try:
-        age_max = int(age_max_raw) if age_max_raw not in (None, "") else None
-    except ValueError:
-        age_max = None
-
-    base_qs = Beneficiary.objects.annotate(
-        balance_total=Sum("balance_entries__amount"),
-    )
-
-    beneficiaries_filtered = []
-    for b in base_qs:
-        age = b.age_years
-
-        if age_min is not None and (age is None or age < age_min):
-            continue
-        if age_max is not None and (age is None or age > age_max):
-            continue
-
-        total_balance = b.balance_total or 0
-        if has_alloc == "yes" and total_balance <= 0:
-            continue
-        if has_alloc == "no" and total_balance > 0:
-            continue
-
-        beneficiaries_filtered.append(b)
-
-    beneficiaries_filtered.sort(key=lambda x: (x.last_name, x.first_name))
-
-    # --------------------------------------
-    # 🔁 إضافة تخصيص جديد
-    # --------------------------------------
-    if request.method == "POST":
-        form = FinancialSponsorshipAllocationForm(request.POST)
-        if form.is_valid():
-            allocation = form.save(commit=False)
-            allocation.sponsorship_invoice = sponsorship
-
-            try:
-                with transaction.atomic():
-                    # ✅✅✅ (خطوة 2) تحقق من "المتاح في الصندوق" قبل الحجز للمستفيد
-                    # أي حجز جديد للمستفيد (FundReservation +) لازم يمر هنا
-
-                    requested = allocation.amount or Decimal("0.00")
-                    if requested <= 0:
-                        raise ValidationError("مبلغ التخصيص يجب أن يكون أكبر من صفر.")
-
-                    available = FundReservation.available_fund()
-                    if requested > available:
-                        raise ValidationError(
-                            f"الرصيد المتاح في الصندوق لا يكفي لهذا التخصيص. المتاح حالياً: {available}"
-                        )
-
-                    # (باقي منطقك الطبيعي)
-                    allocation.save()
-                    FundReservation.objects.create(
-                        source_type=FundReservation.Sources.BENEFICIARY,
-                        beneficiary=allocation.beneficiary,
-                        amount=allocation.amount,          # ✅ حجز موجب (يقفل من المتاح)
-                        reference=allocation,              # الأفضل تربطه بالـ allocation نفسه
-                        note=f"حجز كفالة مالية لمستفيد - سند {sponsorship.invoice.number}",
-                        created_by=request.user,
-                    )
-            except ValidationError as e:
-                if hasattr(e, "message_dict"):
-                    for _, errors in e.message_dict.items():
-                        for err in errors:
-                            form.add_error(None, err)
-                else:
-                    form.add_error(None, str(e))
-            else:
-                messages.success(request, "تم إضافة التخصيص بنجاح.")
-                return redirect("Accounting:sponsorship_allocations_manage", pk=sponsorship.pk)
-    else:
-        form = FinancialSponsorshipAllocationForm()
-
-    context = {
-        "title": f"تخصيص مبلغ الكفالة - سند {sponsorship.invoice.number}",
-        "sponsorship": sponsorship,
-        "allocations": allocations,
-        "form": form,
-        "total_amount": sponsorship.total_amount,
-        "allocated_amount": sponsorship.allocated_amount,
-        "remaining_amount": sponsorship.remaining_amount,
-
-        "beneficiaries_filtered": beneficiaries_filtered,
-        "age_min": age_min_raw or "",
-        "age_max": age_max_raw or "",
-        "has_alloc": has_alloc,
-    }
-    return render(request, "Accounting/sponsorship_allocations_manage.html", context)
-
-
-
-
-# --------------------------------------------------
-# 🧮 دالة توليد رقم سند تلقائيًا (INV-0001, INV-0002, ...)
-# --------------------------------------------------
-def generate_invoice_number():
-    last_invoice = Invoice.objects.order_by("-id").first()
-    if not last_invoice or not last_invoice.number.startswith("INV-"):
-        next_number = 1
-    else:
-        try:
-            last_seq = int(last_invoice.number.split("-")[1])
-        except (IndexError, ValueError):
-            last_seq = 0
-        next_number = last_seq + 1
-
-    return f"INV-{next_number:04d}"
-
 
 # --------------------------------------------------
 # قائمة الفواتير (لـ system_admin + cashier)
@@ -381,104 +161,466 @@ def cashier_invoices_list(request):
     }
     return render(request, "Accounting/cashier_invoices_list.html", context)
 
+###############################################################################
+
+# =============================================================
+# تعديل مبلغ السند
+# =============================================================
+
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def invoice_update(request, pk):
+    """
+    تعديل مبلغ السند.
+
+    قواعد الأمان
+    ---------------------------------------------------------
+
+    التبرع العام:
+    - نتحقق من الرصيد المتاح للتخصيص من صندوق الجمعية.
+    - إذا كان المتاح أقل من مبلغ السند الحالي،
+      فهذا يعني أن جزءًا من المبلغ لم يعد متاحًا،
+      وبالتالي يمنع تعديل السند.
+    - لا نقارن المبلغ الجديد مباشرة برصيد الصندوق
+      لأن مبلغ السند الحالي موجود أصلًا ضمن الرصيد.
+
+    الكفالة المالية:
+    - إذا كان السند مرتبطًا بمستفيد عن طريق
+      FinancialSponsorshipAllocation يمنع التعديل.
+    - إذا لم يكن مرتبطًا بمستفيد يسمح بالتعديل.
+    """
+
     invoice = get_object_or_404(
-        Invoice.objects.select_related("general_donation", "financial_sponsorship"),
-        pk=pk
+        Invoice.objects.select_related(
+            "general_donation",
+            "financial_sponsorship",
+        ),
+        pk=pk,
     )
+
+    # =========================================================
+    # تحديد المبلغ الحالي
+    # =========================================================
 
     current_amount = Decimal("0.00")
 
-    if invoice.invoice_type == Invoice.Types.GENERAL_DONATION and hasattr(invoice, "general_donation"):
-        current_amount = invoice.general_donation.amount
+    if (
+        invoice.invoice_type == Invoice.Types.GENERAL_DONATION
+        and hasattr(invoice, "general_donation")
+    ):
+        current_amount = (
+            invoice.general_donation.amount
+            or Decimal("0.00")
+        )
 
-    elif invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP and hasattr(invoice, "financial_sponsorship"):
-        current_amount = invoice.financial_sponsorship.total_amount
+    elif (
+        invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP
+        and hasattr(invoice, "financial_sponsorship")
+    ):
+        current_amount = (
+            invoice.financial_sponsorship.total_amount
+            or Decimal("0.00")
+        )
+
+    # =========================================================
+    # تنفيذ التعديل
+    # =========================================================
 
     if request.method == "POST":
-        amount_raw = (request.POST.get("amount") or "").strip()
+
+        amount_raw = (
+            request.POST.get("amount") or ""
+        ).strip()
 
         try:
+
             new_amount = Decimal(amount_raw)
 
             if new_amount <= 0:
-                raise ValidationError("المبلغ يجب أن يكون أكبر من صفر.")
+                raise ValidationError(
+                    "المبلغ يجب أن يكون أكبر من صفر."
+                )
 
             with transaction.atomic():
-                if invoice.invoice_type == Invoice.Types.GENERAL_DONATION:
-                    general = invoice.general_donation
-                    general.amount = new_amount
-                    general.save(update_fields=["amount"])
 
-                    FundEntry.objects.filter(invoice=invoice).update(
-                        amount=new_amount,
-                        description=f"تبرع عام من {general.supporter_name or 'داعم'} - سند {invoice.number}",
+                # -------------------------------------------------
+                # إعادة جلب السند مع قفل السجل
+                # -------------------------------------------------
+
+                invoice = (
+                    Invoice.objects
+                    .select_for_update()
+                    .select_related(
+                        "general_donation",
+                        "financial_sponsorship",
+                    )
+                    .get(pk=pk)
+                )
+
+                # =================================================
+                # التبرع العام
+                # =================================================
+
+                if (
+                    invoice.invoice_type
+                    == Invoice.Types.GENERAL_DONATION
+                ):
+
+                    general = getattr(
+                        invoice,
+                        "general_donation",
+                        None,
                     )
 
-                elif invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP:
-                    sponsorship = invoice.financial_sponsorship
-
-                    allocated = sponsorship.allocated_amount
-                    if new_amount < allocated:
+                    if not general:
                         raise ValidationError(
-                            f"لا يمكن جعل المبلغ أقل من المخصص للمستفيدين. المخصص حالياً: {allocated} ر.س"
+                            "تفاصيل التبرع العام غير موجودة."
                         )
 
-                    sponsorship.custom_amount = new_amount
-                    sponsorship.save(update_fields=["custom_amount"])
-
-                    FundEntry.objects.filter(invoice=invoice).update(
-                        amount=new_amount,
-                        description=f"دخل كفالة مالية من السند رقم {invoice.number}",
+                    current_amount = (
+                        general.amount
+                        or Decimal("0.00")
                     )
 
-                messages.success(request, "تم تعديل مبلغ الفاتورة بنجاح.")
-                return redirect("Accounting:invoice_detail", pk=invoice.pk)
+                    # -------------------------------------------------
+                    # فحص المبلغ المتاح للتخصيص
+                    #
+                    # هذا هو الرصيد الذي يسمح لنا بمعرفة هل
+                    # مبلغ التبرع ما زال متاحًا أم تم استخدامه.
+                    # -------------------------------------------------
 
-        except (InvalidOperation, ValidationError) as e:
-            messages.error(request, str(e))
+                    available_for_allocation = (
+                        get_available_for_allocation()
+                        or Decimal("0.00")
+                    )
 
-    return render(request, "Accounting/invoice_amount_update.html", {
-        "title": f"تعديل مبلغ السند {invoice.number}",
-        "invoice": invoice,
-        "current_amount": current_amount,
-    })
+                    if available_for_allocation < current_amount:
+
+                        raise ValidationError(
+                            "لا يمكن تعديل سند التبرع العام، "
+                            "لأن جزءًا من مبلغ التبرع تم استخدامه."
+                        )
+
+                    # -------------------------------------------------
+                    # تعديل مبلغ التبرع
+                    # -------------------------------------------------
+
+                    general.amount = new_amount
+
+                    general.save(
+                        update_fields=["amount"]
+                    )
+
+                    # -------------------------------------------------
+                    # تحديث حركة الدخل المرتبطة بالسند
+                    # -------------------------------------------------
+
+                    FundEntry.objects.filter(
+                        invoice=invoice
+                    ).update(
+                        amount=new_amount,
+                        description=(
+                            f"تبرع عام من "
+                            f"{general.supporter_name or 'داعم'} "
+                            f"- سند {invoice.number}"
+                        ),
+                    )
+
+                # =================================================
+                # الكفالة المالية
+                # =================================================
+
+                elif (
+                    invoice.invoice_type
+                    == Invoice.Types.FINANCIAL_SPONSORSHIP
+                ):
+
+                    sponsorship = getattr(
+                        invoice,
+                        "financial_sponsorship",
+                        None,
+                    )
+
+                    if not sponsorship:
+                        raise ValidationError(
+                            "تفاصيل الكفالة المالية غير موجودة."
+                        )
+
+                    # -------------------------------------------------
+                    # التحقق من وجود تخصيص للمستفيد
+                    # -------------------------------------------------
+
+                    has_allocation = (
+                        FinancialSponsorshipAllocation.objects
+                        .filter(
+                            sponsorship_invoice=sponsorship
+                        )
+                        .exists()
+                    )
+
+                    if has_allocation:
+
+                        raise ValidationError(
+                            "لا يمكن تعديل سند الكفالة، "
+                            "لأنه مرتبط بالفعل بمستفيد."
+                        )
+
+                    # -------------------------------------------------
+                    # لا يوجد تخصيص
+                    # يسمح بالتعديل
+                    # -------------------------------------------------
+
+                    sponsorship.custom_amount = new_amount
+
+                    sponsorship.save(
+                        update_fields=["custom_amount"]
+                    )
+
+                    # -------------------------------------------------
+                    # تحديث حركة دخل الكفالة
+                    # -------------------------------------------------
+
+                    FundEntry.objects.filter(
+                        invoice=invoice
+                    ).update(
+                        amount=new_amount,
+                        description=(
+                            f"دخل كفالة مالية "
+                            f"من السند رقم {invoice.number}"
+                        ),
+                    )
+
+                else:
+
+                    raise ValidationError(
+                        "نوع السند غير مدعوم للتعديل."
+                    )
+
+                # =================================================
+                # نجاح العملية
+                # =================================================
+
+                messages.success(
+                    request,
+                    "تم تعديل مبلغ السند بنجاح."
+                )
+
+                return redirect(
+                    "Accounting:invoice_detail",
+                    pk=invoice.pk,
+                )
+
+        except (
+            InvalidOperation,
+            ValidationError,
+        ) as e:
+
+            messages.error(
+                request,
+                str(e),
+            )
+
+    # =========================================================
+    # عرض صفحة التعديل
+    # =========================================================
+
+    return render(
+        request,
+        "Accounting/invoice_amount_update.html",
+        {
+            "title": f"تعديل مبلغ السند {invoice.number}",
+            "invoice": invoice,
+            "current_amount": current_amount,
+        },
+    )
+
+
+# =============================================================
+# حذف السند
+# =============================================================
 
 @require_POST
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def invoice_delete(request, pk):
+    """
+    حذف السند.
+
+    قواعد الأمان
+    ---------------------------------------------------------
+
+    التبرع العام:
+    - نتحقق من الرصيد المتاح للتخصيص.
+    - إذا كان الرصيد المتاح أقل من مبلغ السند الحالي،
+      فهذا يعني أن جزءًا من المبلغ لم يعد متاحًا،
+      وبالتالي يمنع الحذف.
+
+    الكفالة المالية:
+    - إذا كان السند مرتبطًا بمستفيد عن طريق
+      FinancialSponsorshipAllocation يمنع الحذف.
+    - إذا لم يكن مرتبطًا بمستفيد يسمح بالحذف.
+    """
+
     invoice = get_object_or_404(
-        Invoice.objects.select_related("general_donation", "financial_sponsorship"),
-        pk=pk
+        Invoice.objects.select_related(
+            "general_donation",
+            "financial_sponsorship",
+        ),
+        pk=pk,
     )
 
     try:
+
         with transaction.atomic():
 
-            # 🔒 شرط أمان (مهم حالياً)
-            if invoice.invoice_type == Invoice.Types.FINANCIAL_SPONSORSHIP:
-                sponsorship = getattr(invoice, "financial_sponsorship", None)
+            # -----------------------------------------------------
+            # إعادة جلب السند مع قفل السجل
+            # -----------------------------------------------------
 
-                if sponsorship and sponsorship.allocated_amount > 0:
-                    messages.error(
-                        request,
-                        "لا يمكن حذف الفاتورة لوجود مبالغ مخصصة للمستفيدين."
+            invoice = (
+                Invoice.objects
+                .select_for_update()
+                .select_related(
+                    "general_donation",
+                    "financial_sponsorship",
+                )
+                .get(pk=pk)
+            )
+
+            invoice_number = invoice.number
+
+            # =====================================================
+            # التبرع العام
+            # =====================================================
+
+            if (
+                invoice.invoice_type
+                == Invoice.Types.GENERAL_DONATION
+            ):
+
+                general = getattr(
+                    invoice,
+                    "general_donation",
+                    None,
+                )
+
+                if not general:
+                    raise ValidationError(
+                        "تفاصيل التبرع العام غير موجودة."
                     )
-                    return redirect("Accounting:cashier_invoices_list")
 
-            # 🧹 حذف حركة الصندوق
-            FundEntry.objects.filter(invoice=invoice).delete()
+                current_amount = (
+                    general.amount
+                    or Decimal("0.00")
+                )
 
-            # 🧹 حذف التفاصيل
-            if hasattr(invoice, "general_donation"):
-                invoice.general_donation.delete()
+                # -------------------------------------------------
+                # التحقق من أن مبلغ التبرع ما زال متاحًا
+                # للتخصيص من الصندوق.
+                # -------------------------------------------------
 
-            if hasattr(invoice, "financial_sponsorship"):
-                invoice.financial_sponsorship.delete()
+                available_for_allocation = (
+                    get_available_for_allocation()
+                    or Decimal("0.00")
+                )
 
-            # 🧹 حذف الفاتورة
+                if available_for_allocation < current_amount:
+
+                    raise ValidationError(
+                        "لا يمكن حذف سند التبرع العام، "
+                        "لأن جزءًا من مبلغ التبرع تم استخدامه."
+                    )
+
+            # =====================================================
+            # الكفالة المالية
+            # =====================================================
+
+            elif (
+                invoice.invoice_type
+                == Invoice.Types.FINANCIAL_SPONSORSHIP
+            ):
+
+                sponsorship = getattr(
+                    invoice,
+                    "financial_sponsorship",
+                    None,
+                )
+
+                if not sponsorship:
+                    raise ValidationError(
+                        "تفاصيل الكفالة المالية غير موجودة."
+                    )
+
+                # -------------------------------------------------
+                # التحقق من ارتباط السند بمستفيد
+                # -------------------------------------------------
+
+                has_allocation = (
+                    FinancialSponsorshipAllocation.objects
+                    .filter(
+                        sponsorship_invoice=sponsorship
+                    )
+                    .exists()
+                )
+
+                if has_allocation:
+
+                    raise ValidationError(
+                        "لا يمكن حذف سند الكفالة، "
+                        "لأنه مرتبط بالفعل بمستفيد."
+                    )
+
+            else:
+
+                raise ValidationError(
+                    "نوع السند غير مدعوم للحذف."
+                )
+
+            # =====================================================
+            # تنفيذ الحذف
+            # =====================================================
+
+            # -----------------------------------------------------
+            # حذف حركة الصندوق المرتبطة بالسند
+            # -----------------------------------------------------
+
+            FundEntry.objects.filter(
+                invoice=invoice
+            ).delete()
+
+            # -----------------------------------------------------
+            # حذف تفاصيل التبرع العام
+            # -----------------------------------------------------
+
+            general = getattr(
+                invoice,
+                "general_donation",
+                None,
+            )
+
+            if general:
+                general.delete()
+
+            # -----------------------------------------------------
+            # حذف تفاصيل الكفالة
+            # -----------------------------------------------------
+
+            sponsorship = getattr(
+                invoice,
+                "financial_sponsorship",
+                None,
+            )
+
+            if sponsorship:
+                sponsorship.delete()
+
+            # -----------------------------------------------------
+            # حذف السند الأساسي
+            # -----------------------------------------------------
+
             invoice.delete()
+
+            # =====================================================
+            # تسجيل العملية في سجل التدقيق
+            # =====================================================
 
             log_activity(
                 user=request.user,
@@ -486,16 +628,33 @@ def invoice_delete(request, pk):
                 entity="Invoice",
                 entity_id=pk,
                 extra={
-                    "invoice_number": invoice.number,
+                    "invoice_number": invoice_number,
                 },
             )
 
-            messages.success(request, "تم حذف الفاتورة بنجاح.")
+            messages.success(
+                request,
+                "تم حذف السند بنجاح."
+            )
+
+    except ValidationError as e:
+
+        messages.error(
+            request,
+            str(e),
+        )
 
     except Exception as e:
-        messages.error(request, f"حدث خطأ أثناء الحذف: {str(e)}")
 
-    return redirect("Accounting:cashier_invoices_list")
+        messages.error(
+            request,
+            f"حدث خطأ أثناء حذف السند: {str(e)}"
+        )
+
+    return redirect(
+        "Accounting:cashier_invoices_list"
+    )
+
 # --------------------------------------------------
 # إنشاء سند تبرع عام
 # --------------------------------------------------
@@ -568,10 +727,10 @@ def invoice_create_general(request):
     })
 
 
-
 # --------------------------------------------------
 # إنشاء سند كفالة مالية
 # --------------------------------------------------
+
 
 
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
@@ -580,6 +739,24 @@ def invoice_create_sponsorship(request):
     if request.method == "POST":
 
         form = FinancialSponsorshipInvoiceForm(request.POST)
+
+        # ---------------------------------------------------------
+        # تحميل الكافل المختار حتى يعمل ModelChoiceField
+        # مع queryset = none()
+        # ---------------------------------------------------------
+
+        sponsor_id = request.POST.get("sponsor")
+
+        if sponsor_id:
+
+            form.fields["sponsor"].queryset = (
+                Profile.objects
+                .filter(
+                    pk=sponsor_id,
+                    role=Profile.Roles.DONOR,
+                )
+                .select_related("user")
+            )
 
         if form.is_valid():
 
@@ -624,7 +801,10 @@ def invoice_create_sponsorship(request):
                         plan = sponsorship.payment_plan
 
                         if getattr(plan, "amount", None) is not None:
-                            sponsorship.custom_amount = plan.amount
+
+                            sponsorship.custom_amount = (
+                                plan.amount
+                            )
 
                         if (
                             getattr(
@@ -634,6 +814,7 @@ def invoice_create_sponsorship(request):
                             )
                             is not None
                         ):
+
                             sponsorship.custom_duration_months = (
                                 plan.duration_months
                             )
@@ -658,9 +839,6 @@ def invoice_create_sponsorship(request):
 
                     # -------------------------------------------------
                     # سجل النشاط
-                    #
-                    # السند عند إنشائه لا يكون مرتبطًا بمستفيد بعد.
-                    # الإلحاق يتم لاحقًا من صفحة المستفيدين.
                     # -------------------------------------------------
 
                     log_activity(
@@ -673,18 +851,27 @@ def invoice_create_sponsorship(request):
                         entity_id=invoice.pk,
                         extra={
                             "invoice_number": invoice.number,
-                            "sponsor": str(sponsorship.sponsor),
+
+                            "sponsor": str(
+                                sponsorship.sponsor
+                            ),
+
                             "beneficiary": None,
+
                             "beneficiary_assigned": False,
+
                             "amount": str(
                                 sponsorship.total_amount
                             ),
+
                             "payment_method": (
                                 invoice.payment_method
                             ),
+
                             "start_date": str(
                                 sponsorship.start_date
                             ),
+
                             "end_date": str(
                                 sponsorship.end_date
                             ),
@@ -716,7 +903,6 @@ def invoice_create_sponsorship(request):
 
 
 
-
 # --------------------------------------------------
 # عرض سند (مع زر طباعة)
 # --------------------------------------------------
@@ -741,85 +927,6 @@ def invoice_detail(request, pk):
 
 ###############################################################################################
 
-
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-def sponsorship_inquiry(request):
-    """
-    صفحة الاستعلام عن كفالات كافل معيّن
-    عن طريق رقم الجوال أو رقم الهوية.
-    """
-    query = (request.GET.get("q") or "").strip()
-    donor = None
-    results = []
-
-    if query:
-        # نفترض أن عندك في Profile حقول: phone و national_number
-        donor_qs = Profile.objects.filter(
-            role=Profile.Roles.DONOR
-        ).filter(
-            Q(national_number__iexact=query) |
-            Q(phone__icontains=query)
-        ).select_related("user")
-
-        donor = donor_qs.first()
-
-        if donor:
-            log_activity(
-                user=request.user,
-                action=AuditLog.Actions.OTHER,
-                entity="بحث عن كافل",
-                entity_id=donor.pk,
-                extra={
-                    "donor": donor.user.get_full_name(),
-                },
-            )
-        today = date.today()
-
-        histories = (
-            BeneficiarySponsorHistory.objects
-            .filter(donor=donor)
-            .select_related("beneficiary")
-            .order_by("-start_date")
-        )
-
-        for h in histories:
-
-            if h.start_date and h.end_date:
-                if today < h.start_date:
-                    status = "لم تبدأ بعد"
-                elif today > h.end_date:
-                    status = "منتهية"
-                else:
-                    status = "سارية"
-
-            elif h.start_date:
-                status = "سارية"
-
-            else:
-                status = "غير محددة"
-
-            results.append({
-
-                "beneficiary": h.beneficiary,
-
-                "invoice": None,
-
-                "start_date": h.start_date,
-
-                "end_date": h.end_date,
-
-                "duration_months": None,
-
-                "status": status,
-
-            })
-    context = {
-        "title": "استعلام عن الكفالات",
-        "query": query,
-        "donor": donor,
-        "results": results,
-    }
-    return render(request, "Accounting/sponsorship_inquiry.html", context)
 
 
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
@@ -983,44 +1090,6 @@ def sponsor_detail(request, pk):
 ########################################################################################################################
 
 
-
-
-# @require_POST
-# @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-# def sponsor_quick_create(request):
-#     """
-#     إنشاء كافل جديد من المودل (بوب-أب) باستخدام DonorUserCreateForm
-#     ويرجع JSON بالنتيجة.
-#     """
-#     form = DonorUserCreateForm(request.POST)
-#     if not form.is_valid():
-#         errors = {}
-#         for field, field_errors in form.errors.items():
-#             errors[field] = " ".join(field_errors)
-#         return JsonResponse({"success": False, "errors": errors}, status=400)
-#     log_activity(
-#         user=request.user,
-#         action=AuditLog.Actions.UPDATE,
-#         entity="Invoice",
-#         entity_id=user.pk,
-#         extra={
-#             "invoice_number": user.number,
-#         },
-#     )
-#     user = form.save()
-#     profile = user.profile  # لأن عندنا OneToOne user.profile
-
-#     label = user.get_full_name() or user.username
-
-#     return JsonResponse(
-#         {
-#             "success": True,
-#             "id": profile.id,
-#             "label": label,
-#         }
-#     )
-
-
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsor_create_page(request):
     return render(
@@ -1132,27 +1201,6 @@ def sponsors_list(request):
     )
 
 
-# @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
-# def sponsor_detail(request, pk):
-
-#     sponsor = get_object_or_404(
-#         Profile.objects.select_related("user"),
-#         pk=pk,
-#         role=Profile.Roles.DONOR,
-#     )
-
-#     return render(
-#         request,
-#         "Accounting/sponsor_detail.html",
-#         {
-#             "title": "ملف الكافل",
-#             "sponsor": sponsor,
-#         },
-#     )
-
-
-
-
 @require_POST
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsor_quick_update(request, pk):
@@ -1224,15 +1272,7 @@ def sponsor_quick_update(request, pk):
 # ====== ACCOUNTANT VIEWS (Policy B) ======
 
 
-
 # 1) لوحة المحاسب الرئيسية
-from datetime import date, datetime, timedelta
-from decimal import Decimal
-
-from django.db.models import Sum
-from django.utils import timezone
-from django.shortcuts import render
-
 # تأكد أن هذه الموديلات مستوردة عندك
 # from .models import (
 #     FundEntry,
@@ -1449,9 +1489,9 @@ def accountant_home(request):
         Beneficiary.objects.count()
     )
 
-    # =====================================================
-    # الكفالات
-    # =====================================================
+   # =====================================================
+# الكفالات
+# =====================================================
 
     expiring_date = (
         today + timedelta(days=30)
@@ -1459,13 +1499,6 @@ def accountant_home(request):
 
     sponsorships_total = (
         FinancialSponsorshipInvoice.objects.count()
-    )
-
-    sponsorships_active = (
-        FinancialSponsorshipInvoice.objects.filter(
-            start_date__lte=today,
-            end_date__gte=today,
-        ).count()
     )
 
     sponsorships_expiring = (
@@ -1476,12 +1509,20 @@ def accountant_home(request):
         ).count()
     )
 
+    sponsorships_active = (
+        FinancialSponsorshipInvoice.objects.filter(
+            start_date__lte=today,
+            end_date__gte=today,
+        ).exclude(
+            end_date__lte=expiring_date,
+        ).count()
+    )
+
     sponsorships_expired = (
         FinancialSponsorshipInvoice.objects.filter(
             end_date__lt=today,
         ).count()
     )
-
     # =====================================================
     # آخر حركات الصندوق ضمن الفترة
     # =====================================================
@@ -1657,8 +1698,6 @@ def reverse_subprogram_disbursement_view(request, pk):
 # Accounting/views.py
 
 
-
-
 @role_required([Profile.Roles.ACCOUNTANT])
 def fund_to_main_allocate(request):
 
@@ -1831,7 +1870,7 @@ def fund_to_main_allocate(request):
 
 
 # 3) تحويل من برنامج رئيسي إلى فرعي
-# 
+# @role_required([Profile.Roles.ACCOUNTANT])
 @role_required([Profile.Roles.ACCOUNTANT])
 def main_to_sub_allocate(request):
 
@@ -2055,186 +2094,60 @@ def main_to_sub_allocate(request):
             "allocation_history_all": allocation_history_all,
         },
     )
-    # =========================================================
-    # بيانات البرامج الرئيسية
-    # =========================================================
 
-    program_data = []
-
-    for p in programs:
-
-        available = get_main_program_balance(p)
-
-        program_data.append({
-            "id": p.id,
-            "name": p.name,
-            "available": available,
-        })
-
-    # =========================================================
-    # بيانات البرامج الفرعية
-    # =========================================================
-
-    sub_program_data = []
-
-    for sp in sub_programs:
-
-        incoming = (
-            AllocationHistory.objects
-            .filter(
-                action=AllocationHistory.Action.MAIN_TO_SUB,
-                to_sub_program=sp,
-            )
-            .aggregate(
-                total=Coalesce(
-                    Sum("amount"),
-                    Decimal("0.00"),
-                )
-            )["total"]
-        )
-
-        returned_to_main = (
-            AllocationHistory.objects
-            .filter(
-                action=AllocationHistory.Action.SUB_TO_MAIN,
-                from_sub_program=sp,
-            )
-            .aggregate(
-                total=Coalesce(
-                    Sum("amount"),
-                    Decimal("0.00"),
-                )
-            )["total"]
-        )
-
-        spent = (
-            BeneficiarySupportEntry.objects
-            .filter(
-                sub_program=sp,
-            )
-            .aggregate(
-                total=Coalesce(
-                    Sum("amount"),
-                    Decimal("0.00"),
-                )
-            )["total"]
-        )
-
-        allocated = (
-            incoming
-            - returned_to_main
-        )
-
-        available = max(
-            allocated - spent,
-            Decimal("0.00"),
-        )
-
-        sub_program_data.append({
-            "id": sp.id,
-            "name": sp.name,
-            "main_id": sp.main_program_id,
-
-            "allocated": allocated,
-            "spent": spent,
-            "available": available,
-        })
-
-    # =========================================================
-    # آخر 5 تخصيصات
-    # =========================================================
-
-    allocation_history = (
-        AllocationHistory.objects
-        .select_related(
-            "from_main_program",
-            "to_sub_program",
-            "created_by",
-        )
-        .filter(
-            action=AllocationHistory.Action.MAIN_TO_SUB
-        )
-        .order_by(
-            "-created_at",
-            "-id",
-        )[:5]
-    )
-
-    # =========================================================
-    # كامل سجل التخصيصات
-    # =========================================================
-
-    allocation_history_all = (
-        AllocationHistory.objects
-        .select_related(
-            "from_main_program",
-            "to_sub_program",
-            "created_by",
-        )
-        .filter(
-            action=AllocationHistory.Action.MAIN_TO_SUB
-        )
-        .order_by(
-            "-created_at",
-            "-id",
-        )
-    )
-
-    return render(
-        request,
-        "Accounting/main_to_sub_allocate.html",
-        {
-            "title": "تحويل رئيسي إلى فرعي",
-
-            "programs": programs,
-
-            "sub_programs": sub_programs,
-
-            "program_data": program_data,
-
-            "sub_program_data": sub_program_data,
-
-            "allocation_history": allocation_history,
-
-            "allocation_history_all": allocation_history_all,
-        },
-    )# 4) أمر صرف من برنامج فرعي لمستفيدين متعددين
 
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def subprogram_disburse_create(request):
+    """
+    إنشاء أمر صرف من برنامج فرعي.
 
+    ملاحظة:
+    الكفيل الحالي للمستفيد يُقرأ من BeneficiarySponsorHistory
+    وليس من Beneficiary.donor.
+    """
+
+    # ---------------------------------------------------------
+    # البرامج الفرعية النشطة
+    # ---------------------------------------------------------
     sub_programs = (
         SubProgram.objects
         .filter(main_program__is_active=True)
         .select_related("main_program")
         .order_by("name")
     )
+
     today = timezone.localdate()
 
+    # ---------------------------------------------------------
+    # سجلات الكفالة السارية للمستفيدين
+    # المصدر المعتمد للكفيل هو BeneficiarySponsorHistory
+    # ---------------------------------------------------------
     active_sponsorships = (
         BeneficiarySponsorHistory.objects
+        .filter(start_date__lte=today)
         .filter(
-            start_date__lte=today,
-        )
-        .filter(
-            Q(end_date__isnull=True) |
-            Q(end_date__gte=today)
+            Q(end_date__isnull=True)
+            | Q(end_date__gte=today)
         )
         .select_related(
             "donor",
             "donor__user",
         )
+        .order_by("-start_date", "-id")
     )
-    # لا نفلتر في السيرفر، سيتم الفلترة بالكامل بالجافاسكربت
+
+    # ---------------------------------------------------------
+    # جلب المستفيدين
+    #
+    # لا نعتمد على Beneficiary.donor هنا.
+    # الكفيل الحالي سيكون داخل:
+    # active_sponsorship_list
+    # ---------------------------------------------------------
     beneficiaries = (
         Beneficiary.objects
         .exclude(education_level__isnull=True)
         .exclude(education_level="")
-        .select_related(
-            "donor",
-            "donor__user",
-        )
         .prefetch_related(
             Prefetch(
                 "sponsor_history",
@@ -2252,19 +2165,16 @@ def subprogram_disburse_create(request):
             "type_disease",
             "disease",
             "national_number",
-            "donor",
-            "donor__national_number",
-            "donor__user__first_name",
-            "donor__user__last_name",
-            "donor__user__username",
         )
         .order_by("first_name", "father_name")
     )
 
+    # ---------------------------------------------------------
+    # تنفيذ الصرف
+    # ---------------------------------------------------------
     if request.method == "POST":
 
         try:
-
             voucher_number = (
                 request.POST.get("voucher_number") or ""
             ).strip()
@@ -2285,14 +2195,20 @@ def subprogram_disburse_create(request):
             beneficiary_ids = request.POST.getlist("beneficiary_ids[]")
             amounts = request.POST.getlist("amounts[]")
 
+            # جلب المستفيدين المطلوب صرف المبالغ لهم
             beneficiaries_map = {
                 b.id: b
-                for b in Beneficiary.objects.filter(id__in=beneficiary_ids)
+                for b in Beneficiary.objects.filter(
+                    id__in=beneficiary_ids
+                )
             }
 
             beneficiaries_data = []
 
-            for beneficiary_id, amount in zip(beneficiary_ids, amounts):
+            for beneficiary_id, amount in zip(
+                beneficiary_ids,
+                amounts,
+            ):
 
                 if not beneficiary_id:
                     continue
@@ -2302,19 +2218,26 @@ def subprogram_disburse_create(request):
                 if amount <= 0:
                     continue
 
-                beneficiary = beneficiaries_map.get(int(beneficiary_id))
+                beneficiary = beneficiaries_map.get(
+                    int(beneficiary_id)
+                )
 
                 if not beneficiary:
                     continue
 
-                beneficiaries_data.append({
-                    "beneficiary": beneficiary,
-                    "amount": amount,
-                })
+                beneficiaries_data.append(
+                    {
+                        "beneficiary": beneficiary,
+                        "amount": amount,
+                    }
+                )
 
             if not beneficiaries_data:
-                raise ValueError("يجب اختيار مستفيد واحد على الأقل.")
+                raise ValueError(
+                    "يجب اختيار مستفيد واحد على الأقل."
+                )
 
+            # تنفيذ عملية الصرف من خلال محرك المحاسبة الجديد
             spend_from_sub_program(
                 sub_program=sub_program,
                 beneficiaries=beneficiaries_data,
@@ -2328,20 +2251,34 @@ def subprogram_disburse_create(request):
                 f"تم تنفيذ الصرف بنجاح. رقم السند: {voucher_number}"
             )
 
-            return redirect("Accounting:subprogram_disburse_create")
+            return redirect(
+                "Accounting:subprogram_disburse_create"
+            )
 
         except ValueError as ex:
             messages.error(request, str(ex))
 
         except SubProgram.DoesNotExist:
-            messages.error(request, "البرنامج الفرعي غير موجود.")
+            messages.error(
+                request,
+                "البرنامج الفرعي غير موجود."
+            )
 
         except Beneficiary.DoesNotExist:
-            messages.error(request, "أحد المستفيدين غير موجود.")
+            messages.error(
+                request,
+                "أحد المستفيدين غير موجود."
+            )
 
         except Exception as ex:
-            messages.error(request, str(ex))
+            messages.error(
+                request,
+                str(ex)
+            )
 
+    # ---------------------------------------------------------
+    # بيانات البرامج الفرعية للواجهة
+    # ---------------------------------------------------------
     sub_program_data = [
         {
             "id": sp.id,
@@ -2352,6 +2289,9 @@ def subprogram_disburse_create(request):
         for sp in sub_programs
     ]
 
+    # ---------------------------------------------------------
+    # آخر عمليات الصرف
+    # ---------------------------------------------------------
     last_disbursements = (
         SubProgramDisbursement.objects
         .select_related(
@@ -2359,9 +2299,15 @@ def subprogram_disburse_create(request):
             "sub_program__main_program",
             "created_by",
         )
-        .order_by("-created_at", "-id")[:10]
+        .order_by(
+            "-created_at",
+            "-id",
+        )[:10]
     )
 
+    # ---------------------------------------------------------
+    # عرض الصفحة
+    # ---------------------------------------------------------
     return render(
         request,
         "Accounting/subprogram_disburse_form.html",
@@ -2371,12 +2317,21 @@ def subprogram_disburse_create(request):
             "sub_programs": sub_programs,
             "sub_program_data": sub_program_data,
 
+            # المستفيدون مع سجل الكفالة الساري
             "beneficiaries": beneficiaries,
 
-            "education_levels": Beneficiary.EducationLevel.choices,
-            "health_statuses": Beneficiary.HealthStatus.choices,
-            "disease_types": Beneficiary.DiseaseType.choices,
-            "genders": Beneficiary.Gender.choices,
+            "education_levels": (
+                Beneficiary.EducationLevel.choices
+            ),
+            "health_statuses": (
+                Beneficiary.HealthStatus.choices
+            ),
+            "disease_types": (
+                Beneficiary.DiseaseType.choices
+            ),
+            "genders": (
+                Beneficiary.Gender.choices
+            ),
 
             "last_disbursements": last_disbursements,
         },
@@ -3163,9 +3118,6 @@ def fund_reservations_dashboard(request):
         },
     )
 
-def _redirect_same(request):
-    return redirect(request.path)
-
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def beneficiary_supports_report(request):
@@ -3539,12 +3491,12 @@ def sponsorship_report_print(request):
     quarter = request.GET.get("quarter")
     half = request.GET.get("half")
 
-    from_date = request.GET.get("from_date")
-    to_date = request.GET.get("to_date")
+    from_date_param = request.GET.get("from_date")
+    to_date_param = request.GET.get("to_date")
 
-    # -----------------------------------------
+    # =====================================================
     # تحديد الفترة
-    # -----------------------------------------
+    # =====================================================
 
     if report_type == "year":
 
@@ -3584,27 +3536,27 @@ def sponsorship_report_print(request):
     else:
 
         from_date = datetime.strptime(
-            from_date,
+            from_date_param,
             "%Y-%m-%d"
         ).date()
 
         to_date = datetime.strptime(
-            to_date,
+            to_date_param,
             "%Y-%m-%d"
         ).date()
 
-    # -----------------------------------------
+    # =====================================================
     # الكافل
-    # -----------------------------------------
+    # =====================================================
 
     donor = get_object_or_404(
         Profile,
         pk=donor_id
     )
 
-    # -----------------------------------------
-    # سجل الكفالة
-    # -----------------------------------------
+    # =====================================================
+    # سجلات الكفالة المتقاطعة مع فترة التقرير
+    # =====================================================
 
     sponsor_history = (
         BeneficiarySponsorHistory.objects
@@ -3613,8 +3565,8 @@ def sponsorship_report_print(request):
             start_date__lte=to_date,
         )
         .filter(
-            Q(end_date__isnull=True) |
-            Q(end_date__gte=from_date)
+            Q(end_date__isnull=True)
+            | Q(end_date__gte=from_date)
         )
         .select_related(
             "beneficiary"
@@ -3622,8 +3574,25 @@ def sponsorship_report_print(request):
         .order_by(
             "beneficiary__first_name",
             "beneficiary__last_name",
+            "start_date",
+            "id",
         )
     )
+
+    # =====================================================
+    # تجميع المستفيدين بدون تكرار
+    # =====================================================
+
+    beneficiary_history_map = {}
+
+    for history in sponsor_history:
+
+        beneficiary_id = history.beneficiary_id
+
+        if beneficiary_id not in beneficiary_history_map:
+            beneficiary_history_map[beneficiary_id] = []
+
+        beneficiary_history_map[beneficiary_id].append(history)
 
     beneficiaries = []
 
@@ -3633,35 +3602,49 @@ def sponsorship_report_print(request):
     grand_sponsorship_remaining = Decimal("0.00")
     grand_extra_amount = Decimal("0.00")
 
-    for history in sponsor_history:
+    total_sponsorship_count = 0
 
-        beneficiary = history.beneficiary
+    # =====================================================
+    # معالجة كل مستفيد مرة واحدة
+    # =====================================================
 
-        # -----------------------------------------
-        # تحديد فترة الدعم الفعلية
-        # -----------------------------------------
+    for beneficiary_id, histories in beneficiary_history_map.items():
 
-        support_from = from_date
+        beneficiary = histories[0].beneficiary
 
-        if (
-            history.start_date
-            and history.start_date > support_from
-        ):
-            support_from = history.start_date
+        # -------------------------------------------------
+        # فترات إسناد المستفيد للكافل داخل التقرير
+        # -------------------------------------------------
 
-        support_to = to_date
+        history_periods = []
 
-        if (
-            history.end_date
-            and history.end_date < support_to
-        ):
-            support_to = history.end_date
+        for history in histories:
 
-        # -----------------------------------------
-        # سند الكفالة المرتبط بالمستفيد
-        # -----------------------------------------
+            history_from = max(
+                history.start_date,
+                from_date
+            )
 
-        allocation = (
+            history_to = (
+                min(history.end_date, to_date)
+                if history.end_date
+                else to_date
+            )
+
+            if history_from <= history_to:
+
+                history_periods.append(
+                    (
+                        history_from,
+                        history_to,
+                    )
+                )
+
+        # -------------------------------------------------
+        # جلب كل تخصيصات الكفالة
+        # -------------------------------------------------
+
+        allocations = (
             FinancialSponsorshipAllocation.objects
             .filter(
                 beneficiary=beneficiary,
@@ -3670,45 +3653,86 @@ def sponsorship_report_print(request):
             .select_related(
                 "sponsorship_invoice",
                 "sponsorship_invoice__invoice",
+                "sponsorship_invoice__payment_plan",
             )
             .order_by(
-                "-sponsorship_invoice__start_date"
+                "sponsorship_invoice__start_date",
+                "sponsorship_invoice__id",
+                "id",
             )
-            .first()
         )
 
-        sponsorship_invoice = (
-            allocation.sponsorship_invoice
-            if allocation
-            else None
-        )
+        sponsorships = []
 
-        sponsorship_amount = (
-            allocation.amount
-            if allocation
-            else Decimal("0.00")
-        )
+        for allocation in allocations:
 
-        # -----------------------------------------
-        # المصروفات الفعلية على المستفيد
-        #
-        # نستبعد أمر الصرف إذا تم عكسه.
-        # العملية المعكوسة لا تعتبر دعمًا فعليًا.
-        # -----------------------------------------
+            sponsorship_invoice = (
+                allocation.sponsorship_invoice
+            )
 
-        supports = (
-            BeneficiarySupportEntry.objects.none()
-        )
+            invoice_start = (
+                sponsorship_invoice.start_date
+                or from_date
+            )
 
-        if support_from <= support_to:
+            invoice_end = (
+                sponsorship_invoice.end_date
+                or to_date
+            )
+
+            # ---------------------------------------------
+            # السند يجب أن يتقاطع مع فترة التقرير
+            # ---------------------------------------------
+
+            if invoice_start > to_date:
+                continue
+
+            if invoice_end < from_date:
+                continue
+
+            # ---------------------------------------------
+            # السند يجب أن يتقاطع مع فترة إسناد المستفيد
+            # ---------------------------------------------
+
+            valid_history_period = False
+
+            for history_from, history_to in history_periods:
+
+                if (
+                    invoice_start <= history_to
+                    and invoice_end >= history_from
+                ):
+                    valid_history_period = True
+                    break
+
+            if not valid_history_period:
+                continue
+
+            # ---------------------------------------------
+            # الفترة الفعلية للسند داخل التقرير
+            # ---------------------------------------------
+
+            sponsorship_from = max(
+                invoice_start,
+                from_date
+            )
+
+            sponsorship_to = min(
+                invoice_end,
+                to_date
+            )
+
+            # ---------------------------------------------
+            # المصروفات التابعة لهذا السند
+            # ---------------------------------------------
 
             supports = (
                 BeneficiarySupportEntry.objects
                 .filter(
                     beneficiary=beneficiary,
                     created_at__date__range=(
-                        support_from,
-                        support_to,
+                        sponsorship_from,
+                        sponsorship_to,
                     ),
                 )
                 .filter(
@@ -3721,75 +3745,251 @@ def sponsorship_report_print(request):
                     "disbursement",
                 )
                 .order_by(
-                    "created_at"
+                    "created_at",
+                    "id",
                 )
             )
 
-        beneficiary_total = Decimal("0.00")
+            beneficiary_total = Decimal("0.00")
 
-        program_rows = []
+            program_rows = []
 
-        for support in supports:
+            for support in supports:
 
-            amount = (
-                support.amount
+                support_date = support.created_at.date()
+
+                # -----------------------------------------
+                # التأكد أن المصروف يقع أيضًا داخل
+                # فترة إسناد المستفيد
+                # -----------------------------------------
+
+                valid_support = False
+
+                for history_from, history_to in history_periods:
+
+                    if (
+                        history_from
+                        <= support_date
+                        <= history_to
+                    ):
+                        valid_support = True
+                        break
+
+                if not valid_support:
+                    continue
+
+                amount = (
+                    support.amount
+                    or Decimal("0.00")
+                )
+
+                beneficiary_total += amount
+
+                program_rows.append({
+                    "program_name":
+                        support.sub_program.name,
+
+                    "description":
+                        support.sub_program.description,
+
+                    "amount":
+                        amount,
+
+                    "date":
+                        support_date,
+                })
+
+            # ---------------------------------------------
+            # مبلغ السند
+            # ---------------------------------------------
+
+            sponsorship_amount = (
+                allocation.amount
                 or Decimal("0.00")
             )
 
-            beneficiary_total += amount
+            sponsorship_used = min(
+                beneficiary_total,
+                sponsorship_amount,
+            )
 
-            program_rows.append({
-                "program_name":
-                    support.sub_program.name,
+            sponsorship_remaining = max(
+                sponsorship_amount
+                - beneficiary_total,
+                Decimal("0.00"),
+            )
 
-                "description":
-                    support.sub_program.description,
+            extra_amount = max(
+                beneficiary_total
+                - sponsorship_amount,
+                Decimal("0.00"),
+            )
+
+            # ---------------------------------------------
+            # حالة السند
+            # ---------------------------------------------
+
+            if sponsorship_amount <= Decimal("0.00"):
+
+                sponsorship_status = "no_sponsorship"
+
+            elif beneficiary_total >= sponsorship_amount:
+
+                sponsorship_status = "fully_used"
+
+            else:
+
+                sponsorship_status = "partially_used"
+
+            # ---------------------------------------------
+            # إضافة السند
+            # ---------------------------------------------
+
+            sponsorships.append({
+
+                "allocation":
+                    allocation,
+
+                "sponsorship_invoice":
+                    sponsorship_invoice,
+
+                "invoice":
+                    sponsorship_invoice.invoice,
+
+                "invoice_number":
+                    sponsorship_invoice.invoice.number,
+
+                "start_date":
+                    sponsorship_from,
+
+                "end_date":
+                    sponsorship_to,
+
+                "original_start_date":
+                    invoice_start,
+
+                "original_end_date":
+                    invoice_end,
 
                 "amount":
-                    amount,
+                    sponsorship_amount,
 
-                "date":
-                    support.created_at.date(),
+                "sponsorship_amount":
+                    sponsorship_amount,
+
+                "programs":
+                    program_rows,
+
+                "total":
+                    beneficiary_total,
+
+                "support_count":
+                    len(program_rows),
+
+                "sponsorship_used":
+                    sponsorship_used,
+
+                "sponsorship_remaining":
+                    sponsorship_remaining,
+
+                "extra_amount":
+                    extra_amount,
+
+                "sponsorship_status":
+                    sponsorship_status,
             })
 
-        # -----------------------------------------
-        # الحساب المحاسبي للكفالة
-        # -----------------------------------------
+        # =================================================
+        # لا يظهر المستفيد إذا لم يوجد له سند صالح
+        # في الفترة المحددة
+        # =================================================
 
-        sponsorship_used = min(
-            beneficiary_total,
-            sponsorship_amount,
+        if not sponsorships:
+            continue
+
+        # =================================================
+        # ترتيب السندات
+        # =================================================
+
+        sponsorships.sort(
+            key=lambda x: (
+                x["start_date"],
+                x["invoice_number"],
+            )
         )
 
-        sponsorship_remaining = max(
-            sponsorship_amount - beneficiary_total,
+        # =================================================
+        # إجماليات المستفيد
+        # =================================================
+
+        beneficiary_total_all = sum(
+            (
+                item["total"]
+                for item in sponsorships
+            ),
             Decimal("0.00"),
         )
 
-        extra_amount = max(
-            beneficiary_total - sponsorship_amount,
+        beneficiary_sponsorship_amount = sum(
+            (
+                item["sponsorship_amount"]
+                for item in sponsorships
+            ),
             Decimal("0.00"),
         )
 
-        # -----------------------------------------
-        # حالة الكفالة
-        # -----------------------------------------
+        beneficiary_sponsorship_used = sum(
+            (
+                item["sponsorship_used"]
+                for item in sponsorships
+            ),
+            Decimal("0.00"),
+        )
 
-        if sponsorship_amount <= Decimal("0.00"):
+        beneficiary_sponsorship_remaining = sum(
+            (
+                item["sponsorship_remaining"]
+                for item in sponsorships
+            ),
+            Decimal("0.00"),
+        )
 
-            sponsorship_status = "no_sponsorship"
+        beneficiary_extra_amount = sum(
+            (
+                item["extra_amount"]
+                for item in sponsorships
+            ),
+            Decimal("0.00"),
+        )
 
-        elif beneficiary_total >= sponsorship_amount:
+        # =================================================
+        # حالة إجمالي كفالة المستفيد
+        # =================================================
 
-            sponsorship_status = "fully_used"
+        if beneficiary_sponsorship_amount <= Decimal("0.00"):
+
+            beneficiary_status = "no_sponsorship"
+
+        elif (
+            beneficiary_sponsorship_used
+            >= beneficiary_sponsorship_amount
+        ):
+
+            beneficiary_status = "fully_used"
 
         else:
 
-            sponsorship_status = "partially_used"
+            beneficiary_status = "partially_used"
 
-        # -----------------------------------------
-        # بيانات المستفيد
-        # -----------------------------------------
+        # =================================================
+        # أول History للعرض
+        # =================================================
+
+        primary_history = histories[0]
+
+        # =================================================
+        # إضافة المستفيد مرة واحدة
+        # =================================================
 
         beneficiaries.append({
 
@@ -3797,64 +3997,71 @@ def sponsorship_report_print(request):
                 beneficiary,
 
             "history":
-                history,
+                primary_history,
 
-            "sponsorship_invoice":
-                sponsorship_invoice,
+            "histories":
+                histories,
 
-            "allocation":
-                allocation,
+            "sponsorships":
+                sponsorships,
 
-            "programs":
-                program_rows,
+            "sponsorship_count":
+                len(sponsorships),
 
             "total":
-                beneficiary_total,
+                beneficiary_total_all,
 
             "support_count":
-                len(program_rows),
+                sum(
+                    item["support_count"]
+                    for item in sponsorships
+                ),
 
             "sponsorship_amount":
-                sponsorship_amount,
+                beneficiary_sponsorship_amount,
 
             "sponsorship_used":
-                sponsorship_used,
+                beneficiary_sponsorship_used,
 
             "sponsorship_remaining":
-                sponsorship_remaining,
+                beneficiary_sponsorship_remaining,
 
             "extra_amount":
-                extra_amount,
+                beneficiary_extra_amount,
 
             "sponsorship_status":
-                sponsorship_status,
+                beneficiary_status,
         })
 
-        # -----------------------------------------
-        # الإجماليات
-        # -----------------------------------------
+        # =================================================
+        # الإجماليات العامة
+        # =================================================
 
-        grand_total += beneficiary_total
+        grand_total += beneficiary_total_all
 
         grand_sponsorship_amount += (
-            sponsorship_amount
+            beneficiary_sponsorship_amount
         )
 
         grand_sponsorship_used += (
-            sponsorship_used
+            beneficiary_sponsorship_used
         )
 
         grand_sponsorship_remaining += (
-            sponsorship_remaining
+            beneficiary_sponsorship_remaining
         )
 
         grand_extra_amount += (
-            extra_amount
+            beneficiary_extra_amount
         )
 
-    # -----------------------------------------
+        total_sponsorship_count += len(
+            sponsorships
+        )
+
+    # =====================================================
     # Context
-    # -----------------------------------------
+    # =====================================================
 
     context = {
 
@@ -3885,6 +4092,9 @@ def sponsorship_report_print(request):
         "beneficiary_count":
             len(beneficiaries),
 
+        "sponsorship_count":
+            total_sponsorship_count,
+
         "report_type":
             report_type,
 
@@ -3907,9 +4117,9 @@ def sponsorship_report_print(request):
             datetime.now(),
     }
 
-    # -----------------------------------------
+    # =====================================================
     # تسجيل النشاط
-    # -----------------------------------------
+    # =====================================================
 
     log_activity(
         user=request.user,
@@ -3925,6 +4135,12 @@ def sponsorship_report_print(request):
 
             "to":
                 str(to_date),
+
+            "beneficiary_count":
+                len(beneficiaries),
+
+            "sponsorship_count":
+                total_sponsorship_count,
         },
     )
 
@@ -3932,8 +4148,7 @@ def sponsorship_report_print(request):
         request,
         "Accounting/sponsorship_report_print.html",
         context,
-    )
-#############################################
+    )#############################################
 def sponsorship_reports(request):
 
     donors = Profile.objects.filter(
@@ -4238,3 +4453,67 @@ def release_main_program(request):
             "last_releases": last_releases,
         },
     )
+
+
+# =========================================================
+# البحث عن الكفلاء - AJAX / Select2
+# =========================================================
+
+@role_required([
+    Profile.Roles.SYSTEM_ADMIN,
+    Profile.Roles.CASHIER,
+])
+def sponsor_search(request):
+
+    q = request.GET.get("q", "").strip()
+
+    sponsors = (
+        Profile.objects
+        .filter(
+            role=Profile.Roles.DONOR,
+        )
+        .select_related("user")
+    )
+
+    if q:
+
+        sponsors = sponsors.filter(
+            Q(user__first_name__icontains=q)
+            | Q(father_name__icontains=q)
+            | Q(grandpa_name__icontains=q)
+            | Q(user__last_name__icontains=q)
+            | Q(user__username__icontains=q)
+        )
+
+    sponsors = sponsors.order_by(
+        "user__first_name",
+        "user__last_name",
+    )[:30]
+
+    results = []
+
+    for sponsor in sponsors:
+
+        parts = [
+            sponsor.user.first_name,
+            sponsor.father_name,
+            sponsor.grandpa_name,
+            sponsor.user.last_name,
+        ]
+
+        name = " ".join(
+            str(part).strip()
+            for part in parts
+            if part and str(part).strip()
+        )
+
+        name = name or sponsor.user.username
+
+        results.append({
+            "id": sponsor.pk,
+            "text": name,
+        })
+
+    return JsonResponse({
+        "results": results,
+    })

@@ -4,726 +4,1121 @@
 
 {% block content %}
 
+<!-- =========================================================
+     Select2
+========================================================= -->
+
+
 <style>
-  .section-card {
-    border: 1px solid #e5e7eb;
-    border-radius: 16px;
-    padding: 18px 20px;
-    margin-bottom: 16px;
-    background: #fff;
-  }
 
-  .section-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 16px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #f0f0f0;
-  }
+    /* =========================================================
+       Select2 - الكافل
+    ========================================================= */
 
-  .section-title-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f3f6ff;
-    color: #0d6efd;
-    font-size: 17px;
-  }
+    .sponsor-select-wrapper {
+        width: 100%;
+    }
 
-  .section-title-text {
-    font-weight: 700;
-    font-size: 1rem;
-  }
+    .sponsor-select-wrapper .select2-container {
+        width: 100% !important;
+    }
 
-  .section-subtext {
-    font-size: .78rem;
-    color: #6b7280;
-    margin-top: 2px;
-  }
+    .sponsor-select-wrapper
+    .select2-container--default
+    .select2-selection--single {
 
-  .required-star {
-    color: #dc3545;
-    font-weight: 700;
-  }
+        width: 100% !important;
 
-  .optional-label {
-    color: #6b7280;
-    font-size: .75rem;
-    font-weight: 400;
-  }
+        height: 38px !important;
 
-  .auto-info {
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 9px 12px;
-    font-size: .78rem;
-    color: #64748b;
-    margin-top: 7px;
-  }
+        border: 1px solid #dee2e6 !important;
 
-  .auto-info i {
-    color: #198754;
-  }
+        border-radius: 8px !important;
 
-  .custom-plan-field {
-    transition: opacity .2s ease;
-  }
+        display: flex !important;
 
-  .readonly-looking {
-    background-color: #f8fafc !important;
-  }
+        align-items: center !important;
 
-  .field-error {
-    color: #dc3545;
-    font-size: .78rem;
-    margin-top: 5px;
-  }
+        background: #fff !important;
 
-  .form-label {
-    margin-bottom: 6px;
-  }
+        direction: rtl;
+    }
 
-  .main-submit {
-    min-width: 130px;
-  }
+    .sponsor-select-wrapper
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__rendered {
 
-  .modal-info {
-    background: #f8fafc;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 10px 12px;
-  }
+        width: 100% !important;
+
+        text-align: right !important;
+
+        padding-right: 12px !important;
+
+        padding-left: 35px !important;
+
+        line-height: 36px !important;
+
+        color: #212529 !important;
+
+        direction: rtl;
+    }
+
+    .sponsor-select-wrapper
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__arrow {
+
+        right: auto !important;
+
+        left: 8px !important;
+
+        top: 6px !important;
+    }
+
+    .select2-dropdown {
+
+        border: 1px solid #dee2e6 !important;
+
+        border-radius: 8px !important;
+
+        overflow: hidden;
+
+        direction: rtl;
+    }
+
+    .select2-search__field {
+
+        text-align: right !important;
+
+        direction: rtl !important;
+
+        border-radius: 6px !important;
+    }
+
+    .select2-results__option {
+
+        text-align: right !important;
+
+        padding: 10px 12px !important;
+
+        direction: rtl;
+    }
+
+    .select2-container--default
+    .select2-results__option--highlighted[aria-selected] {
+
+        background-color: #198754 !important;
+
+        color: #fff !important;
+    }
+
+    .select2-container--default
+    .select2-selection--single
+    .select2-selection__placeholder {
+
+        color: #6c757d !important;
+    }
+
+
+    /* =========================================================
+       الصفحة
+    ========================================================= */
+
+    .sponsorship-page {
+
+        max-width: 1200px;
+
+        margin: 0 auto;
+    }
+
+
+    /* =========================================================
+       عنوان الصفحة
+    ========================================================= */
+
+    .page-intro {
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 16px;
+
+        background: #fff;
+
+        padding: 18px 22px;
+
+        margin-bottom: 16px;
+    }
+
+    .page-intro h5 {
+
+        font-weight: 700;
+
+        margin-bottom: 5px;
+    }
+
+    .page-intro p {
+
+        margin: 0;
+
+        color: #6b7280;
+
+        font-size: .86rem;
+    }
+
+
+    /* =========================================================
+       الأقسام
+    ========================================================= */
+
+    .section-card {
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 16px;
+
+        background: #fff;
+
+        margin-bottom: 16px;
+
+        overflow: hidden;
+    }
+
+    .section-header {
+
+        display: flex;
+
+        align-items: center;
+
+        gap: 10px;
+
+        padding: 15px 18px;
+
+        border-bottom: 1px solid #eef0f2;
+
+        background: #fcfcfd;
+    }
+
+    .section-number {
+
+        width: 32px;
+
+        height: 32px;
+
+        border-radius: 10px;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        background: #eef8f5;
+
+        color: #168b68;
+
+        font-weight: 700;
+
+        flex-shrink: 0;
+    }
+
+    .section-title {
+
+        font-size: .98rem;
+
+        font-weight: 700;
+
+        margin: 0;
+    }
+
+    .section-description {
+
+        color: #6b7280;
+
+        font-size: .78rem;
+
+        margin-top: 2px;
+    }
+
+    .section-body {
+
+        padding: 18px;
+    }
+
+
+    /* =========================================================
+       الحقول
+    ========================================================= */
+
+    .field-label {
+
+        font-size: .82rem;
+
+        font-weight: 600;
+
+        margin-bottom: 6px;
+    }
+
+    .required-mark {
+
+        color: #dc3545;
+
+        font-weight: 700;
+    }
+
+    .optional-label {
+
+        color: #9ca3af;
+
+        font-size: .74rem;
+
+        font-weight: 400;
+    }
+
+    .field-help {
+
+        color: #8a9199;
+
+        font-size: .73rem;
+
+        margin-top: 5px;
+    }
+
+    .field-error {
+
+        color: #dc3545;
+
+        font-size: .76rem;
+
+        margin-top: 5px;
+    }
+
+
+    /* =========================================================
+       معلومات تلقائية
+    ========================================================= */
+
+    .info-box {
+
+        background: #f8fafb;
+
+        border: 1px dashed #d9dee3;
+
+        border-radius: 12px;
+
+        padding: 11px 13px;
+
+        margin-top: 12px;
+
+        color: #6b7280;
+
+        font-size: .78rem;
+    }
+
+    .info-box i {
+
+        color: #168b68;
+    }
+
+
+    /* =========================================================
+       الخطة المخصصة
+    ========================================================= */
+
+    .custom-plan-field {
+
+        transition: opacity .2s ease;
+    }
+
+
+    /* =========================================================
+       أزرار الصفحة
+    ========================================================= */
+
+    .form-actions {
+
+        display: flex;
+
+        justify-content: space-between;
+
+        align-items: center;
+
+        gap: 10px;
+
+        padding-top: 4px;
+
+        padding-bottom: 20px;
+    }
+
+    .form-actions .btn {
+
+        min-width: 120px;
+    }
+
+
+    /* =========================================================
+       المودال
+    ========================================================= */
+
+    .modal-info {
+
+        background: #f8fafb;
+
+        border: 1px solid #e5e7eb;
+
+        border-radius: 12px;
+
+        padding: 11px 13px;
+
+        color: #6b7280;
+
+        font-size: .78rem;
+    }
+
+
+    /* =========================================================
+       الجوال
+    ========================================================= */
+
+    @media (max-width: 768px) {
+
+        .page-intro {
+
+            padding: 15px;
+        }
+
+        .section-body {
+
+            padding: 14px;
+        }
+
+        .form-actions {
+
+            flex-direction: column-reverse;
+
+            align-items: stretch;
+        }
+
+        .form-actions .btn {
+
+            width: 100%;
+        }
+
+    }
+
 </style>
 
 
-<!-- =========================================================
-     عنوان الصفحة
-========================================================= -->
-
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-
-  <div>
-    <h5 class="m-0 fw-bold">
-      <i class="bi bi-receipt-cutoff me-1"></i>
-      {{ title }}
-    </h5>
-
-    <small class="text-muted">
-      إنشاء سند كفالة مالية وتسجيل بيانات الكافل والكفالة.
-    </small>
-  </div>
-
-</div>
+<div class="sponsorship-page">
 
 
-<div class="card shadow-sm border-0">
+    <!-- =======================================================
+         عنوان الصفحة
+    ======================================================= -->
 
-  <div class="card-body">
+    <div class="page-intro">
+
+        <h5 class="m-0 fw-bold">
+
+            <i class="bi bi-receipt-cutoff me-1"></i>
+
+            {{ title }}
+
+        </h5>
+
+        <p>
+
+            إنشاء سند كفالة مالية وتسجيل بيانات الكافل وتفاصيل الكفالة.
+
+            الحقول المميزة بعلامة
+
+            <span class="required-mark">*</span>
+
+            مطلوبة.
+
+        </p>
+
+    </div>
+
 
     <form method="post" novalidate>
 
-      {% csrf_token %}
+        {% csrf_token %}
 
 
-      <!-- =====================================================
-           الأخطاء العامة
-      ====================================================== -->
+        <!-- =====================================================
+             الأخطاء العامة
+        ===================================================== -->
 
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger small mb-3">
-          <i class="bi bi-exclamation-triangle me-1"></i>
-          {{ form.non_field_errors }}
-        </div>
-      {% endif %}
+        {% if form.non_field_errors %}
 
+            <div class="alert alert-danger small">
 
-      <!-- =====================================================
-           1 - بيانات السند
-      ====================================================== -->
+                <i class="bi bi-exclamation-triangle me-1"></i>
 
-      <div class="section-card">
+                {{ form.non_field_errors }}
 
-        <div class="section-title">
-
-          <div class="section-title-icon">
-            <i class="bi bi-file-earmark-text"></i>
-          </div>
-
-          <div>
-            <div class="section-title-text">
-              بيانات السند
             </div>
 
-            <div class="section-subtext">
-              أدخل رقم السند واختر تاريخ السند ووسيلة القبض.
-            </div>
-          </div>
-
-        </div>
+        {% endif %}
 
 
-        <div class="row g-3">
+        <!-- =====================================================
+             ① بيانات السند
+        ===================================================== -->
 
-          <!-- رقم السند -->
+        <div class="section-card">
 
-          <div class="col-md-4">
+            <div class="section-header">
 
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-hash ms-1"></i>
-
-              رقم السند
-
-              <span class="required-star">*</span>
-
-            </label>
-
-            {{ form.number }}
-
-            {% if form.number.errors %}
-              <div class="field-error">
-                {{ form.number.errors.0 }}
-              </div>
-            {% endif %}
-
-            <div class="form-text small text-muted">
-              أدخل رقم السند يدويًا.
-            </div>
-
-          </div>
-
-
-          <!-- تاريخ السند -->
-
-          <div class="col-md-4">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-calendar-event ms-1"></i>
-
-              {{ form.date.label }}
-
-              <span class="required-star">*</span>
-
-            </label>
-
-            {{ form.date }}
-
-            {% if form.date.errors %}
-              <div class="field-error">
-                {{ form.date.errors.0 }}
-              </div>
-            {% endif %}
-
-            <div class="form-text small text-muted">
-              يتم تعبئة تاريخ اليوم تلقائيًا ويمكن تعديله.
-            </div>
-
-          </div>
-
-
-          <!-- وسيلة القبض -->
-
-          <div class="col-md-4">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-credit-card-2-front ms-1"></i>
-
-              {{ form.payment_method.label }}
-
-              <span class="required-star">*</span>
-
-            </label>
-
-            {{ form.payment_method }}
-
-            {% if form.payment_method.errors %}
-              <div class="field-error">
-                {{ form.payment_method.errors.0 }}
-              </div>
-            {% endif %}
-
-          </div>
-
-        </div>
-
-
-        <!-- التحويل البنكي -->
-
-        <div id="bank-transfer-fields" class="mt-3" style="display:none;">
-
-          <div class="alert alert-light border small mb-3">
-
-            <i class="bi bi-info-circle me-1"></i>
-
-            أدخل بيانات التحويل البنكي عند اختيار وسيلة القبض
-            <strong>تحويل بنكي</strong>.
-
-          </div>
-
-
-          <div class="row g-3">
-
-            <div class="col-md-4">
-
-              <label class="form-label small fw-semibold">
-                {{ form.bank_from.label }}
-              </label>
-
-              {{ form.bank_from }}
-
-              {% if form.bank_from.errors %}
-                <div class="field-error">
-                  {{ form.bank_from.errors.0 }}
+                <div class="section-number">
+                    ١
                 </div>
-              {% endif %}
 
-            </div>
+                <div>
 
+                    <div class="section-title">
+                        بيانات السند
+                    </div>
 
-            <div class="col-md-4">
+                    <div class="section-description">
+                        أدخل رقم السند واختر تاريخ السند ووسيلة القبض.
+                    </div>
 
-              <label class="form-label small fw-semibold">
-                {{ form.from_account_number.label }}
-              </label>
-
-              {{ form.from_account_number }}
-
-              {% if form.from_account_number.errors %}
-                <div class="field-error">
-                  {{ form.from_account_number.errors.0 }}
                 </div>
-              {% endif %}
 
             </div>
 
 
-            <div class="col-md-4">
+            <div class="section-body">
 
-              <label class="form-label small fw-semibold">
-                {{ form.to_account_number.label }}
-              </label>
+                <div class="row g-3">
 
-              {{ form.to_account_number }}
 
-              {% if form.to_account_number.errors %}
-                <div class="field-error">
-                  {{ form.to_account_number.errors.0 }}
+                    <!-- رقم السند -->
+
+                    <div class="col-md-4">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-hash"></i>
+
+                            رقم السند
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+                        {{ form.number }}
+
+                        {% if form.number.errors %}
+
+                            <div class="field-error">
+                                {{ form.number.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                        <div class="field-help">
+                            أدخل رقم السند.
+                        </div>
+
+                    </div>
+
+
+                    <!-- تاريخ السند -->
+
+                    <div class="col-md-4">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-calendar3"></i>
+
+                            {{ form.date.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+                        {{ form.date }}
+
+                        {% if form.date.errors %}
+
+                            <div class="field-error">
+                                {{ form.date.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                        <div class="field-help">
+                            يتم تعبئة تاريخ اليوم تلقائيًا ويمكن تعديله.
+                        </div>
+
+                    </div>
+
+
+                    <!-- وسيلة القبض -->
+
+                    <div class="col-md-4">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-credit-card"></i>
+
+                            {{ form.payment_method.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+                        {{ form.payment_method }}
+
+                        {% if form.payment_method.errors %}
+
+                            <div class="field-error">
+                                {{ form.payment_method.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                        <div class="field-help">
+                            اختر طريقة استلام مبلغ الكفالة.
+                        </div>
+
+                    </div>
+
                 </div>
-              {% endif %}
+
+
+                <!-- =================================================
+                     التحويل البنكي
+                ================================================= -->
+
+                <div
+                    id="bank-transfer-fields"
+                    class="mt-3"
+                    style="display:none;"
+                >
+
+                    <div class="info-box">
+
+                        <i class="bi bi-bank me-1"></i>
+
+                        تم اختيار
+                        <strong>تحويل بنكي</strong>،
+                        يرجى تسجيل بيانات التحويل المتوفرة.
+
+                    </div>
+
+
+                    <div class="row g-3 mt-1">
+
+
+                        <div class="col-md-4">
+
+                            <label class="field-label">
+                                {{ form.bank_from.label }}
+                            </label>
+
+                            {{ form.bank_from }}
+
+                            {% if form.bank_from.errors %}
+
+                                <div class="field-error">
+                                    {{ form.bank_from.errors.0 }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="col-md-4">
+
+                            <label class="field-label">
+                                {{ form.from_account_number.label }}
+                            </label>
+
+                            {{ form.from_account_number }}
+
+                            {% if form.from_account_number.errors %}
+
+                                <div class="field-error">
+                                    {{ form.from_account_number.errors.0 }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+
+                        <div class="col-md-4">
+
+                            <label class="field-label">
+                                {{ form.to_account_number.label }}
+                            </label>
+
+                            {{ form.to_account_number }}
+
+                            {% if form.to_account_number.errors %}
+
+                                <div class="field-error">
+                                    {{ form.to_account_number.errors.0 }}
+                                </div>
+
+                            {% endif %}
+
+                        </div>
+
+                    </div>
+
+                </div>
 
             </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-
-      <!-- =====================================================
-           2 - بيانات الكافل
-      ====================================================== -->
-
-      <div class="section-card">
-
-        <div class="section-title">
-
-          <div class="section-title-icon">
-            <i class="bi bi-person-heart"></i>
-          </div>
-
-          <div>
-
-            <div class="section-title-text">
-              بيانات الكافل
-            </div>
-
-            <div class="section-subtext">
-              اختر الكافل المسجل في النظام أو أضف كافلًا جديدًا.
-            </div>
-
-          </div>
-
-        </div>
-
-
-        <div class="row g-3">
-
-          <div class="col-lg-8">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-person-check ms-1"></i>
-
-              {{ form.sponsor.label }}
-
-              <span class="required-star">*</span>
-
-            </label>
-
-
-            <div class="input-group">
-
-              {{ form.sponsor }}
-
-              <button
-                type="button"
-                class="btn btn-outline-primary"
-                data-bs-toggle="modal"
-                data-bs-target="#newSponsorModal"
-                title="إضافة كافل جديد">
-
-                <i class="bi bi-person-plus"></i>
-
-              </button>
-
-            </div>
-
-
-            {% if form.sponsor.errors %}
-              <div class="field-error">
-                {{ form.sponsor.errors.0 }}
-              </div>
-            {% endif %}
-
-
-            <div class="form-text small text-muted">
-
-              إذا لم تجد الكافل استخدم زر
-              <strong>إضافة كافل</strong>.
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-
-      <!-- =====================================================
-           3 - تفاصيل الكفالة
-      ====================================================== -->
-
-      <div class="section-card">
-
-        <div class="section-title">
-
-          <div class="section-title-icon">
-            <i class="bi bi-wallet2"></i>
-          </div>
-
-          <div>
-
-            <div class="section-title-text">
-              تفاصيل الكفالة المالية
-            </div>
-
-            <div class="section-subtext">
-              اختر خطة الكفالة، وسيتم استخدام قيمة ومدة الخطة تلقائيًا.
-            </div>
-
-          </div>
 
         </div>
 
 
-        <div class="row g-3 align-items-end">
+        <!-- =====================================================
+             ② بيانات الكافل
+        ===================================================== -->
 
+        <div class="section-card">
 
-          <!-- خطة الكفالة -->
+            <div class="section-header">
 
-          <div class="col-md-7">
+                <div class="section-number">
+                    ٢
+                </div>
 
-            <label class="form-label small fw-semibold">
+                <div>
 
-              <i class="bi bi-list-check ms-1"></i>
+                    <div class="section-title">
+                        بيانات الكافل
+                    </div>
 
-              {{ form.payment_plan.label }}
+                    <div class="section-description">
+                        ابحث عن الكافل بالاسم أو جزء من الاسم واختره من النتائج.
+                    </div>
 
-              <span class="required-star">*</span>
-
-            </label>
-
-            {{ form.payment_plan }}
-
-            {% if form.payment_plan.errors %}
-              <div class="field-error">
-                {{ form.payment_plan.errors.0 }}
-              </div>
-            {% endif %}
-
-            <div class="auto-info">
-
-              <i class="bi bi-magic me-1"></i>
-
-              عند اختيار الخطة يتم استخدام
-              <strong>مبلغ ومدة الكفالة</strong>
-              الخاصة بها تلقائيًا.
+                </div>
 
             </div>
 
-          </div>
+
+            <div class="section-body">
+
+                <div class="row g-3">
+
+                    <div class="col-lg-8">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-person-check"></i>
+
+                            {{ form.sponsor.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
 
 
-          <!-- خطة مخصصة -->
+                        <!-- =================================================
+                             Select2 + زر إضافة كافل
+                        ================================================= -->
 
-          <div class="col-md-5">
+                        <div class="d-flex gap-2 align-items-start">
 
-            <div class="form-check mb-2">
 
-              {{ form.is_custom_plan }}
+                            <div class="flex-grow-1 sponsor-select-wrapper">
 
-              <label class="form-check-label small fw-semibold">
+                                {{ form.sponsor }}
 
-                <i class="bi bi-sliders ms-1"></i>
+                            </div>
 
-                {{ form.is_custom_plan.label }}
 
-              </label>
+                            <button
+                                type="button"
+                                class="btn btn-outline-primary"
+                                style="height:38px; min-width:46px;"
+                                data-bs-toggle="modal"
+                                data-bs-target="#newSponsorModal"
+                                title="إضافة كافل جديد"
+                            >
+
+                                <i class="bi bi-person-plus"></i>
+
+                            </button>
+
+
+                        </div>
+
+
+                        {% if form.sponsor.errors %}
+
+                            <div class="field-error">
+
+                                {{ form.sponsor.errors.0 }}
+
+                            </div>
+
+                        {% endif %}
+
+
+                        <div class="field-help">
+
+                            اكتب اسم الكافل أو جزءًا منه للبحث مباشرة.
+
+                        </div>
+
+                    </div>
+
+                </div>
 
             </div>
-
-            {% if form.is_custom_plan.errors %}
-              <div class="field-error">
-                {{ form.is_custom_plan.errors.0 }}
-              </div>
-            {% endif %}
-
-            <div class="form-text small text-muted">
-
-              فعّلها فقط إذا كانت الكفالة بمبلغ أو مدة مختلفة.
-
-            </div>
-
-          </div>
-
-
-          <!-- المبلغ المخصص -->
-
-          <div class="col-md-6 custom-plan-field">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-cash-stack ms-1"></i>
-
-              {{ form.custom_amount.label }}
-
-              <span class="optional-label">
-                (عند استخدام خطة مخصصة)
-              </span>
-
-            </label>
-
-            {{ form.custom_amount }}
-
-            {% if form.custom_amount.errors %}
-              <div class="field-error">
-                {{ form.custom_amount.errors.0 }}
-              </div>
-            {% endif %}
-
-          </div>
-
-
-          <!-- المدة المخصصة -->
-
-          <div class="col-md-6 custom-plan-field">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-hourglass-split ms-1"></i>
-
-              {{ form.custom_duration_months.label }}
-
-              <span class="optional-label">
-                (عند استخدام خطة مخصصة)
-              </span>
-
-            </label>
-
-            {{ form.custom_duration_months }}
-
-            {% if form.custom_duration_months.errors %}
-              <div class="field-error">
-                {{ form.custom_duration_months.errors.0 }}
-              </div>
-            {% endif %}
-
-          </div>
-
-        </div>
-
-      </div>
-
-
-
-      <!-- =====================================================
-           4 - فترة الكفالة
-      ====================================================== -->
-
-      <div class="section-card">
-
-        <div class="section-title">
-
-          <div class="section-title-icon">
-            <i class="bi bi-calendar-range"></i>
-          </div>
-
-          <div>
-
-            <div class="section-title-text">
-              فترة الكفالة
-            </div>
-
-            <div class="section-subtext">
-              يتم تعبئة التواريخ تلقائيًا ويمكن تعديلها عند الحاجة.
-            </div>
-
-          </div>
 
         </div>
 
 
-        <div class="row g-3">
+        <!-- =====================================================
+             ③ تفاصيل الكفالة المالية
+        ===================================================== -->
 
+        <div class="section-card">
 
-          <!-- تاريخ البداية -->
+            <div class="section-header">
 
-          <div class="col-md-6">
+                <div class="section-number">
+                    ٣
+                </div>
 
-            <label class="form-label small fw-semibold">
+                <div>
 
-              <i class="bi bi-calendar-plus ms-1"></i>
+                    <div class="section-title">
+                        تفاصيل الكفالة المالية
+                    </div>
 
-              {{ form.start_date.label }}
+                    <div class="section-description">
+                        اختر خطة الكفالة، وسيتم استخدام قيمة ومدة الخطة تلقائيًا.
+                    </div>
 
-              <span class="required-star">*</span>
-
-            </label>
-
-            {{ form.start_date }}
-
-            {% if form.start_date.errors %}
-              <div class="field-error">
-                {{ form.start_date.errors.0 }}
-              </div>
-            {% endif %}
-
-            <div class="form-text small text-muted">
-
-              يبدأ تلقائيًا من تاريخ اليوم ويمكن تعديله.
+                </div>
 
             </div>
 
-          </div>
+
+            <div class="section-body">
+
+                <div class="row g-3">
 
 
-          <!-- تاريخ النهاية -->
+                    <!-- خطة الكفالة -->
 
-          <div class="col-md-6">
+                    <div class="col-md-7">
 
-            <label class="form-label small fw-semibold">
+                        <label class="field-label">
 
-              <i class="bi bi-calendar-x ms-1"></i>
+                            <i class="bi bi-list-check"></i>
 
-              {{ form.end_date.label }}
+                            {{ form.payment_plan.label }}
 
-              <span class="required-star">*</span>
+                            <span class="required-mark">*</span>
 
-            </label>
+                        </label>
 
-            {{ form.end_date }}
+                        {{ form.payment_plan }}
 
-            {% if form.end_date.errors %}
-              <div class="field-error">
-                {{ form.end_date.errors.0 }}
-              </div>
-            {% endif %}
+                        {% if form.payment_plan.errors %}
 
-            <div class="form-text small text-muted">
+                            <div class="field-error">
+                                {{ form.payment_plan.errors.0 }}
+                            </div>
 
-              يتم احتسابه تلقائيًا حسب مدة الكفالة ويمكن تعديله.
+                        {% endif %}
+
+                        <div class="info-box">
+
+                            <i class="bi bi-magic me-1"></i>
+
+                            عند اختيار الخطة يتم استخدام
+                            <strong>مبلغ ومدة الكفالة</strong>
+                            الخاصة بها تلقائيًا.
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- خطة مخصصة -->
+
+                    <div class="col-md-5">
+
+                        <label class="field-label d-block">
+
+                            <i class="bi bi-sliders"></i>
+
+                            خيارات الكفالة
+
+                        </label>
+
+
+                        <div class="form-check">
+
+                            {{ form.is_custom_plan }}
+
+                            <label class="form-check-label small fw-semibold">
+
+                                {{ form.is_custom_plan.label }}
+
+                            </label>
+
+                        </div>
+
+
+                        {% if form.is_custom_plan.errors %}
+
+                            <div class="field-error">
+                                {{ form.is_custom_plan.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+
+                        <div class="field-help">
+
+                            فعّل هذا الخيار إذا كانت الكفالة بمبلغ أو مدة مختلفة عن الخطط المحددة.
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- المبلغ المخصص -->
+
+                    <div class="col-md-6 custom-plan-field">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-cash-stack"></i>
+
+                            {{ form.custom_amount.label }}
+
+                            <span class="optional-label">
+                                (عند استخدام خطة مخصصة)
+                            </span>
+
+                        </label>
+
+                        {{ form.custom_amount }}
+
+                        {% if form.custom_amount.errors %}
+
+                            <div class="field-error">
+                                {{ form.custom_amount.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                    </div>
+
+
+                    <!-- المدة المخصصة -->
+
+                    <div class="col-md-6 custom-plan-field">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-hourglass-split"></i>
+
+                            {{ form.custom_duration_months.label }}
+
+                            <span class="optional-label">
+                                (عند استخدام خطة مخصصة)
+                            </span>
+
+                        </label>
+
+                        {{ form.custom_duration_months }}
+
+                        {% if form.custom_duration_months.errors %}
+
+                            <div class="field-error">
+                                {{ form.custom_duration_months.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
 
             </div>
-
-          </div>
-
-
-          <!-- الملاحظات -->
-
-          <div class="col-12">
-
-            <label class="form-label small fw-semibold">
-
-              <i class="bi bi-journal-text ms-1"></i>
-
-              {{ form.notes.label }}
-
-              <span class="optional-label">
-                (اختياري)
-              </span>
-
-            </label>
-
-            {{ form.notes }}
-
-            {% if form.notes.errors %}
-              <div class="field-error">
-                {{ form.notes.errors.0 }}
-              </div>
-            {% endif %}
-
-          </div>
 
         </div>
 
-      </div>
+
+        <!-- =====================================================
+             ④ فترة الكفالة
+        ===================================================== -->
+
+        <div class="section-card">
+
+            <div class="section-header">
+
+                <div class="section-number">
+                    ٤
+                </div>
+
+                <div>
+
+                    <div class="section-title">
+                        فترة الكفالة
+                    </div>
+
+                    <div class="section-description">
+                        حدد تاريخ بداية ونهاية الكفالة.
+                    </div>
+
+                </div>
+
+            </div>
 
 
+            <div class="section-body">
 
-      <!-- =====================================================
-           أزرار الحفظ
-      ====================================================== -->
-
-      <div class="mt-3 d-flex justify-content-end gap-2">
-
-        <a
-          href="{% url 'Accounting:cashier_invoices_list' %}"
-          class="btn btn-outline-secondary">
-
-          <i class="bi bi-x-circle ms-1"></i>
-
-          إلغاء
-
-        </a>
+                <div class="row g-3">
 
 
-        <button
-          type="submit"
-          class="btn btn-primary main-submit">
+                    <!-- تاريخ البداية -->
 
-          <i class="bi bi-check2-circle ms-1"></i>
+                    <div class="col-md-6">
 
-          حفظ السند
+                        <label class="field-label">
 
-        </button>
+                            <i class="bi bi-calendar-plus"></i>
 
-      </div>
+                            {{ form.start_date.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+                        {{ form.start_date }}
+
+                        {% if form.start_date.errors %}
+
+                            <div class="field-error">
+                                {{ form.start_date.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                        <div class="field-help">
+                            يبدأ تلقائيًا من تاريخ اليوم ويمكن تعديله.
+                        </div>
+
+                    </div>
+
+
+                    <!-- تاريخ النهاية -->
+
+                    <div class="col-md-6">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-calendar-x"></i>
+
+                            {{ form.end_date.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+                        {{ form.end_date }}
+
+                        {% if form.end_date.errors %}
+
+                            <div class="field-error">
+                                {{ form.end_date.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                        <div class="field-help">
+                            يتم احتسابه تلقائيًا حسب مدة الكفالة ويمكن تعديله.
+                        </div>
+
+                    </div>
+
+
+                    <!-- الملاحظات -->
+
+                    <div class="col-12">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-journal-text"></i>
+
+                            {{ form.notes.label }}
+
+                            <span class="optional-label">
+                                (اختياري)
+                            </span>
+
+                        </label>
+
+                        {{ form.notes }}
+
+                        {% if form.notes.errors %}
+
+                            <div class="field-error">
+                                {{ form.notes.errors.0 }}
+                            </div>
+
+                        {% endif %}
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- =====================================================
+             أزرار الحفظ
+        ===================================================== -->
+
+        <div class="form-actions">
+
+            <a
+                href="{% url 'Accounting:cashier_invoices_list' %}"
+                class="btn btn-outline-secondary"
+            >
+
+                <i class="bi bi-x-circle me-1"></i>
+
+                إلغاء
+
+            </a>
+
+
+            <button
+                type="submit"
+                class="btn btn-success"
+            >
+
+                <i class="bi bi-check-circle me-1"></i>
+
+                حفظ سند الكفالة
+
+            </button>
+
+        </div>
 
 
     </form>
-
-  </div>
 
 </div>
 
@@ -734,355 +1129,374 @@
 ========================================================= -->
 
 <div
-  class="modal fade"
-  id="newSponsorModal"
-  tabindex="-1"
-  aria-labelledby="newSponsorModalLabel"
-  aria-hidden="true">
+    class="modal fade"
+    id="newSponsorModal"
+    tabindex="-1"
+    aria-labelledby="newSponsorModalLabel"
+    aria-hidden="true"
+>
 
-  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
 
-    <div class="modal-content">
+        <div class="modal-content">
 
-      <form id="new-sponsor-form">
+            <form id="new-sponsor-form">
 
 
-        <div class="modal-header">
+                <div class="modal-header">
 
-          <h6
-            class="modal-title"
-            id="newSponsorModalLabel">
+                    <h6
+                        class="modal-title"
+                        id="newSponsorModalLabel"
+                    >
 
-            <i class="bi bi-person-plus me-1"></i>
+                        <i class="bi bi-person-plus me-1"></i>
 
-            إضافة كافل جديد
+                        إضافة كافل جديد
 
-          </h6>
+                    </h6>
 
-          <button
-            type="button"
-            class="btn-close"
-            data-bs-dismiss="modal"
-            aria-label="إغلاق">
-          </button>
+
+                    <button
+                        type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="إغلاق"
+                    ></button>
+
+                </div>
+
+
+                <div class="modal-body">
+
+
+                    <div class="modal-info mb-3">
+
+                        <i class="bi bi-info-circle me-1"></i>
+
+                        سيتم إنشاء حساب جديد للكافل وإضافته مباشرة إلى قائمة الكفلاء.
+
+                    </div>
+
+
+                    <div class="row g-3">
+
+
+                        <!-- البريد -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                البريد الإلكتروني
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <div class="input-group">
+
+                                <span class="input-group-text">
+                                    <i class="bi bi-envelope"></i>
+                                </span>
+
+                                <input
+                                    type="email"
+                                    name="email"
+                                    class="form-control"
+                                    placeholder="example@email.com"
+                                    required
+                                >
+
+                            </div>
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="email"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- الجوال -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                الجوال
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <div class="input-group">
+
+                                <span class="input-group-text">
+                                    +966
+                                </span>
+
+                                <input
+                                    type="text"
+                                    name="phone"
+                                    class="form-control"
+                                    placeholder="05xxxxxxxx"
+                                    maxlength="10"
+                                    required
+                                >
+
+                            </div>
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="phone"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- الاسم الأول -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                الاسم الأول
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <input
+                                type="text"
+                                name="first_name"
+                                class="form-control"
+                                required
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="first_name"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- اسم الأب -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                اسم الأب
+
+                                <span class="optional-label">
+                                    (اختياري)
+                                </span>
+
+                            </label>
+
+                            <input
+                                type="text"
+                                name="father_name"
+                                class="form-control"
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="father_name"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- اسم الجد -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                اسم الجد
+
+                                <span class="optional-label">
+                                    (اختياري)
+                                </span>
+
+                            </label>
+
+                            <input
+                                type="text"
+                                name="grandpa_name"
+                                class="form-control"
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="grandpa_name"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- اسم العائلة -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                اسم العائلة
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <input
+                                type="text"
+                                name="last_name"
+                                class="form-control"
+                                required
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="last_name"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- الهوية -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                الهوية الوطنية
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <input
+                                type="text"
+                                name="national_number"
+                                class="form-control"
+                                placeholder="10 أرقام"
+                                maxlength="10"
+                                required
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="national_number"
+                            ></div>
+
+                        </div>
+
+
+                        <!-- كلمة المرور -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                كلمة المرور
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password1"
+                                class="form-control"
+                                required
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="password1"
+                            ></div>
+
+                            <div class="form-text small text-muted">
+                                ٨ أحرف على الأقل وتحتوي حرفًا ورقمًا.
+                            </div>
+
+                        </div>
+
+
+                        <!-- تأكيد كلمة المرور -->
+
+                        <div class="col-md-6">
+
+                            <label class="form-label small fw-semibold">
+
+                                تأكيد كلمة المرور
+
+                                <span class="required-mark">*</span>
+
+                            </label>
+
+                            <input
+                                type="password"
+                                name="password2"
+                                class="form-control"
+                                required
+                            >
+
+                            <div
+                                class="text-danger small mt-1 d-none"
+                                data-error="password2"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <div class="modal-footer">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-secondary btn-sm"
+                        data-bs-dismiss="modal"
+                    >
+
+                        إلغاء
+
+                    </button>
+
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary btn-sm"
+                    >
+
+                        <i class="bi bi-check2-circle me-1"></i>
+
+                        حفظ الكافل
+
+                    </button>
+
+                </div>
+
+
+            </form>
 
         </div>
-
-
-        <div class="modal-body">
-
-
-          <div class="modal-info small mb-3">
-
-            <i class="bi bi-info-circle me-1"></i>
-
-            سيتم إنشاء حساب جديد للكافل وإضافته مباشرة إلى قائمة الكفلاء.
-
-          </div>
-
-
-          <div class="row g-3">
-
-
-            <!-- البريد -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                البريد الإلكتروني
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <div class="input-group">
-
-                <span class="input-group-text">
-                  <i class="bi bi-envelope"></i>
-                </span>
-
-                <input
-                  type="email"
-                  name="email"
-                  class="form-control"
-                  placeholder="example@email.com"
-                  required>
-
-              </div>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="email">
-              </div>
-
-            </div>
-
-
-            <!-- الجوال -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                الجوال
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <div class="input-group">
-
-                <span class="input-group-text">
-                  +966
-                </span>
-
-                <input
-                  type="text"
-                  name="phone"
-                  class="form-control"
-                  placeholder="05xxxxxxxx"
-                  maxlength="10"
-                  required>
-
-              </div>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="phone">
-              </div>
-
-            </div>
-
-
-            <!-- الاسم الأول -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                الاسم الأول
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <input
-                type="text"
-                name="first_name"
-                class="form-control"
-                required>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="first_name">
-              </div>
-
-            </div>
-
-
-            <!-- اسم الأب -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                اسم الأب
-
-                <span class="optional-label">
-                  (اختياري)
-                </span>
-
-              </label>
-
-              <input
-                type="text"
-                name="father_name"
-                class="form-control">
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="father_name">
-              </div>
-
-            </div>
-
-
-            <!-- اسم الجد -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                اسم الجد
-
-                <span class="optional-label">
-                  (اختياري)
-                </span>
-
-              </label>
-
-              <input
-                type="text"
-                name="grandpa_name"
-                class="form-control">
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="grandpa_name">
-              </div>
-
-            </div>
-
-
-            <!-- اسم العائلة -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                اسم العائلة
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <input
-                type="text"
-                name="last_name"
-                class="form-control"
-                required>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="last_name">
-              </div>
-
-            </div>
-
-
-            <!-- الهوية -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                الهوية الوطنية
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <input
-                type="text"
-                name="national_number"
-                class="form-control"
-                placeholder="10 أرقام"
-                maxlength="10"
-                required>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="national_number">
-              </div>
-
-            </div>
-
-
-            <!-- كلمة المرور -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                كلمة المرور
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <input
-                type="password"
-                name="password1"
-                class="form-control"
-                required>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="password1">
-              </div>
-
-              <div class="form-text small text-muted">
-
-                ٨ أحرف على الأقل وتحتوي حرفًا ورقمًا.
-
-              </div>
-
-            </div>
-
-
-            <!-- تأكيد كلمة المرور -->
-
-            <div class="col-md-6">
-
-              <label class="form-label small fw-semibold">
-
-                تأكيد كلمة المرور
-
-                <span class="required-star">*</span>
-
-              </label>
-
-              <input
-                type="password"
-                name="password2"
-                class="form-control"
-                required>
-
-              <div
-                class="text-danger small mt-1 d-none"
-                data-error="password2">
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-
-        <div class="modal-footer">
-
-          <button
-            type="button"
-            class="btn btn-outline-secondary btn-sm"
-            data-bs-dismiss="modal">
-
-            إلغاء
-
-          </button>
-
-
-          <button
-            type="submit"
-            class="btn btn-primary btn-sm">
-
-            <i class="bi bi-check2-circle ms-1"></i>
-
-            حفظ الكافل
-
-          </button>
-
-        </div>
-
-
-      </form>
 
     </div>
 
-  </div>
-
 </div>
+
+
+
+<!-- =========================================================
+     jQuery + Select2
+========================================================= -->
+
 
 
 
@@ -1109,10 +1523,13 @@
 
     function toggleCustomFields() {
 
-        if (!planCheckbox) return;
+        if (!planCheckbox) {
+            return;
+        }
 
         const enabled =
             planCheckbox.checked;
+
 
         customFields.forEach(function (el) {
 
@@ -1121,12 +1538,14 @@
 
         });
 
+
         if (amountInput) {
 
             amountInput.disabled =
                 !enabled;
 
         }
+
 
         if (durationInput) {
 
@@ -1152,7 +1571,7 @@
 
 
     /* =====================================================
-       2 - تاريخ السند = اليوم إذا كان فارغًا
+       2 - تاريخ السند
     ===================================================== */
 
     const dateInput =
@@ -1193,7 +1612,7 @@
 
 
     /* =====================================================
-       3 - تاريخ بداية الكفالة = اليوم إذا كان فارغًا
+       3 - تاريخ بداية الكفالة
     ===================================================== */
 
     const startDateInput =
@@ -1216,7 +1635,7 @@
 
 
     /* =====================================================
-       4 - إظهار حقول التحويل البنكي
+       4 - التحويل البنكي
     ===================================================== */
 
     const paymentMethodSelect =
@@ -1343,12 +1762,10 @@
     }
 
 
-
     if (
         newSponsorForm &&
         sponsorSelect
     ) {
-
 
         newSponsorForm.addEventListener(
             "submit",
@@ -1391,6 +1808,10 @@
                     if (data.success) {
 
 
+                        /*
+                         * إضافة الكافل الجديد إلى Select2
+                         */
+
                         const option =
                             new Option(
                                 data.label,
@@ -1400,9 +1821,9 @@
                             );
 
 
-                        sponsorSelect.add(
-                            option
-                        );
+                        $(sponsorSelect)
+                            .append(option)
+                            .trigger("change");
 
 
                         const modalEl =
@@ -1468,9 +1889,87 @@
 
     }
 
-
 })();
 
+</script>
+
+
+
+
+
+{% endblock %}
+
+
+
+{% block extra_js %}
+
+<script>
+$(document).ready(function () {
+
+    const sponsorSelect = $("#id_sponsor");
+
+    if (!sponsorSelect.length) {
+        return;
+    }
+
+    sponsorSelect.select2({
+
+        width: "100%",
+
+        dir: "rtl",
+
+        placeholder: "ابحث باسم الكافل...",
+
+        allowClear: true,
+
+        minimumInputLength: 1,
+
+        ajax: {
+
+            url: "{% url 'Accounting:sponsor_search' %}",
+
+            dataType: "json",
+
+            delay: 250,
+
+            data: function (params) {
+
+                return {
+                    q: params.term || ""
+                };
+
+            },
+
+            processResults: function (data) {
+
+                return {
+                    results: data.results
+                };
+
+            },
+
+            cache: true
+        },
+
+        language: {
+
+            searching: function () {
+                return "جاري البحث...";
+            },
+
+            noResults: function () {
+                return "لا توجد نتائج";
+            },
+
+            inputTooShort: function () {
+                return "اكتب اسم الكافل للبحث";
+            }
+
+        }
+
+    });
+
+});
 </script>
 
 {% endblock %}

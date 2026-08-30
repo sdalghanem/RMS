@@ -373,7 +373,7 @@
             </div>
 
             <div class="sponsorship-body">
-                <h2>{{ sponsorships_active|default:0 }}</h2>
+                <h2 class="text-success">{{ sponsorships_active|default:0 }}</h2>
                 <span>الكفالات السارية</span>
             </div>
         </a>
@@ -389,8 +389,8 @@
                 <i class="bi bi-clock-history"></i>
             </div>
 
-            <div class="sponsorship-body">
-                <h2>{{ sponsorships_expiring|default:0 }}</h2>
+            <div class="sponsorship-body ">
+                <h2 class="text-warning">{{ sponsorships_expiring|default:0 }}</h2>
                 <span>قريبة من الانتهاء</span>
             </div>
         </a>
@@ -407,7 +407,7 @@
             </div>
 
             <div class="sponsorship-body">
-                <h2>{{ sponsorships_expired|default:0 }}</h2>
+                <h2 class="text-danger">{{ sponsorships_expired|default:0 }}</h2>
                 <span>الكفالات المنتهية</span>
             </div>
         </a>

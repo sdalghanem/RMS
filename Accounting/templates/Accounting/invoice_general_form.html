@@ -5,248 +5,918 @@
 {% block content %}
 
 <style>
-  .section-card{
-    border:1px solid #e5e7eb;
-    border-radius:16px;
-    padding:16px 18px;
-    margin-bottom:16px;
-    background:#ffffff;
+  /* =========================================================
+     الصفحة
+     ========================================================= */
+
+  .donation-page {
+    max-width: 1200px;
+    margin: 0 auto;
   }
-  .section-title{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    margin-bottom:12px;
+
+  /* =========================================================
+     عنوان الصفحة
+     ========================================================= */
+
+  .page-intro {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    padding: 18px 22px;
+    margin-bottom: 16px;
   }
-  .section-title-icon{
-    width:32px;
-    height:32px;
-    border-radius:10px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    background:#f3f6ff;
-    font-size:16px;
+
+  .page-intro h5 {
+    font-weight: 700;
+    margin-bottom: 5px;
   }
-  .section-title-text{
-    font-weight:600;
-    font-size:0.95rem;
+
+  .page-intro p {
+    margin: 0;
+    color: #6b7280;
+    font-size: 0.86rem;
   }
-  .section-subtext{
-    font-size:0.8rem;
-    color:#6b7280;
+
+  /* =========================================================
+     الأقسام
+     ========================================================= */
+
+  .section-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background: #fff;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 15px 18px;
+    border-bottom: 1px solid #eef0f2;
+    background: #fcfcfd;
+  }
+
+  .section-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #eef8f5;
+    color: #168b68;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .section-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .section-description {
+    color: #6b7280;
+    font-size: 0.78rem;
+    margin-top: 2px;
+  }
+
+  .section-body {
+    padding: 18px;
+  }
+
+  /* =========================================================
+     الحقول
+     ========================================================= */
+
+  .field-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+
+  .required-mark {
+    color: #dc3545;
+    font-weight: 700;
+  }
+
+  .optional-label {
+    color: #9ca3af;
+    font-size: 0.74rem;
+    font-weight: 400;
+  }
+
+  .field-help {
+    color: #8a9199;
+    font-size: 0.73rem;
+    margin-top: 5px;
+  }
+
+  .error-text {
+    color: #dc3545;
+    font-size: 0.76rem;
+    margin-top: 5px;
+  }
+
+  /* =========================================================
+     قسم التحويل البنكي
+     ========================================================= */
+
+  #bank-transfer-section {
+    display: none;
+  }
+
+  .bank-info-box {
+    background: #f8fafb;
+    border: 1px dashed #d9dee3;
+    border-radius: 12px;
+    padding: 11px 13px;
+    margin-bottom: 15px;
+    color: #6b7280;
+    font-size: 0.78rem;
+  }
+
+  /* =========================================================
+     قسم المبلغ
+     ========================================================= */
+
+  .amount-section {
+    border: 1px solid #d9eee7;
+    background: #fbfefd;
+  }
+
+  .amount-section .section-header {
+    background: #f4fbf8;
+    border-bottom-color: #d9eee7;
+  }
+
+  .amount-main {
+    background: #fff;
+    border: 1px solid #dfe7e4;
+    border-radius: 14px;
+    padding: 18px;
+  }
+
+  .amount-main input {
+    font-size: 1.35rem;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .amount-hint {
+    text-align: center;
+    color: #7b838a;
+    font-size: 0.76rem;
+    margin-top: 7px;
+  }
+
+  /* =========================================================
+     الأزرار
+     ========================================================= */
+
+  .form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding-top: 4px;
+    padding-bottom: 20px;
+  }
+
+  .form-actions .btn {
+    min-width: 120px;
+  }
+
+  /* =========================================================
+     الجوال
+     ========================================================= */
+
+  @media (max-width: 768px) {
+
+    .page-intro {
+      padding: 15px;
+    }
+
+    .section-body {
+      padding: 14px;
+    }
+
+    .form-actions {
+      flex-direction: column-reverse;
+      align-items: stretch;
+    }
+
+    .form-actions .btn {
+      width: 100%;
+    }
+
   }
 </style>
 
-<div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
-  <div>
-    <h5 class="m-0 fw-bold">
+
+<div class="donation-page">
+
+  <!-- =======================================================
+       عنوان الصفحة
+       ======================================================= -->
+
+  <div class="page-intro">
+
+    <h5>
       <i class="bi bi-receipt me-1"></i>
       {{ title }}
     </h5>
-    <small class="text-muted">إنشاء سند تبرع عام جديد وتسجيل بيانات الداعم والمبلغ بشكل منظم.</small>
+
+    <p>
+      إنشاء سند تبرع عام وتسجيل بيانات الداعم ومبلغ التبرع.
+      الحقول المميزة بعلامة
+      <span class="required-mark">*</span>
+      مطلوبة.
+    </p>
+
   </div>
-</div>
 
-<div class="card shadow-sm border-0">
-  <div class="card-body">
 
-    <form method="post" novalidate>
-      {% csrf_token %}
+  <form method="post" novalidate>
 
-      {# أخطاء عامة للفورم إن وجدت #}
-      {% if form.non_field_errors %}
-        <div class="alert alert-danger small mb-3">
-          {{ form.non_field_errors }}
+    {% csrf_token %}
+
+
+    <!-- =====================================================
+         الأخطاء العامة
+         ===================================================== -->
+
+    {% if form.non_field_errors %}
+
+      <div class="alert alert-danger small">
+
+        <i class="bi bi-exclamation-triangle me-1"></i>
+
+        {{ form.non_field_errors }}
+
+      </div>
+
+    {% endif %}
+
+
+    <!-- =====================================================
+         ① بيانات السند
+         ===================================================== -->
+
+    <div class="section-card">
+
+      <div class="section-header">
+
+        <div class="section-number">
+          ١
         </div>
-      {% endif %}
 
-      <!-- 🧾 القسم الأول: بيانات السند -->
-      <div class="section-card">
-        <div class="section-title">
-          <div class="section-title-icon">
-            <i class="bi bi-file-earmark-text"></i>
+        <div>
+
+          <div class="section-title">
+            بيانات السند
           </div>
-          <div>
-            <div class="section-title-text">بيانات السند</div>
-            <div class="section-subtext">تاريخ السند ووسيلة القبض الأساسية.</div>
+
+          <div class="section-description">
+            البيانات الأساسية للسند وطريقة استلام التبرع.
           </div>
+
         </div>
-<div class="col-md-4">
-  <label class="form-label small fw-semibold">
-    <i class="bi bi-hash"></i> رقم السند
-  </label>
-  {{ form.number }}
-  {% if form.number.errors %}
-    <div class="text-danger small">{{ form.number.errors.0 }}</div>
-  {% endif %}
-</div>
+
+      </div>
+
+
+      <div class="section-body">
 
         <div class="row g-3">
+
+          <!-- رقم السند -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">
-              <i class="bi bi-calendar-event ms-1"></i>{{ form.date.label }}
+
+            <label class="field-label">
+
+              <i class="bi bi-hash"></i>
+
+              رقم السند
+
+              <span class="required-mark">*</span>
+
             </label>
+
+            {{ form.number }}
+
+            {% if form.number.errors %}
+
+              <div class="error-text">
+                {{ form.number.errors.0 }}
+              </div>
+
+            {% endif %}
+
+          </div>
+
+
+          <!-- تاريخ السند -->
+
+          <div class="col-md-4">
+
+            <label class="field-label">
+
+              <i class="bi bi-calendar3"></i>
+
+              {{ form.date.label }}
+
+              <span class="required-mark">*</span>
+
+            </label>
+
             {{ form.date }}
+
             {% if form.date.errors %}
-              <div class="text-danger small">{{ form.date.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.date.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
 
+
+          <!-- وسيلة القبض -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">
-              <i class="bi bi-credit-card-2-front ms-1"></i>{{ form.payment_method.label }}
+
+            <label class="field-label">
+
+              <i class="bi bi-credit-card"></i>
+
+              {{ form.payment_method.label }}
+
+              <span class="required-mark">*</span>
+
             </label>
+
             {{ form.payment_method }}
+
             {% if form.payment_method.errors %}
-              <div class="text-danger small">{{ form.payment_method.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.payment_method.errors.0 }}
+              </div>
+
             {% endif %}
+
+            <div class="field-help">
+              اختر طريقة استلام التبرع.
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      <!-- 👤 القسم الثاني: بيانات الداعم -->
-      <div class="section-card">
-        <div class="section-title">
-          <div class="section-title-icon">
-            <i class="bi bi-person-heart"></i>
-          </div>
-          <div>
-            <div class="section-title-text">بيانات الداعم</div>
-            <div class="section-subtext">
-              يمكن تعبئة بيانات الداعم (اسم، جوال، هوية)، ويمكن مستقبلاً تحويله إلى كافل بحساب في النظام.
-            </div>
-          </div>
+    </div>
+
+
+    <!-- =====================================================
+         ② بيانات الداعم
+         ===================================================== -->
+
+    <div class="section-card">
+
+      <div class="section-header">
+
+        <div class="section-number">
+          ٢
         </div>
 
+        <div>
+
+          <div class="section-title">
+            بيانات الداعم
+          </div>
+
+          <div class="section-description">
+            أدخل بيانات الداعم المتوفرة لديك.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="section-body">
+
         <div class="row g-3">
+
+
+          <!-- اسم الداعم -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">اسم الداعم</label>
+
+            <label class="field-label">
+
+              <i class="bi bi-person"></i>
+
+              اسم الداعم
+
+              <span class="optional-label">
+                (اختياري)
+              </span>
+
+            </label>
+
             {{ form.supporter_name }}
+
             {% if form.supporter_name.errors %}
-              <div class="text-danger small">{{ form.supporter_name.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.supporter_name.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
+
+          <!-- جوال الداعم -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">جوال الداعم</label>
+
+            <label class="field-label">
+
+              <i class="bi bi-phone"></i>
+
+              جوال الداعم
+
+              <span class="optional-label">
+                (اختياري)
+              </span>
+
+            </label>
+
             {{ form.supporter_phone }}
+
             {% if form.supporter_phone.errors %}
-              <div class="text-danger small">{{ form.supporter_phone.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.supporter_phone.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
+
+          <!-- هوية الداعم -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">هوية الداعم</label>
+
+            <label class="field-label">
+
+              <i class="bi bi-person-vcard"></i>
+
+              هوية الداعم
+
+              <span class="optional-label">
+                (اختياري)
+              </span>
+
+            </label>
+
             {{ form.supporter_national_number }}
+
             {% if form.supporter_national_number.errors %}
-              <div class="text-danger small">{{ form.supporter_national_number.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.supporter_national_number.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
         </div>
+
+
+        <div class="field-help mt-3">
+
+          <i class="bi bi-info-circle me-1"></i>
+
+          تسجيل بيانات الداعم يساعد على الرجوع إلى السند ومتابعة التبرعات لاحقًا.
+
+        </div>
+
       </div>
 
-      <!-- 🏦 القسم الثالث: تفاصيل التحويل البنكي (إن وجدت) -->
-      <div class="section-card">
-        <div class="section-title">
-          <div class="section-title-icon">
-            <i class="bi bi-bank2"></i>
-          </div>
-          <div>
-            <div class="section-title-text">تفاصيل التحويل البنكي (اختياري)</div>
-            <div class="section-subtext">
-              تُستخدم في حال كان التبرع عن طريق تحويل بنكي أو حساب معين.
-            </div>
-          </div>
+    </div>
+
+
+    <!-- =====================================================
+         ③ تفاصيل التحويل البنكي
+         مخفية افتراضيًا
+         تظهر فقط عند اختيار التحويل البنكي
+         ===================================================== -->
+
+    <div
+      class="section-card"
+      id="bank-transfer-section"
+    >
+
+      <div class="section-header">
+
+        <div class="section-number">
+          ٣
         </div>
 
+        <div>
+
+          <div class="section-title">
+            تفاصيل التحويل البنكي
+          </div>
+
+          <div class="section-description">
+            أدخل بيانات الحساب المحول منه وإليه.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="section-body">
+
+        <div class="bank-info-box">
+
+          <i class="bi bi-bank me-1"></i>
+
+          تم اختيار التحويل البنكي، يرجى تسجيل بيانات التحويل المتوفرة.
+
+        </div>
+
+
         <div class="row g-3">
+
+
+          <!-- البنك المحول منه -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">
+
+            <label class="field-label">
+
+              <i class="bi bi-building"></i>
+
               {{ form.bank_from.label }}
+
             </label>
+
             {{ form.bank_from }}
+
             {% if form.bank_from.errors %}
-              <div class="text-danger small">{{ form.bank_from.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.bank_from.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
+
+          <!-- رقم الحساب المحول منه -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">
+
+            <label class="field-label">
+
+              <i class="bi bi-credit-card-2-front"></i>
+
               {{ form.from_account_number.label }}
+
             </label>
+
             {{ form.from_account_number }}
+
             {% if form.from_account_number.errors %}
-              <div class="text-danger small">{{ form.from_account_number.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.from_account_number.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
+
+          <!-- الحساب المحول إليه -->
+
           <div class="col-md-4">
-            <label class="form-label small fw-semibold">
+
+            <label class="field-label">
+
+              <i class="bi bi-bank"></i>
+
               {{ form.to_account_number.label }}
+
             </label>
+
             {{ form.to_account_number }}
+
             {% if form.to_account_number.errors %}
-              <div class="text-danger small">{{ form.to_account_number.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.to_account_number.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
         </div>
+
       </div>
 
-      <!-- 💰 القسم الرابع: مبلغ التبرع والملاحظات -->
-      <div class="section-card">
-        <div class="section-title">
-          <div class="section-title-icon">
-            <i class="bi bi-cash-coin"></i>
-          </div>
-          <div>
-            <div class="section-title-text">مبلغ التبرع والملاحظات</div>
-            <div class="section-subtext">
-              سجل مبلغ التبرع رقماً وكتابة، وأضف أي ملاحظات بخصوص هذا السند.
-            </div>
-          </div>
+    </div>
+
+
+    <!-- =====================================================
+         ④ مبلغ التبرع
+         ===================================================== -->
+
+    <div class="section-card amount-section">
+
+      <div class="section-header">
+
+        <div class="section-number">
+          ٤
         </div>
 
+        <div>
+
+          <div class="section-title">
+
+            مبلغ التبرع
+
+            <span class="required-mark">
+              *
+            </span>
+
+          </div>
+
+          <div class="section-description">
+            أدخل قيمة التبرع بالريال السعودي.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div class="section-body">
+
         <div class="row g-3">
-          <div class="col-md-4">
-            <label class="form-label small fw-semibold">
-              {{ form.amount.label }}
-            </label>
-            {{ form.amount }}
-            {% if form.amount.errors %}
-              <div class="text-danger small">{{ form.amount.errors.0 }}</div>
-            {% endif %}
+
+
+          <!-- المبلغ -->
+
+          <div class="col-md-5">
+
+            <div class="amount-main">
+
+              <label class="field-label text-center d-block">
+
+                <i class="bi bi-cash-coin"></i>
+
+                مبلغ التبرع
+
+                <span class="required-mark">*</span>
+
+              </label>
+
+              {{ form.amount }}
+
+              <div class="amount-hint">
+                المبلغ بالريال السعودي
+              </div>
+
+              {% if form.amount.errors %}
+
+                <div class="error-text text-center">
+                  {{ form.amount.errors.0 }}
+                </div>
+
+              {% endif %}
+
+            </div>
+
           </div>
-          <div class="col-md-8">
-            <label class="form-label small fw-semibold">
+
+
+          <!-- المبلغ كتابة -->
+
+          <div class="col-md-7">
+
+            <label class="field-label">
+
+              <i class="bi bi-type"></i>
+
               {{ form.amount_in_words.label }}
+
+              <span class="optional-label">
+                (اختياري)
+              </span>
+
             </label>
+
             {{ form.amount_in_words }}
+
             {% if form.amount_in_words.errors %}
-              <div class="text-danger small">{{ form.amount_in_words.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.amount_in_words.errors.0 }}
+              </div>
+
             {% endif %}
+
+            <div class="field-help">
+
+              كتابة المبلغ بالحروف لاستخدامه في المستندات عند الحاجة.
+
+            </div>
+
           </div>
+
+
+          <!-- الملاحظات -->
 
           <div class="col-12">
-            <label class="form-label small fw-semibold">
+
+            <label class="field-label">
+
+              <i class="bi bi-chat-left-text"></i>
+
               {{ form.notes.label }}
+
+              <span class="optional-label">
+                (اختياري)
+              </span>
+
             </label>
+
             {{ form.notes }}
+
             {% if form.notes.errors %}
-              <div class="text-danger small">{{ form.notes.errors.0 }}</div>
+
+              <div class="error-text">
+                {{ form.notes.errors.0 }}
+              </div>
+
             {% endif %}
+
           </div>
+
         </div>
+
       </div>
 
-      <!-- أزرار الحفظ -->
-      <div class="mt-3 d-flex justify-content-end gap-2">
-        <a href="{% url 'Accounting:cashier_invoices_list' %}" class="btn btn-outline-secondary">
-          إلغاء
-        </a>
-        <button type="submit" class="btn btn-primary">
-          <i class="bi bi-check2-circle ms-1"></i> حفظ السند
-        </button>
-      </div>
+    </div>
 
-    </form>
-  </div>
+
+    <!-- =====================================================
+         أزرار الحفظ
+         ===================================================== -->
+
+    <div class="form-actions">
+
+      <a
+        href="{% url 'Accounting:cashier_invoices_list' %}"
+        class="btn btn-outline-secondary"
+      >
+
+        <i class="bi bi-arrow-right me-1"></i>
+
+        إلغاء
+
+      </a>
+
+
+      <button
+        type="submit"
+        class="btn btn-success"
+      >
+
+        <i class="bi bi-check-circle me-1"></i>
+
+        حفظ سند التبرع
+
+      </button>
+
+    </div>
+
+
+  </form>
+
 </div>
+
+
+<!-- =========================================================
+     التحكم في ظهور قسم التحويل البنكي
+     ========================================================= -->
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+
+    const paymentMethod = document.getElementById(
+        "{{ form.payment_method.id_for_label }}"
+    );
+
+    const bankSection = document.getElementById(
+        "bank-transfer-section"
+    );
+
+    if (!paymentMethod || !bankSection) {
+        return;
+    }
+
+
+    function toggleBankSection() {
+
+        const selectedOption =
+            paymentMethod.options[
+                paymentMethod.selectedIndex
+            ];
+
+        if (!selectedOption) {
+            bankSection.style.display = "none";
+            return;
+        }
+
+
+        const selectedValue =
+            String(selectedOption.value || "")
+                .trim()
+                .toLowerCase();
+
+
+        const selectedText =
+            String(selectedOption.text || "")
+                .trim();
+
+
+        /*
+         * يظهر قسم التحويل البنكي فقط
+         * عند اختيار خيار التحويل البنكي.
+         *
+         * ندعم أكثر من قيمة محتملة للـ Choice
+         * حتى لا يتأثر القالب إذا كانت القيمة
+         * في الـ models مختلفة.
+         */
+
+        const isBankTransfer =
+            selectedValue === "bank_transfer" ||
+            selectedValue === "bank-transfer" ||
+            selectedValue === "banktransfer" ||
+            selectedValue === "transfer" ||
+            selectedText.includes("تحويل بنكي") ||
+            selectedText.includes("تحويل بنكي");
+
+
+        if (isBankTransfer) {
+
+            bankSection.style.display = "block";
+
+        } else {
+
+            bankSection.style.display = "none";
+
+        }
+
+    }
+
+
+    /*
+     * عند تغيير طريقة الدفع
+     */
+
+    paymentMethod.addEventListener(
+        "change",
+        toggleBankSection
+    );
+
+
+    /*
+     * تشغيل الفحص عند تحميل الصفحة
+     * مهم في حالة وجود قيمة محددة مسبقًا.
+     */
+
+    toggleBankSection();
+
+});
+</script>
 
 {% endblock %}

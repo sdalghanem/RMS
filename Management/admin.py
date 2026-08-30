@@ -7,7 +7,46 @@ from django.utils.html import format_html
 
 from .models import Profile, AuditLog, Beneficiary , PaymentPlan
 from django.db.models import Sum
-from .models import MainProgram, SubProgram
+from .models import MainProgram, SubProgram , BeneficiarySponsorHistory
+class BeneficiarySponsorHistoryAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "id",
+        "beneficiary",
+        "donor",
+        "start_date",
+        "end_date",
+        "assigned_by",
+    )
+
+    list_filter = (
+        "start_date",
+        "end_date",
+    )
+
+    search_fields = (
+        "beneficiary__first_name",
+        "beneficiary__father_name",
+        "beneficiary__grand_name",
+        "beneficiary__last_name",
+        "beneficiary__national_number",
+        "donor__user__first_name",
+        "donor__user__last_name",
+        "donor__national_number",
+    )
+
+    ordering = (
+        "-start_date",
+        "-id",
+    )
+
+    date_hierarchy = "start_date"
+
+    autocomplete_fields = (
+        "beneficiary",
+        "donor",
+        "assigned_by",
+    )
 from .forms import SubProgramForm, SubProgramInlineFormSet
 
 User = get_user_model()
@@ -259,4 +298,43 @@ class PaymentPlanAdmin(admin.ModelAdmin):
         ),
     )
 
-    
+@admin.register(BeneficiarySponsorHistory)
+class BeneficiarySponsorHistoryAdmin(admin.ModelAdmin):
+
+    list_display = (
+        "id",
+        "beneficiary",
+        "donor",
+        "start_date",
+        "end_date",
+        "assigned_by",
+    )
+
+    list_filter = (
+        "start_date",
+        "end_date",
+    )
+
+    search_fields = (
+        "beneficiary__first_name",
+        "beneficiary__father_name",
+        "beneficiary__grand_name",
+        "beneficiary__last_name",
+        "beneficiary__national_number",
+        "donor__user__first_name",
+        "donor__user__last_name",
+        "donor__national_number",
+    )
+
+    ordering = (
+        "-start_date",
+        "-id",
+    )
+
+    date_hierarchy = "start_date"
+
+    autocomplete_fields = (
+        "beneficiary",
+        "donor",
+        "assigned_by",
+    )

@@ -303,6 +303,9 @@
                         <th>
                             الحالة
                         </th>
+                        <th>
+                            الإجراءات
+                        </th>
 
                     </tr>
 
@@ -431,7 +434,28 @@
                                 {% endif %}
 
                             </td>
+                            <td>
 
+                                {% if item.can_edit_dates %}
+
+                                    <a
+                                        href="{% url 'Management:sponsorship_edit_dates' pk=item.object.pk %}"
+                                        class="btn btn-sm btn-outline-primary"
+                                        title="تعديل تاريخ الكفالة"
+                                    >
+                                        <i class="bi bi-calendar2-range"></i>
+                                        تعديل التاريخ
+                                    </a>
+
+                                {% else %}
+
+                                    <span class="text-muted small">
+                                        —
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
                         </tr>
 
                     {% empty %}
@@ -439,7 +463,7 @@
                         <tr>
 
                             <td
-                                colspan="9"
+                                colspan="10"
                                 class="text-center py-5 text-muted"
                             >
 

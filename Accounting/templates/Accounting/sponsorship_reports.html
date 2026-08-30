@@ -1,175 +1,212 @@
 {% extends "Management/base.html" %}
 
-
 {% block title %}تقارير الكفالة{% endblock %}
 
 {% block content %}
 
-<div class="container-fluid">
-
-    <div class="mb-4">
-        <h2 class="fw-bold">
-            <i class="bi bi-file-earmark-pdf text-danger"></i>
-            تقارير الكفالة
-        </h2>
-
-        <small class="text-muted">
-            إصدار تقارير الكفالة للمكفولين والكفلاء.
-        </small>
-    </div>
-
-    <div class="card shadow-sm border-0">
-
-        <div class="card-header bg-white">
-
-            <h5 class="mb-0">
-                إعداد التقرير
-            </h5>
-
-        </div>
-
-        <div class="card-body">
-<form method="get"
-      action="{% url 'Accounting:sponsorship_report_print' %}"
-      target="_blank">
-
-    <div class="row g-3">
-
-        <div class="col-md-3">
-
-            <label class="form-label">نوع التقرير</label>
-
-            <select class="form-select"
-                    id="report_type"
-                    name="report_type">
-
-                <option value="quarter">ربع سنوي</option>
-
-                <option value="half">نصف سنوي</option>
-
-                <option value="year">سنوي</option>
-
-                <option value="custom">مخصص</option>
-
-            </select>
-
-        </div>
-
-        <!-- السنة تظهر دائماً -->
-
-        <div class="col-md-3">
-
-            <label class="form-label">السنة</label>
-
-            <select class="form-select"
-                    name="year">
-
-                {% for y in years %}
-
-                    <option value="{{ y }}">
-
-                        {{ y }}
-
-                    </option>
-
-                {% endfor %}
-
-            </select>
-
-        </div>
-
-        <div class="col-md-3">
-
-            <label class="form-label">الكافل</label>
-
-            <select class="form-select"
-                    name="donor">
-
-                {% for donor in donors %}
-
-                    <option value="{{ donor.id }}">
-
-                        {{ donor }}
-
-                    </option>
-
-                {% endfor %}
-
-            </select>
-
-        </div>
-
-    </div>
-
-    <div class="mt-4">
-
-        <div id="quarter_div">
-
-            <label class="form-label">الربع</label>
-
-            <select class="form-select"
-                    name="quarter">
-
-                <option value="1">الربع الأول (يناير - مارس)</option>
-
-                <option value="2">الربع الثاني (أبريل - يونيو)</option>
-
-                <option value="3">الربع الثالث (يوليو - سبتمبر)</option>
-
-                <option value="4">الربع الرابع (أكتوبر - ديسمبر)</option>
-
-            </select>
-
-        </div>
-
-        <div id="half_div"
-             style="display:none;">
-
-            <label class="form-label">النصف</label>
-
-            <select class="form-select"
-                    name="half">
-
-                <option value="1">النصف الأول</option>
-
-                <option value="2">النصف الثاني</option>
-
-            </select>
-
-        </div>
-
-        <div id="custom_div"
-             style="display:none;">
-
-            <div class="row">
-
-                <div class="col-md-6">
-
-                    <label class="form-label">
-
-                        من تاريخ
-
-                    </label>
-
-                    <input type="date"
-                           class="form-control"
-                           name="from_date">
-
-                </div>
-
-                <div class="col-md-6">
-
-                    <label class="form-label">
-
-                        إلى تاريخ
-
-                    </label>
-
-                    <input type="date"
-                           class="form-control"
-                           name="to_date">
-
-                </div>
+<style>
+    .reports-page {
+        max-width: 1450px;
+        margin: 0 auto;
+        padding: 25px 20px 50px;
+    }
+
+    .report-hero {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+
+    .report-hero-content {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .report-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef8f4;
+        color: #15966b;
+        font-size: 25px;
+    }
+
+    .report-title {
+        margin: 0;
+        font-size: 28px;
+        font-weight: 700;
+        color: #182433;
+    }
+
+    .report-subtitle {
+        margin: 5px 0 0;
+        color: #7b8794;
+        font-size: 14px;
+    }
+
+    .report-card {
+        background: #fff;
+        border: 1px solid #e8edf2;
+        border-radius: 18px;
+        box-shadow: 0 8px 30px rgba(20, 33, 61, 0.06);
+        overflow: hidden;
+    }
+
+    .report-card-header {
+        padding: 20px 25px;
+        border-bottom: 1px solid #edf1f4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .report-card-title {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 700;
+        color: #1d2939;
+    }
+
+    .report-card-body {
+        padding: 28px;
+    }
+
+    .field-box {
+        background: #f8fafb;
+        border: 1px solid #e5eaf0;
+        border-radius: 13px;
+        padding: 14px 15px 12px;
+        transition: all .2s ease;
+    }
+
+    .field-box:focus-within {
+        background: #fff;
+        border-color: #15966b;
+        box-shadow: 0 0 0 3px rgba(21, 150, 107, .08);
+    }
+
+    .field-label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #667085;
+    }
+
+    .field-icon {
+        margin-left: 5px;
+        color: #15966b;
+    }
+
+    .field-box .form-select,
+    .field-box .form-control {
+        border: 0;
+        background-color: transparent;
+        box-shadow: none !important;
+        padding: 3px 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: #1d2939;
+    }
+
+    .field-box .form-select {
+        cursor: pointer;
+    }
+
+    .period-section {
+        margin-top: 22px;
+        padding-top: 22px;
+        border-top: 1px solid #edf1f4;
+    }
+
+    .period-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #344054;
+        margin-bottom: 10px;
+    }
+
+    .report-actions {
+        margin-top: 28px;
+        padding-top: 22px;
+        border-top: 1px solid #edf1f4;
+        display: flex;
+        justify-content: flex-start;
+    }
+
+    .btn-show-report {
+        border: 0;
+        background: #15966b;
+        color: #fff;
+        border-radius: 11px;
+        padding: 11px 24px;
+        font-size: 15px;
+        font-weight: 700;
+        transition: all .2s ease;
+    }
+
+    .btn-show-report:hover {
+        background: #117c59;
+        color: #fff;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(21, 150, 107, .20);
+    }
+
+    @media (max-width: 768px) {
+
+        .reports-page {
+            padding: 15px 10px 30px;
+        }
+
+        .report-hero {
+            align-items: flex-start;
+        }
+
+        .report-title {
+            font-size: 23px;
+        }
+
+        .report-card-body {
+            padding: 18px;
+        }
+
+        .report-actions {
+            justify-content: stretch;
+        }
+
+        .btn-show-report {
+            width: 100%;
+        }
+    }
+</style>
+
+
+<div class="reports-page">
+
+    <!-- العنوان -->
+    <div class="report-hero">
+
+        <div class="report-hero-content">
+
+            <div class="report-icon">
+                <i class="bi bi-file-earmark-bar-graph"></i>
+            </div>
+
+            <div>
+
+                <h1 class="report-title">
+                    تقارير الكفالة
+                </h1>
+
+                <p class="report-subtitle">
+                    إصدار تقارير الكفالة للمكفولين والكفلاء
+                </p>
 
             </div>
 
@@ -177,24 +214,317 @@
 
     </div>
 
-    <hr>
 
-    <button class="btn btn-success">
+    <!-- بطاقة إعداد التقرير -->
+    <div class="report-card">
 
-        <i class="bi bi-printer"></i>
+        <div class="report-card-header">
 
-        عرض التقرير
+            <h5 class="report-card-title">
+                إعداد التقرير
+            </h5>
 
-    </button>
+        </div>
 
-</form>
+
+        <div class="report-card-body">
+
+            <form
+                method="get"
+                action="{% url 'Accounting:sponsorship_report_print' %}"
+                target="_blank"
+            >
+
+                <!-- الحقول الأساسية -->
+                <div class="row g-3">
+
+
+                    <!-- نوع التقرير -->
+                    <div class="col-lg-4 col-md-6">
+
+                        <div class="field-box">
+
+                            <label class="field-label">
+
+                                <i class="bi bi-bar-chart-line field-icon"></i>
+                                نوع التقرير
+
+                            </label>
+
+                            <select
+                                class="form-select"
+                                id="report_type"
+                                name="report_type"
+                            >
+
+                                <option value="quarter">
+                                    ربع سنوي
+                                </option>
+
+                                <option value="half">
+                                    نصف سنوي
+                                </option>
+
+                                <option value="year">
+                                    سنوي
+                                </option>
+
+                                <option value="custom">
+                                    مخصص
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- السنة -->
+                    <div class="col-lg-4 col-md-6">
+
+                        <div class="field-box">
+
+                            <label class="field-label">
+
+                                <i class="bi bi-calendar3 field-icon"></i>
+                                السنة
+
+                            </label>
+
+                            <select
+                                class="form-select"
+                                name="year"
+                            >
+
+                                {% for y in years %}
+
+                                    <option value="{{ y }}">
+                                        {{ y }}
+                                    </option>
+
+                                {% endfor %}
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- الكافل -->
+                    <div class="col-lg-4 col-md-12">
+
+                        <div class="field-box">
+
+                            <label class="field-label">
+
+                                <i class="bi bi-person-check field-icon"></i>
+                                الكافل
+
+                            </label>
+
+                            <select
+                                class="form-select"
+                                name="donor"
+                            >
+
+                                {% for donor in donors %}
+
+                                    <option value="{{ donor.id }}">
+
+                                        {{ donor.user.first_name }}
+
+                                        {% if donor.father_name %}
+                                            {{ donor.father_name }}
+                                        {% endif %}
+
+                                        {% if donor.grandpa_name %}
+                                            {{ donor.grandpa_name }}
+                                        {% endif %}
+
+                                        {% if donor.user.last_name %}
+                                            {{ donor.user.last_name }}
+                                        {% endif %}
+
+                                    </option>
+
+                                {% endfor %}
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- الفترة -->
+                <div class="period-section">
+
+                    <div class="period-title">
+
+                        <i class="bi bi-calendar-range field-icon"></i>
+                        الفترة الزمنية
+
+                    </div>
+
+
+                    <!-- الربع -->
+                    <div id="quarter_div">
+
+                        <div class="field-box">
+
+                            <label class="field-label">
+                                الربع
+                            </label>
+
+                            <select
+                                class="form-select"
+                                name="quarter"
+                            >
+
+                                <option value="1">
+                                    الربع الأول — يناير إلى مارس
+                                </option>
+
+                                <option value="2">
+                                    الربع الثاني — أبريل إلى يونيو
+                                </option>
+
+                                <option value="3">
+                                    الربع الثالث — يوليو إلى سبتمبر
+                                </option>
+
+                                <option value="4">
+                                    الربع الرابع — أكتوبر إلى ديسمبر
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- النصف -->
+                    <div
+                        id="half_div"
+                        style="display:none;"
+                    >
+
+                        <div class="field-box">
+
+                            <label class="field-label">
+                                النصف
+                            </label>
+
+                            <select
+                                class="form-select"
+                                name="half"
+                            >
+
+                                <option value="1">
+                                    النصف الأول — يناير إلى يونيو
+                                </option>
+
+                                <option value="2">
+                                    النصف الثاني — يوليو إلى ديسمبر
+                                </option>
+
+                            </select>
+
+                        </div>
+
+                    </div>
+
+
+                    <!-- مخصص -->
+                    <div
+                        id="custom_div"
+                        style="display:none;"
+                    >
+
+                        <div class="row g-3">
+
+                            <div class="col-md-6">
+
+                                <div class="field-box">
+
+                                    <label class="field-label">
+
+                                        <i class="bi bi-calendar-event field-icon"></i>
+                                        من تاريخ
+
+                                    </label>
+
+                                    <input
+                                        type="date"
+                                        class="form-control"
+                                        name="from_date"
+                                    >
+
+                                </div>
+
+                            </div>
+
+
+                            <div class="col-md-6">
+
+                                <div class="field-box">
+
+                                    <label class="field-label">
+
+                                        <i class="bi bi-calendar-event field-icon"></i>
+                                        إلى تاريخ
+
+                                    </label>
+
+                                    <input
+                                        type="date"
+                                        class="form-control"
+                                        name="to_date"
+                                    >
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- زر التقرير -->
+                <div class="report-actions">
+
+                    <button
+                        type="submit"
+                        class="btn-show-report"
+                    >
+
+                        <i class="bi bi-printer me-1"></i>
+
+                        عرض التقرير
+
+                    </button>
+
+                </div>
+
+            </form>
 
         </div>
 
     </div>
 
 </div>
+
+
 <script>
+
 const type = document.getElementById("report_type");
 
 function changeType() {
@@ -203,14 +533,24 @@ function changeType() {
     document.getElementById("half_div").style.display = "none";
     document.getElementById("custom_div").style.display = "none";
 
-    if (type.value === "quarter")
+    if (type.value === "quarter") {
+
         document.getElementById("quarter_div").style.display = "block";
 
-    if (type.value === "half")
+    }
+
+    if (type.value === "half") {
+
         document.getElementById("half_div").style.display = "block";
 
-    if (type.value === "custom")
+    }
+
+    if (type.value === "custom") {
+
         document.getElementById("custom_div").style.display = "block";
+
+    }
+
 }
 
 type.addEventListener("change", changeType);
@@ -218,4 +558,5 @@ type.addEventListener("change", changeType);
 changeType();
 
 </script>
+
 {% endblock %}
