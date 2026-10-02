@@ -425,3 +425,76 @@ const diseaseInput = document.querySelector('[name="disease_q"]');
 if(diseaseInput){
     diseaseInput.addEventListener("input", filterBeneficiaries);
 }
+
+// ===============================
+// فلترة المستفيدين مباشرة
+// ===============================
+
+function filterBeneficiaries() {
+
+    const educationEl = document.querySelector('[name="education_level"]');
+    const genderEl    = document.querySelector('[name="gender"]');
+    const healthEl    = document.querySelector('[name="health_status"]');
+    const diseaseEl   = document.querySelector('[name="type_disease"]');
+
+    const education = educationEl ? educationEl.value : "";
+    const gender    = genderEl ? genderEl.value : "";
+    const health    = healthEl ? healthEl.value : "";
+    const disease   = diseaseEl ? diseaseEl.value : "";
+
+    document.querySelectorAll("#beneficiaries-list tbody tr").forEach(function(row) {
+
+        if (!row.dataset.education) {
+            return;
+        }
+
+        let show = true;
+
+        const rowEducation = row.dataset.education || "";
+        const rowGender    = row.dataset.gender || "";
+        const rowHealth    = row.dataset.health || "";
+        const rowDisease   = row.dataset.disease || "";
+
+        // المرحلة الدراسية
+        if (education !== "" && rowEducation !== education) {
+            show = false;
+        }
+
+        // الجنس
+        if (gender !== "" && rowGender !== gender) {
+            show = false;
+        }
+
+        // الحالة الصحية
+        if (health !== "" && rowHealth !== health) {
+            show = false;
+        }
+
+        // نوع المرض
+        if (disease !== "" && rowDisease !== disease) {
+            show = false;
+        }
+
+        row.style.display = show ? "" : "none";
+    });
+}
+
+
+// ===============================
+// تشغيل الفلاتر مباشرة
+// ===============================
+
+[
+    "education_level",
+    "gender",
+    "health_status",
+    "type_disease"
+].forEach(function(name) {
+
+    const el = document.querySelector(`[name="${name}"]`);
+
+    if (el) {
+        el.addEventListener("change", filterBeneficiaries);
+    }
+
+});

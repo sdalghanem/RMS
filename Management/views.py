@@ -1408,7 +1408,7 @@ def help_page(request):
         "Management/help.html",
     )
 
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER, Profile.Roles.ACCOUNTANT])
 def sponsorships_list(request):
 
     today = timezone.localdate()
@@ -1678,7 +1678,7 @@ def sponsorships_list(request):
 
 #####################################################
 
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER, Profile.Roles.ACCOUNTANT])
 def sponsorship_edit_dates(request, pk):
 
     sponsorship = get_object_or_404(
@@ -1828,6 +1828,3 @@ def sponsorship_edit_dates(request, pk):
             "end_date": sponsorship.end_date,
         },
     )
-
-
-

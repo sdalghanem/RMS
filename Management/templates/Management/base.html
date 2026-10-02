@@ -951,7 +951,22 @@
                         </ul>
 
                     </li>
+                    <!-- الفواتير -->
 
+                    <li class="nav-item">
+
+                        <a
+                            class="rms-nav-link {% if request.resolver_match.url_name == 'cashier_invoices_list' %}active{% endif %}"
+                            href="{% url 'Accounting:cashier_invoices_list' %}"
+                        >
+
+                            <i class="bi bi-receipt"></i>
+
+                            الفواتير
+
+                        </a>
+
+                    </li>
 
                     <!-- =================================================
                          المستفيدون والتقارير
@@ -1022,6 +1037,34 @@
 
                     </li>
 
+                    <!-- =================================================
+                                إدارة البرامج
+                    ================================================== -->
+
+<li class="nav-item">
+    <a
+        class="rms-nav-link {% if request.resolver_match.url_name == 'program_list' %}active{% endif %}"
+        href="{% url 'Management:program_list' %}"
+    >
+        <i class="bi bi-diagram-3"></i>
+        إدارة البرامج
+    </a>
+</li>
+
+
+<!-- =================================================
+     إدارة الكفالات
+================================================== -->
+
+<li class="nav-item">
+    <a
+        class="rms-nav-link {% if request.resolver_match.url_name == 'sponsorships_list' %}active{% endif %}"
+        href="{% url 'Management:sponsorships_list' %}"
+    >
+        <i class="bi bi-shield-check"></i>
+        إدارة الكفالات
+    </a>
+</li>
 
                 </ul>
 

@@ -64,6 +64,12 @@ from .services import (
     reverse_subprogram_disbursement
 )
 
+INVOICE_ROLES = [
+    Profile.Roles.SYSTEM_ADMIN,
+    Profile.Roles.CASHIER,
+    Profile.Roles.ACCOUNTANT,
+]
+
 User = get_user_model()
 
 
@@ -143,7 +149,7 @@ def cashier_home(request):
 # --------------------------------------------------
 # قائمة الفواتير (لـ system_admin + cashier)
 # --------------------------------------------------
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def cashier_invoices_list(request):
     invoices_qs = (
         Invoice.objects
@@ -167,7 +173,7 @@ def cashier_invoices_list(request):
 # تعديل مبلغ السند
 # =============================================================
 
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def invoice_update(request, pk):
     """
     تعديل مبلغ السند.
@@ -439,7 +445,7 @@ def invoice_update(request, pk):
 # =============================================================
 
 @require_POST
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def invoice_delete(request, pk):
     """
     حذف السند.
@@ -658,7 +664,7 @@ def invoice_delete(request, pk):
 # --------------------------------------------------
 # إنشاء سند تبرع عام
 # --------------------------------------------------
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def invoice_create_general(request):
     if request.method == "POST":
         form = GeneralDonationInvoiceForm(request.POST)
@@ -733,7 +739,7 @@ def invoice_create_general(request):
 
 
 
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def invoice_create_sponsorship(request):
 
     if request.method == "POST":
@@ -906,7 +912,7 @@ def invoice_create_sponsorship(request):
 # --------------------------------------------------
 # عرض سند (مع زر طباعة)
 # --------------------------------------------------
-@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@role_required(INVOICE_ROLES)
 def invoice_detail(request, pk):
     invoice = get_object_or_404(
         Invoice.objects.select_related(
@@ -4459,10 +4465,7 @@ def release_main_program(request):
 # البحث عن الكفلاء - AJAX / Select2
 # =========================================================
 
-@role_required([
-    Profile.Roles.SYSTEM_ADMIN,
-    Profile.Roles.CASHIER,
-])
+@role_required(INVOICE_ROLES)
 def sponsor_search(request):
 
     q = request.GET.get("q", "").strip()
