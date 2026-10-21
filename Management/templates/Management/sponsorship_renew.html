@@ -1,0 +1,34 @@
+{% extends "Management/base.html" %}
+{% load static %}
+{% block content %}
+<div class="container py-3" dir="rtl">
+<h3>تجديد الكفالة — السند {{ previous.invoice.number }}</h3>
+<p class="text-muted">سند جديد مستقل؛ يبقى السند السابق محفوظًا ولا يتم تسجيل دفعة مالية.</p>
+<div class="card mb-3"><div class="card-body">
+<p>الكافل: {{ previous.sponsor.user.get_full_name|default:previous.sponsor.user.username }}</p>
+<p>المستفيد: {% if beneficiary %}{{ beneficiary.first_name }} {{ beneficiary.father_name }} {{ beneficiary.grand_name }}{% else %}—{% endif %}</p>
+</div></div>
+<form method="post" novalidate>{% csrf_token %}
+{{ form.non_field_errors }}
+<div class="card mb-3"><div class="card-body">
+<label class="form-label" for="id_number">رقم السند الجديد *</label>{{ form.number }}{{ form.number.errors }}
+{% include "Accounting/invoice_number_status.html" %}
+</div></div>
+<div class="card mb-3"><div class="card-header">تفاصيل الكفالة المالية</div><div class="card-body row g-3">
+<div class="col-md-6"><label class="form-label" for="id_payment_plan">نوع الكفالة (خطة) *</label>{{ form.payment_plan }}{{ form.payment_plan.errors }}
+<p class="form-text">تُستمد القيمة والمدة من الخطة المختارة.</p></div>
+<div class="col-md-6"><label for="id_is_custom_plan">{{ form.is_custom_plan }} خطة مخصصة (أخرى)</label></div>
+<div class="col-md-6"><label class="form-label" for="id_custom_amount">مبلغ الكفالة الفعلي</label>{{ form.custom_amount }}{{ form.custom_amount.errors }}</div>
+<div class="col-md-6"><label class="form-label" for="id_custom_duration_months">مدة الكفالة الفعلية بالأشهر</label>{{ form.custom_duration_months }}{{ form.custom_duration_months.errors }}</div>
+</div></div>
+<div class="card mb-3"><div class="card-header">فترة الكفالة</div><div class="card-body row g-3">
+<div class="col-md-6"><label class="form-label" for="id_start_date">تاريخ بداية الكفالة *</label>{{ form.start_date }}{{ form.start_date.errors }}<p class="form-text">المقترح هو اليوم التالي لنهاية السند السابق ويمكن تعديله.</p></div>
+<div class="col-md-6"><label class="form-label" for="id_end_date">تاريخ نهاية الكفالة *</label>{{ form.end_date }}{{ form.end_date.errors }}<p class="form-text">يُحسب حسب مدة الخطة ويمكن تعديله يدويًا.</p></div>
+<div class="col-12"><label class="form-label" for="id_notes">الملاحظات (اختياري)</label>{{ form.notes }}{{ form.notes.errors }}</div>
+</div></div>
+<button type="submit" class="btn btn-primary">إنشاء سند التجديد</button>
+<a href="{% url 'Management:sponsorships_list' %}" class="btn btn-outline-secondary">إلغاء</a>
+</form></div>
+{{ plans|json_script:"renewal-plans" }}
+<script src="{% static 'accounting/js/sponsorship_renewal.js' %}" defer></script>
+{% endblock %}

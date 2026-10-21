@@ -1,3 +1,9 @@
+from django.views.decorators.http import require_GET
+import csv
+from django.contrib.auth import get_user_model
+import io
+from Management.sponsorship_ops import attach_sponsorship, create_sponsorship
+from .services import financial_transaction
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 
@@ -74,6 +80,7 @@ User = get_user_model()
 
 
 #@login_required
+@role_required(INVOICE_ROLES)
 def cashier_home(request):
 
     today = timezone.localdate()
@@ -174,6 +181,7 @@ def cashier_invoices_list(request):
 # =============================================================
 
 @role_required(INVOICE_ROLES)
+@financial_transaction
 def invoice_update(request, pk):
     """
     تعديل مبلغ السند.
@@ -241,7 +249,7 @@ def invoice_update(request, pk):
 
             new_amount = Decimal(amount_raw)
 
-            if new_amount <= 0:
+            if not new_amount.is_finite() or new_amount <= 0 or new_amount != new_amount.quantize(Decimal("0.01")):
                 raise ValidationError(
                     "المبلغ يجب أن يكون أكبر من صفر."
                 )
@@ -363,6 +371,8 @@ def invoice_update(request, pk):
                         .exists()
                     )
 
+                    if get_available_for_allocation() < sponsorship.total_amount:
+                        raise ValidationError("لا يمكن تعديل أو حذف دخل كفالة مستخدم في تخصيص أو صرف.")
                     if has_allocation:
 
                         raise ValidationError(
@@ -446,6 +456,7 @@ def invoice_update(request, pk):
 
 @require_POST
 @role_required(INVOICE_ROLES)
+@financial_transaction
 def invoice_delete(request, pk):
     """
     حذف السند.
@@ -567,6 +578,8 @@ def invoice_delete(request, pk):
                     .exists()
                 )
 
+                if get_available_for_allocation() < sponsorship.total_amount:
+                    raise ValidationError("لا يمكن تعديل أو حذف دخل كفالة مستخدم في تخصيص أو صرف.")
                 if has_allocation:
 
                     raise ValidationError(
@@ -665,6 +678,8 @@ def invoice_delete(request, pk):
 # إنشاء سند تبرع عام
 # --------------------------------------------------
 @role_required(INVOICE_ROLES)
+@transaction.atomic
+@financial_transaction
 def invoice_create_general(request):
     if request.method == "POST":
         form = GeneralDonationInvoiceForm(request.POST)
@@ -673,15 +688,16 @@ def invoice_create_general(request):
 
             try:
                 # السند الأساسي (رقم السند يدوي)
-                invoice = Invoice.objects.create(
-                    number=cleaned["number"],   # ⬅️ صار يدوي
-                    date=cleaned["date"],
-                    invoice_type=Invoice.Types.GENERAL_DONATION,
-                    receipt_kind=Invoice.ReceiptKinds.RECEIPT,
-                    payment_method=cleaned["payment_method"],
-                    notes=cleaned["notes"],
-                    created_by=request.user,
-                )
+                with transaction.atomic():
+                    invoice = Invoice.objects.create(
+                        number=cleaned["number"],   # ⬅️ صار يدوي
+                        date=cleaned["date"],
+                        invoice_type=Invoice.Types.GENERAL_DONATION,
+                        receipt_kind=Invoice.ReceiptKinds.RECEIPT,
+                        payment_method=cleaned["payment_method"],
+                        notes=cleaned["notes"],
+                        created_by=request.user,
+                    )
             except IntegrityError:
                 form.add_error("number", "رقم السند مستخدم مسبقاً.")
             else:
@@ -740,172 +756,30 @@ def invoice_create_general(request):
 
 
 @role_required(INVOICE_ROLES)
+@financial_transaction
 def invoice_create_sponsorship(request):
-
-    if request.method == "POST":
-
-        form = FinancialSponsorshipInvoiceForm(request.POST)
-
-        # ---------------------------------------------------------
-        # تحميل الكافل المختار حتى يعمل ModelChoiceField
-        # مع queryset = none()
-        # ---------------------------------------------------------
-
-        sponsor_id = request.POST.get("sponsor")
-
-        if sponsor_id:
-
-            form.fields["sponsor"].queryset = (
-                Profile.objects
-                .filter(
-                    pk=sponsor_id,
-                    role=Profile.Roles.DONOR,
-                )
-                .select_related("user")
-            )
-
-        if form.is_valid():
-
+    data = request.POST if request.method == "POST" else None
+    form = FinancialSponsorshipInvoiceForm(data)
+    if data:
+        sponsor_id = data.get("sponsor", "")
+        if sponsor_id.isdecimal():
+            form.fields["sponsor"].queryset = Profile.objects.filter(pk=sponsor_id, role=Profile.Roles.DONOR).select_related("user")
+        valid = form.is_valid()
+        if "create_beneficiary" in data or any(key.startswith("new_beneficiary-") for key in data):
+            form.add_error(None, "إنشاء المستفيدين متاح لمدير النظام من إدارة المستفيدين فقط.")
+            valid = False
+        if valid:
             cd = form.cleaned_data
-
-            with transaction.atomic():
-
-                try:
-
-                    invoice = Invoice.objects.create(
-                        number=cd["number"],
-                        date=cd["date"],
-                        invoice_type=Invoice.Types.FINANCIAL_SPONSORSHIP,
-                        receipt_kind=Invoice.ReceiptKinds.RECEIPT,
-                        payment_method=cd["payment_method"],
-                        notes=cd.get("notes") or "",
-                        created_by=request.user,
-                    )
-
-                except IntegrityError:
-
-                    form.add_error(
-                        "number",
-                        "رقم السند مستخدم مسبقاً."
-                    )
-
-                else:
-
-                    sponsorship = form.save(commit=False)
-
-                    sponsorship.invoice = invoice
-
-                    # -------------------------------------------------
-                    # الخطة الجاهزة → نسخ المبلغ والمدة فعليًا للسند
-                    # -------------------------------------------------
-
-                    if (
-                        not sponsorship.is_custom_plan
-                        and sponsorship.payment_plan
-                    ):
-
-                        plan = sponsorship.payment_plan
-
-                        if getattr(plan, "amount", None) is not None:
-
-                            sponsorship.custom_amount = (
-                                plan.amount
-                            )
-
-                        if (
-                            getattr(
-                                plan,
-                                "duration_months",
-                                None
-                            )
-                            is not None
-                        ):
-
-                            sponsorship.custom_duration_months = (
-                                plan.duration_months
-                            )
-
-                    sponsorship.save()
-
-                    # -------------------------------------------------
-                    # حركة دخل لصندوق الجمعية
-                    # -------------------------------------------------
-
-                    FundEntry.objects.create(
-                        invoice=invoice,
-                        type=FundEntry.Types.SPONSORSHIP_INCOME,
-                        amount=sponsorship.total_amount,
-                        voucher_number=invoice.number,
-                        description=(
-                            f"دخل كفالة مالية من السند "
-                            f"رقم {invoice.number}"
-                        ),
-                        created_by=request.user,
-                    )
-
-                    # -------------------------------------------------
-                    # سجل النشاط
-                    # -------------------------------------------------
-
-                    log_activity(
-                        user=request.user,
-                        action=AuditLog.Actions.CREATE,
-                        entity=(
-                            f"إنشاء سند كفالة مالية "
-                            f"رقم {invoice.number}"
-                        ),
-                        entity_id=invoice.pk,
-                        extra={
-                            "invoice_number": invoice.number,
-
-                            "sponsor": str(
-                                sponsorship.sponsor
-                            ),
-
-                            "beneficiary": None,
-
-                            "beneficiary_assigned": False,
-
-                            "amount": str(
-                                sponsorship.total_amount
-                            ),
-
-                            "payment_method": (
-                                invoice.payment_method
-                            ),
-
-                            "start_date": str(
-                                sponsorship.start_date
-                            ),
-
-                            "end_date": str(
-                                sponsorship.end_date
-                            ),
-                        },
-                    )
-
-                    messages.success(
-                        request,
-                        "تم إنشاء سند الكفالة المالية بنجاح."
-                    )
-
-                    return redirect(
-                        "Accounting:invoice_detail",
-                        pk=invoice.pk,
-                    )
-
-    else:
-
-        form = FinancialSponsorshipInvoiceForm()
-
-    return render(
-        request,
-        "Accounting/invoice_sponsorship_form.html",
-        {
-            "title": "إنشاء سند كفالة مالية",
-            "form": form,
-        },
-    )
+            try:
+                sponsorship = create_sponsorship(form, request.user, beneficiary=cd.get("beneficiary"))
+                return redirect("Accounting:invoice_detail", pk=sponsorship.invoice_id)
+            except IntegrityError:
+                form.add_error(None, "تعذر الحفظ بسبب سجل مكرر. تحقق من رقم السند وهوية المستفيد.")
+            except ValidationError as exc:
+                form.add_error(None, " ".join(exc.messages))
+    return render(request, "Accounting/invoice_sponsorship_form.html", {
+        "title": "إنشاء سند كفالة مالية", "form": form,
+    })
 
 
 
@@ -1105,6 +979,7 @@ def sponsor_create_page(request):
 
 @require_POST
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@transaction.atomic
 def sponsor_quick_create(request):
     """
     إنشاء كافل جديد من DonorUserCreateForm
@@ -1128,8 +1003,11 @@ def sponsor_quick_create(request):
             status=400,
         )
 
-    # إنشاء المستخدم والكفيل
-    user = form.save()
+    # Roll back partial accounts if concurrent creation wins the unique constraint.
+    try:
+        user = form.save()
+    except (IntegrityError, ValidationError):
+        return JsonResponse({"success": False, "errors": {"__all__": "تعذر إنشاء الكافل. تحقق من البيانات والتكرار."}}, status=400)
 
     # Profile المرتبط بالمستخدم
     profile = user.profile
@@ -1209,6 +1087,7 @@ def sponsors_list(request):
 
 @require_POST
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+@transaction.atomic
 def sponsor_quick_update(request, pk):
     """
     تعديل بيانات كافل (User + Profile) من مودال في صفحة الكفلاء.
@@ -1253,17 +1132,20 @@ def sponsor_quick_update(request, pk):
     if errors:
         return JsonResponse({"success": False, "errors": errors}, status=400)
 
-    # حفظ التعديلات
     user.email = email
-    user.username = user.username or email  # ما نغيّر اليوزرنيم لو كان له قيمة
+    user.username = user.username or email
     user.first_name = first_name
     user.last_name = last_name
-    user.save()
-
     profile.phone = phone
     profile.father_name = father_name
     profile.grandpa_name = grandpa_name
     profile.national_number = national_number
+    try:
+        user.full_clean(exclude=["password"])
+        profile.full_clean()
+    except ValidationError as exc:
+        return JsonResponse({"success": False, "errors": exc.message_dict}, status=400)
+    user.save()
     profile.save()
 
     return JsonResponse({
@@ -2195,11 +2077,16 @@ def subprogram_disburse_create(request):
             sub_program = (
                 SubProgram.objects
                 .select_related("main_program")
-                .get(pk=request.POST.get("sub_program"))
+                .get(pk=request.POST.get("sub_program"), main_program__is_active=True)
             )
 
             beneficiary_ids = request.POST.getlist("beneficiary_ids[]")
             amounts = request.POST.getlist("amounts[]")
+            if len(beneficiary_ids) != len(amounts) or not beneficiary_ids:
+                raise ValueError("قائمة المستفيدين والمبالغ غير متطابقة.")
+            if len(set(beneficiary_ids)) != len(beneficiary_ids):
+                raise ValueError("لا يمكن تكرار المستفيد في أمر الصرف.")
+
 
             # جلب المستفيدين المطلوب صرف المبالغ لهم
             beneficiaries_map = {
@@ -2216,20 +2103,20 @@ def subprogram_disburse_create(request):
                 amounts,
             ):
 
-                if not beneficiary_id:
-                    continue
+                if not beneficiary_id or not beneficiary_id.isdecimal():
+                    raise ValueError("معرف المستفيد غير صحيح.")
 
                 amount = Decimal(amount or "0")
 
-                if amount <= 0:
-                    continue
+                if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
+                    raise ValueError("مبلغ الصرف غير صحيح.")
 
                 beneficiary = beneficiaries_map.get(
                     int(beneficiary_id)
                 )
 
                 if not beneficiary:
-                    continue
+                    raise ValueError("المستفيد غير موجود.")
 
                 beneficiaries_data.append(
                     {
@@ -3446,7 +3333,7 @@ def beneficiary_supports_report(request):
             },
         },
     )
-@role_required([Profile.Roles.ACCOUNTANT])
+@role_required(INVOICE_ROLES)
 def ajax_beneficiary_search(request):
 
     q = (request.GET.get("q") or "").strip()
@@ -3454,29 +3341,37 @@ def ajax_beneficiary_search(request):
     if len(q) < 2:
         return JsonResponse({"results": []})
 
-    beneficiaries = (
-    Beneficiary.objects
-    .filter(
-        Q(first_name__icontains=q) |
-        Q(father_name__icontains=q) |
-        Q(grand_name__icontains=q) |
-        Q(last_name__icontains=q) |
-        Q(national_number__icontains=q)
-            )
-            .order_by(
-                "first_name",
-                "father_name",
-            )[:15]
-        )
+    beneficiaries = Beneficiary.objects.all()
+    for term in q.split():
+        beneficiaries = beneficiaries.filter(
+            Q(first_name__icontains=term) | Q(father_name__icontains=term) |
+            Q(grand_name__icontains=term) | Q(last_name__icontains=term) |
+            Q(national_number__icontains=term))
+    beneficiaries = beneficiaries.order_by("first_name", "father_name")[:15]
 
     results = []
 
+    from django.utils.dateparse import parse_date
+    try:
+        start = parse_date(request.GET.get("start_date") or "")
+        end = parse_date(request.GET.get("end_date") or "")
+    except ValueError:
+        start = end = None
+
     for b in beneficiaries:
+
+        blocked_reason = ""
+        if request.GET.get("sponsorship") == "1":
+            try:
+                FinancialSponsorshipAllocation.validate_period(b.pk, start, end)
+            except ValidationError as exc:
+                blocked_reason = " ".join(exc.messages)
 
         results.append({
                 "id": b.id,
-                "name": f"{b.first_name} {b.father_name} {b.grand_name} {b.last_name}",
+                "name": " ".join(filter(None, (b.first_name, b.father_name, b.grand_name or b.last_name))),
                 "identity_number": b.national_number or "",
+                "blocked_reason": blocked_reason,
             })
 
     return JsonResponse({
@@ -3484,6 +3379,7 @@ def ajax_beneficiary_search(request):
     })
 
 #@login_required
+@role_required(INVOICE_ROLES)
 def sponsorship_report_print(request):
 
     donor_id = request.GET.get("donor")
@@ -4155,6 +4051,7 @@ def sponsorship_report_print(request):
         "Accounting/sponsorship_report_print.html",
         context,
     )#############################################
+@role_required(INVOICE_ROLES)
 def sponsorship_reports(request):
 
     donors = Profile.objects.filter(
@@ -4520,3 +4417,136 @@ def sponsor_search(request):
     return JsonResponse({
         "results": results,
     })
+
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
+def sponsors_import(request):
+    columns = {
+        "الاسم الكامل": "full_name",
+        "رقم الجوال": "phone", "رقم الهوية": "national_number",
+        "البريد الإلكتروني": "email",
+    }
+    aliases = {
+        **columns,
+        "الاسم الأول": "first_name", "اسم الأب": "father_name",
+        "اسم الجد": "grandpa_name", "اسم العائلة": "last_name",
+    }
+    fields = DonorUserCreateForm().fields
+
+    def duplicate_reasons(row, seen):
+        from django.db.models.functions import Trim
+        reasons = []
+        profiles = Profile.objects.annotate(
+            import_phone=Trim("phone"), import_national_number=Trim("national_number"))
+        national_number = row.get("national_number", "")
+        if national_number and (national_number in seen["national_number"] or profiles.filter(
+                import_national_number=national_number).exists()):
+            reasons.append("رقم الهوية")
+        email = row.get("email", "")
+        if email and (email in seen["email"] or get_user_model().objects.annotate(
+                import_email=Trim("email"), import_username=Trim("username")).filter(
+                Q(import_email__iexact=email) | Q(import_username__iexact=email)).exists()):
+            reasons.append("البريد الإلكتروني")
+        phone = row.get("phone", "")
+        phone_variants = [phone]
+        if len(phone) == 10 and phone.startswith("05") and phone.isdecimal():
+            # Compare legacy nine-digit values without changing stored profiles.
+            phone_variants.append(phone[1:])
+        if phone and (phone in seen["phone"] or profiles.filter(import_phone__in=phone_variants).exists()):
+            reasons.append("رقم الجوال")
+        return reasons
+
+    if request.method == "GET" and request.GET.get("template") == "1":
+        output = io.StringIO(newline="")
+        csv.writer(output).writerow(columns)
+        response = HttpResponse(output.getvalue().encode("utf-8-sig"), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = 'attachment; filename="sponsors_template.csv"'
+        return response
+    summary = None
+    error = None
+    row_errors = []
+    if request.method == "POST":
+        upload = request.FILES.get("file")
+        if not upload or upload.size > 2 * 1024 * 1024:
+            error = "اختر ملف CSV لا يتجاوز 2 ميجابايت."
+        else:
+            try:
+                reader = csv.DictReader(io.StringIO(upload.read().decode("utf-8-sig")), strict=True)
+                headers = [aliases.get(name.strip(), name.strip()) for name in (reader.fieldnames or [])]
+                required = {name for name in columns.values() if name != "full_name" and fields[name].required}
+                required.update({"full_name"} if "full_name" in headers else {"first_name", "last_name"})
+                missing = required - set(headers)
+                if missing:
+                    raise ValueError("أعمدة مطلوبة مفقودة: " + "، ".join(label for label, name in aliases.items() if name in missing))
+                if len(headers) != len(set(headers)):
+                    raise ValueError("توجد أسماء أعمدة مكررة. استخدم عمودًا واحدًا لكل حقل.")
+                reader.fieldnames = headers
+                rows = list(reader)
+                if not rows:
+                    raise ValueError("الملف لا يحتوي على بيانات كفلاء. أضف البيانات أسفل أسماء الأعمدة.")
+                summary = {"added": 0, "duplicates": 0, "rejected": 0}
+                seen = {name: set() for name in ("email", "phone", "national_number")}
+                for row_number, row in enumerate(rows, start=2):
+                    if None in row or any(value is None for value in row.values()):
+                        summary["rejected"] += 1
+                        if len(row_errors) < 50:
+                            row_errors.append(f"السجل {row_number}: عدد القيم لا يطابق عدد الأعمدة.")
+                        continue
+                    row = {k: (v or "").strip() for k, v in row.items() if k and isinstance(v, str)}
+                    row["email"] = row.get("email", "").lower()
+                    phone = row.get("phone", "")
+                    if len(phone) == 9 and phone.startswith("5") and phone.isdecimal():
+                        row["phone"] = "0" + phone
+                    if "full_name" in headers:
+                        parts = row.get("full_name", "").split()
+                        if len(parts) < 2:
+                            summary["rejected"] += 1
+                            if len(row_errors) < 50:
+                                row_errors.append(f"الصف {row_number}: الاسم الكامل يجب أن يتكون من كلمتين على الأقل.")
+                            continue
+                        row.update(first_name=parts[0],
+                                   father_name=parts[1] if len(parts) >= 3 else "",
+                                   grandpa_name=parts[2] if len(parts) >= 4 else "",
+                                   last_name=" ".join(parts[3:]) if len(parts) >= 4 else parts[-1])
+                    duplicate = duplicate_reasons(row, seen)
+                    if duplicate:
+                        summary["duplicates"] += 1
+                        if len(row_errors) < 50:
+                            row_errors.append(f"الصف {row_number}: تم التجاوز بسبب تكرار: {'، '.join(duplicate)}.")
+                        continue
+                    form = DonorUserCreateForm(row)
+                    if not form.is_valid():
+                        summary["rejected"] += 1
+                        if len(row_errors) < 50:
+                            details = "، ".join(fields[name].label if name in fields else "البيانات" for name in form.errors)
+                            row_errors.append(f"الصف {row_number}: بيانات مفقودة أو غير صحيحة في: {details}.")
+                        continue
+                    try:
+                        form.save()
+                    except (IntegrityError, ValidationError):
+                        duplicate = duplicate_reasons(row, seen)
+                        summary["duplicates" if duplicate else "rejected"] += 1
+                        if len(row_errors) < 50:
+                            reason = f"تم التجاوز بسبب تكرار: {'، '.join(duplicate)}." if duplicate else "تعذر إنشاء الكافل؛ تحقق من صحة البيانات."
+                            row_errors.append(f"الصف {row_number}: {reason}")
+                    else:
+                        summary["added"] += 1
+                        for name, values in seen.items():
+                            if row.get(name):
+                                values.add(row[name])
+            except (UnicodeDecodeError, csv.Error):
+                error = "تعذر قراءة الملف. استخدم CSV بترميز UTF-8 والأعمدة الموضحة."
+            except ValueError as exc:
+                error = str(exc)
+    return render(request, "Accounting/sponsors_import.html", {
+        "summary": summary, "error": error, "row_errors": row_errors,
+        "columns": [{"label": label, "required": name == "full_name" or fields[name].required} for label, name in columns.items()],
+    })
+
+
+@role_required(INVOICE_ROLES)
+@require_GET
+def invoice_number_available(request):
+    number = (request.GET.get("number") or "").strip()
+    if not number or len(number) > Invoice._meta.get_field("number").max_length:
+        return JsonResponse({"available": False, "error": "invalid"}, status=400)
+    return JsonResponse({"available": not Invoice.objects.filter(number=number).exists()})

@@ -1,3 +1,6 @@
+from functools import wraps
+from django.http import HttpResponseForbidden
+from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render
 from django.contrib.auth import login
@@ -20,11 +23,53 @@ from django.db.models import Q
 
 
 
+def donor_required(view):
+    @login_required(login_url="Donation:login")
+    @wraps(view)
+    def wrapped(request, *args, **kwargs):
+        profile = getattr(request.user, "profile", None)
+        if not profile or profile.role != Profile.Roles.DONOR:
+            return HttpResponseForbidden("هذه الصفحة مخصصة للداعمين فقط.")
+        return view(request, *args, **kwargs)
+    return wrapped
+
+
+def _current_beneficiaries(profile):
+    today = timezone.localdate()
+    histories = BeneficiarySponsorHistory.objects.filter(
+        donor=profile, start_date__lte=today,
+    ).filter(Q(end_date__isnull=True) | Q(end_date__gte=today))
+    return Beneficiary.objects.filter(pk__in=histories.values("beneficiary_id"))
+
+
+def _valid_supports():
+    return BeneficiarySupportEntry.objects.filter(
+        Q(disbursement__is_reversed=False) | Q(disbursement__isnull=True)
+    )
+
+
+def _sponsored_supports(profile, beneficiary=None, start=None, end=None):
+    histories = BeneficiarySponsorHistory.objects.filter(donor=profile)
+    if beneficiary is not None:
+        histories = histories.filter(beneficiary=beneficiary)
+    periods = Q(pk__in=[])
+    for history in histories:
+        lower = max(history.start_date, start) if start else history.start_date
+        upper = min(history.end_date, end) if history.end_date and end else history.end_date or end
+        if upper and lower > upper:
+            continue
+        period = Q(beneficiary_id=history.beneficiary_id, created_at__date__gte=lower)
+        if upper:
+            period &= Q(created_at__date__lte=upper)
+        periods |= period
+    return _valid_supports().filter(periods)
+
+
 def login_view(request):
     if request.user.is_authenticated:
-        if request.user.profile.role == Profile.Roles.SPONSOR:
+        if getattr(getattr(request.user, "profile", None), "role", None) == Profile.Roles.DONOR:
             return redirect("Donation:dashboard")
-        return redirect("Management:home")
+        return redirect("Management:landing")
 
     form = LoginForm(request, data=request.POST or None)
 
@@ -35,7 +80,7 @@ def login_view(request):
             user = form.get_user()
 
             # السماح للكفلاء فقط
-            if user.profile.role != Profile.Roles.DONOR:
+            if getattr(getattr(user, "profile", None), "role", None) != Profile.Roles.DONOR:
                 messages.error(request, "هذه الصفحة مخصصة للداعمين فقط.")
                 return redirect("Donation:login")
 
@@ -66,7 +111,7 @@ def login_view(request):
         },
     )
 
-@login_required(login_url='Donation:login')
+@donor_required
 def dashboard(request):
     """
     الصفحة الرئيسية للداعم
@@ -79,14 +124,11 @@ def dashboard(request):
     # ==========================
 
     beneficiaries = (
-        Beneficiary.objects
-        .filter(donor=profile)
+        _current_beneficiaries(profile)
         .order_by("first_name")[:5]
     )
 
-    beneficiaries_count = Beneficiary.objects.filter(
-        donor=profile
-    ).count()
+    beneficiaries_count = _current_beneficiaries(profile).count()
 
     # ==========================
     # جميع عمليات الاستفادة
@@ -105,38 +147,10 @@ def dashboard(request):
 # جميع عمليات الاستفادة حسب فترة الكفالة
 # ==========================
 
-    histories = (
-        BeneficiarySponsorHistory.objects
-        .filter(
-            donor=profile,
-        )
-        .select_related("beneficiary")
+    support_entries = _sponsored_supports(profile).select_related(
+        "beneficiary", "sub_program", "main_program"
     )
 
-    support_entries = BeneficiarySupportEntry.objects.none()
-
-    for history in histories:
-
-        qs = BeneficiarySupportEntry.objects.filter(
-            beneficiary=history.beneficiary,
-            created_at__date__gte=history.start_date,
-        )
-
-        if history.end_date:
-            qs = qs.filter(
-                created_at__date__lte=history.end_date
-            )
-
-        support_entries = support_entries | qs
-
-    support_entries = (
-        support_entries
-        .select_related(
-            "beneficiary",
-            "sub_program",
-            "main_program",
-        )
-    )
     # ==========================
     # إجمالي الدعم
     # ==========================
@@ -199,13 +213,12 @@ def dashboard(request):
     )
 
 
-@login_required(login_url='Donation:login')
+@donor_required
 def beneficiaries(request):
     """
     قائمة المكفولين
     """
-    beneficiaries = Beneficiary.objects.filter(
-    donor=request.user.profile).order_by("first_name")
+    beneficiaries = _current_beneficiaries(request.user.profile).order_by("first_name")
 
     context = {
         "beneficiaries": beneficiaries,
@@ -219,7 +232,7 @@ def beneficiaries(request):
     )
 
 
-@login_required(login_url='Donation:login')
+@donor_required
 def beneficiary_detail(request, pk):
     """
     تفاصيل مكفول للداعم الحالي
@@ -227,86 +240,12 @@ def beneficiary_detail(request, pk):
 
     # نتأكد أن المستفيد يتبع لهذا الداعم فقط
     beneficiary = get_object_or_404(
-        Beneficiary,
+        _current_beneficiaries(request.user.profile),
         pk=pk,
-        donor=request.user.profile,
     )
-    # أول تاريخ تم فيه ربط هذا المستفيد بهذا الكافل
-    allocation = (
-        FinancialSponsorshipAllocation.objects
-        .filter(
-            beneficiary=beneficiary,
-            sponsorship_invoice__sponsor=request.user.profile,
-        )
-        .order_by("created_at")
-        .first()
-    )
-
-    support_entries = BeneficiarySupportEntry.objects.filter(
-        beneficiary=beneficiary
-    )
-
-    # إذا وجدنا بداية للكفالة نحسب الدعم من ذلك التاريخ فقط
-    if allocation:
-        support_entries = support_entries.filter(
-            created_at__gte=allocation.sponsorship_invoice.start_date
-        )
-
-    # support_entries = (
-    #     support_entries
-    #     .select_related(
-    #         "sub_program",
-    #         "main_program",
-    #     )
-    #     .order_by("-created_at")
-    # )
-    # =====================================
-# فترة الكفالة الحالية لهذا الداعم
-# =====================================
-
-    history = (
-    BeneficiarySponsorHistory.objects
-    .filter(
-        beneficiary=beneficiary,
-        donor=request.user.profile,
-    )
-    .order_by("-start_date")
-    .first()
-    )
-
-    support_entries = BeneficiarySupportEntry.objects.filter(
-    beneficiary=beneficiary
-    )
-
-    if history:
-
-        support_entries = support_entries.filter(
-            created_at__date__gte=history.start_date,
-        )
-
-        if history.end_date:
-            support_entries = support_entries.filter(
-                created_at__date__lte=history.end_date,
-            )
-
-    support_entries = (
-        support_entries
-        .select_related(
-            "sub_program",
-            "main_program",
-        )
-        .order_by("-created_at")
-    )
-        # جميع عمليات الدعم للمستفيد
-    # support_entries = (
-    #     BeneficiarySupportEntry.objects
-    #     .filter(beneficiary=beneficiary)
-    #     .select_related(
-    #         "sub_program",
-    #         "main_program",
-    #     )
-    #     .order_by("-created_at")
-    # )
+    support_entries = _sponsored_supports(
+        request.user.profile, beneficiary=beneficiary
+    ).select_related("sub_program", "main_program").order_by("-created_at")
 
     # إجمالي ما استفاد منه
     total_support = (
@@ -355,7 +294,7 @@ def beneficiary_detail(request, pk):
 
 
 
-@login_required(login_url='Donation:login')
+@donor_required
 def invoices(request):
     """
     عرض جميع سندات الكفالة الخاصة بالداعم
@@ -401,7 +340,7 @@ def invoices(request):
 from django.shortcuts import get_object_or_404
 
 
-@login_required(login_url='Donation:login')
+@donor_required
 def invoice_detail(request, pk):
     """
     تفاصيل سند الكفالة
@@ -418,11 +357,8 @@ def invoice_detail(request, pk):
     )
 
     allocations = (
-        invoice.allocations
-        .select_related(
-            "beneficiary",
-            "balance_entry",
-        )
+        FinancialSponsorshipAllocation.objects.filter(sponsorship_invoice=invoice)
+        .select_related("beneficiary")
     )
 
     beneficiaries_summary = []
@@ -435,28 +371,10 @@ def invoice_detail(request, pk):
 
         beneficiary = allocation.beneficiary
 
-        history = (
-            BeneficiarySponsorHistory.objects
-            .filter(
-                beneficiary=beneficiary,
-                donor=request.user.profile,
-            )
-            .order_by("-start_date")
-            .first()
+        supports = _sponsored_supports(
+            request.user.profile, beneficiary=beneficiary,
+            start=invoice.start_date, end=invoice.end_date,
         )
-
-        if not history:
-            continue
-
-        supports = BeneficiarySupportEntry.objects.filter(
-            beneficiary=beneficiary,
-            created_at__date__gte=history.start_date,
-        )
-
-        if history.end_date:
-            supports = supports.filter(
-                created_at__date__lte=history.end_date
-            )
 
         beneficiary_total = (
             supports.aggregate(
@@ -491,9 +409,9 @@ def invoice_detail(request, pk):
 
             "beneficiary": beneficiary,
 
-            "start_date": history.start_date,
+            "start_date": invoice.start_date,
 
-            "end_date": history.end_date,
+            "end_date": invoice.end_date,
 
             "total_support": beneficiary_total,
 
@@ -529,7 +447,7 @@ def invoice_detail(request, pk):
         context,
     )
 
-@login_required(login_url="Donation:login")
+@donor_required
 def profile(request):
     """
     الملف الشخصي للداعم
@@ -543,9 +461,7 @@ def profile(request):
     # عدد المكفولين الحاليين
     # ==========================
 
-    beneficiaries_count = Beneficiary.objects.filter(
-        donor=profile
-    ).count()
+    beneficiaries_count = _current_beneficiaries(profile).count()
 
     # ==========================
     # جميع السندات
@@ -580,30 +496,9 @@ def profile(request):
 
     total_support = Decimal("0.00")
 
-    histories = BeneficiarySponsorHistory.objects.filter(
-        donor=profile
-    ).select_related("beneficiary")
-
-    for history in histories:
-
-        qs = BeneficiarySupportEntry.objects.filter(
-            beneficiary=history.beneficiary,
-            created_at__date__gte=history.start_date,
-        )
-
-        if history.end_date:
-            qs = qs.filter(
-                created_at__date__lte=history.end_date
-            )
-
-        amount = qs.aggregate(
-            total=Sum("amount")
-        )["total"] or Decimal("0.00")
-
-        total_support += amount
-    # ==========================
-    # تاريخ أول كفالة
-    # ==========================
+    total_support = _sponsored_supports(profile).aggregate(
+        total=Sum("amount")
+    )["total"] or Decimal("0.00")
 
     first_sponsorship = (
         BeneficiarySponsorHistory.objects

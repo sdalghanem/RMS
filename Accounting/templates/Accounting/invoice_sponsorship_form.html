@@ -443,6 +443,8 @@
 
     <form method="post" novalidate>
 
+
+
         {% csrf_token %}
 
 
@@ -464,7 +466,7 @@
 
 
         <!-- =====================================================
-             ① بيانات السند
+             ① بيانات الكافل
         ===================================================== -->
 
         <div class="section-card">
@@ -473,6 +475,117 @@
 
                 <div class="section-number">
                     ١
+                </div>
+
+                <div>
+
+                    <div class="section-title">
+                        بيانات الكافل
+                    </div>
+
+                    <div class="section-description">
+                        ابحث عن الكافل بالاسم أو جزء من الاسم واختره من النتائج.
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <div class="section-body">
+
+                <div class="row g-3">
+
+                    <div class="col-lg-8">
+
+                        <label class="field-label">
+
+                            <i class="bi bi-person-check"></i>
+
+                            {{ form.sponsor.label }}
+
+                            <span class="required-mark">*</span>
+
+                        </label>
+
+
+                        <!-- =================================================
+                             Select2 + زر إضافة كافل
+                        ================================================= -->
+
+                        <div class="d-flex gap-2 align-items-start">
+
+
+                            <div class="flex-grow-1 sponsor-select-wrapper">
+
+                                {{ form.sponsor }}
+
+                            </div>
+
+
+                            <button
+                                type="button"
+                                class="btn btn-outline-primary"
+                                style="height:38px; min-width:46px;"
+                                data-bs-toggle="modal"
+                                data-bs-target="#newSponsorModal"
+                                title="إضافة كافل جديد"
+                            >
+
+                                <i class="bi bi-person-plus"></i>
+
+                            </button>
+
+
+                        </div>
+
+
+                        {% if form.sponsor.errors %}
+
+                            <div class="field-error">
+
+                                {{ form.sponsor.errors.0 }}
+
+                            </div>
+
+                        {% endif %}
+
+
+                        <div class="field-help">
+
+                            اكتب اسم الكافل أو جزءًا منه للبحث مباشرة.
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="section-card">
+            <div class="section-header"><label class="d-flex align-items-center gap-2 mb-0" for="choose-beneficiary"><input type="checkbox" id="choose-beneficiary" class="form-check-input m-0" aria-expanded="false" aria-controls="beneficiary-selection"> اختيار مستفيد</label></div>
+            <div id="beneficiary-selection" class="section-body" hidden>
+                <label class="field-label" for="id_beneficiary">المستفيد (اختياري)</label>
+                <div class="sponsor-select-wrapper">{{ form.beneficiary }}</div>
+                {{ form.beneficiary.errors }}
+                <div class="field-help">ابحث بجزء من الاسم أو رقم الهوية واختر مستفيدًا مسجلًا.</div>
+            </div>
+        </div>
+        <!-- =====================================================
+             ② بيانات السند
+        ===================================================== -->
+
+        <div class="section-card">
+
+            <div class="section-header">
+
+                <div class="section-number">
+                    ٢
                 </div>
 
                 <div>
@@ -510,6 +623,7 @@
                         </label>
 
                         {{ form.number }}
+{% include "Accounting/invoice_number_status.html" %}
 
                         {% if form.number.errors %}
 
@@ -667,107 +781,6 @@
                                 </div>
 
                             {% endif %}
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- =====================================================
-             ② بيانات الكافل
-        ===================================================== -->
-
-        <div class="section-card">
-
-            <div class="section-header">
-
-                <div class="section-number">
-                    ٢
-                </div>
-
-                <div>
-
-                    <div class="section-title">
-                        بيانات الكافل
-                    </div>
-
-                    <div class="section-description">
-                        ابحث عن الكافل بالاسم أو جزء من الاسم واختره من النتائج.
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            <div class="section-body">
-
-                <div class="row g-3">
-
-                    <div class="col-lg-8">
-
-                        <label class="field-label">
-
-                            <i class="bi bi-person-check"></i>
-
-                            {{ form.sponsor.label }}
-
-                            <span class="required-mark">*</span>
-
-                        </label>
-
-
-                        <!-- =================================================
-                             Select2 + زر إضافة كافل
-                        ================================================= -->
-
-                        <div class="d-flex gap-2 align-items-start">
-
-
-                            <div class="flex-grow-1 sponsor-select-wrapper">
-
-                                {{ form.sponsor }}
-
-                            </div>
-
-
-                            <button
-                                type="button"
-                                class="btn btn-outline-primary"
-                                style="height:38px; min-width:46px;"
-                                data-bs-toggle="modal"
-                                data-bs-target="#newSponsorModal"
-                                title="إضافة كافل جديد"
-                            >
-
-                                <i class="bi bi-person-plus"></i>
-
-                            </button>
-
-
-                        </div>
-
-
-                        {% if form.sponsor.errors %}
-
-                            <div class="field-error">
-
-                                {{ form.sponsor.errors.0 }}
-
-                            </div>
-
-                        {% endif %}
-
-
-                        <div class="field-help">
-
-                            اكتب اسم الكافل أو جزءًا منه للبحث مباشرة.
 
                         </div>
 
@@ -1394,68 +1407,8 @@
                         </div>
 
 
-                        <!-- كلمة المرور -->
-
-                        <div class="col-md-6">
-
-                            <label class="form-label small fw-semibold">
-
-                                كلمة المرور
-
-                                <span class="required-mark">*</span>
-
-                            </label>
-
-                            <input
-                                type="password"
-                                name="password1"
-                                class="form-control"
-                                required
-                            >
-
-                            <div
-                                class="text-danger small mt-1 d-none"
-                                data-error="password1"
-                            ></div>
-
-                            <div class="form-text small text-muted">
-                                ٨ أحرف على الأقل وتحتوي حرفًا ورقمًا.
-                            </div>
-
-                        </div>
-
-
-                        <!-- تأكيد كلمة المرور -->
-
-                        <div class="col-md-6">
-
-                            <label class="form-label small fw-semibold">
-
-                                تأكيد كلمة المرور
-
-                                <span class="required-mark">*</span>
-
-                            </label>
-
-                            <input
-                                type="password"
-                                name="password2"
-                                class="form-control"
-                                required
-                            >
-
-                            <div
-                                class="text-danger small mt-1 d-none"
-                                data-error="password2"
-                            ></div>
-
-                        </div>
-
-                    </div>
-
+                                            </div>
                 </div>
-
-
                 <div class="modal-footer">
 
                     <button
@@ -1905,6 +1858,47 @@
 
 <script>
 $(document).ready(function () {
+
+    const beneficiarySelect = $("#id_beneficiary");
+    const beneficiaryPanel = document.getElementById("beneficiary-selection");
+    const chooseBeneficiary = document.getElementById("choose-beneficiary");
+    function showBeneficiary() {
+        chooseBeneficiary.checked = true;
+        beneficiaryPanel.hidden = false;
+        chooseBeneficiary.setAttribute("aria-expanded", "true");
+        if (!beneficiarySelect.hasClass("select2-hidden-accessible")) {
+            beneficiarySelect.select2({
+                width: "100%", dir: "rtl", placeholder: "ابحث باسم المستفيد أو رقم الهوية...",
+                allowClear: true, minimumInputLength: 2,
+                ajax: {
+                    url: "{% url 'Accounting:ajax_beneficiary_search' %}", dataType: "json", delay: 250,
+                    data: function(params) { return {q: params.term || "", sponsorship: "1", start_date: $("#id_start_date").val(), end_date: $("#id_end_date").val()}; },
+                    processResults: function(data) { return {results: data.results.map(function(item) {
+                        return {id: item.id, text: item.name + (item.blocked_reason ? " — " + item.blocked_reason : ""), disabled: Boolean(item.blocked_reason)};
+                    })}; }
+                },
+                language: {
+                    searching: function() { return "جاري البحث..."; },
+                    noResults: function() { return "لا توجد نتائج"; },
+                    inputTooShort: function() { return "اكتب حرفين على الأقل للبحث"; }
+                }
+            });
+        }
+    }
+    chooseBeneficiary.addEventListener("change", function() {
+        if (this.checked) {
+            showBeneficiary();
+            beneficiarySelect.select2("open");
+        } else {
+            beneficiarySelect.val(null).trigger("change");
+            if (beneficiarySelect.hasClass("select2-hidden-accessible")) {
+                beneficiarySelect.select2("close");
+            }
+            beneficiaryPanel.hidden = true;
+            this.setAttribute("aria-expanded", "false");
+        }
+    });
+    {% if form.beneficiary.value or form.beneficiary.errors %}showBeneficiary();{% endif %}
 
     const sponsorSelect = $("#id_sponsor");
 

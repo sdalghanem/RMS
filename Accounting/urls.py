@@ -123,3 +123,7 @@ path(
     name="fund_reservations_dashboard",
 ),
 ]
+
+urlpatterns += [path("sponsors/import/", views.sponsors_import, name="sponsors_import")]
+
+urlpatterns += [path("api/invoice-number/available/", views.invoice_number_available, name="invoice_number_available")]

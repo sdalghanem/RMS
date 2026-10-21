@@ -18,18 +18,8 @@ class AuditMiddleware(MiddlewareMixin):
     def _scrub(self, data):
         if not isinstance(data, dict):
             return None
-        clean = {}
-        for k, v in data.items():
-            if k in SENSITIVE_KEYS:
-                clean[k] = "***"
-            else:
-                # قلل الحجم: خذ 500 حرف بالكثير
-                if isinstance(v, (list, tuple)):
-                    v = v[:20]
-                elif isinstance(v, str) and len(v) > 500:
-                    v = v[:500] + "...(+truncated)"
-                clean[k] = v
-        return clean
+        # Preserve field names for diagnostics, never request-field values.
+        return {str(key)[:100]: "***" for key in list(data)[:100]}
 
     def process_view(self, request, view_func, view_args, view_kwargs):
         # خزّن معلومات أولية للاستخدام في process_response

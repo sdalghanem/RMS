@@ -1,3 +1,8 @@
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import permission_required
+from django.views.decorators.http import require_POST
+from .views import role_required
+from .models import Profile
 # Management/views_programs.py
 
 from django.db.models import (
@@ -28,6 +33,7 @@ from .forms import MainProgramForm, SubProgramForm
 # قائمة البرامج
 # ============================================================
 
+@method_decorator(role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]), name="dispatch")
 class ProgramListView(LoginRequiredMixin , ListView):
 
     template_name = "Management/programs/list.html"
@@ -157,6 +163,7 @@ class ProgramListView(LoginRequiredMixin , ListView):
 # تفاصيل البرنامج
 # ============================================================
 
+@method_decorator(role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]), name="dispatch")
 class ProgramDetailView(LoginRequiredMixin , DetailView):
 
     model = MainProgram
@@ -252,6 +259,8 @@ class ProgramDetailView(LoginRequiredMixin , DetailView):
 # ============================================================
 
 
+@method_decorator(role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]), name="dispatch")
+@method_decorator(permission_required("Management.add_mainprogram", raise_exception=True), name="dispatch")
 class MainProgramCreateView(LoginRequiredMixin , CreateView):
 
     model = MainProgram
@@ -293,6 +302,8 @@ class MainProgramCreateView(LoginRequiredMixin , CreateView):
 # ============================================================
 
 
+@method_decorator(role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT, Profile.Roles.CASHIER]), name="dispatch")
+@method_decorator(permission_required("Management.add_subprogram", raise_exception=True), name="dispatch")
 class SubProgramCreateView(LoginRequiredMixin , CreateView):
 
     model = SubProgram
@@ -358,6 +369,8 @@ class SubProgramCreateView(LoginRequiredMixin , CreateView):
 # ============================================================
 
 @login_required
+@permission_required("Management.change_mainprogram", raise_exception=True)
+@require_POST
 def program_toggle(request, pk):
 
     program = get_object_or_404(

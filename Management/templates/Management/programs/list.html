@@ -116,19 +116,17 @@
         {% endif %}
         {% if p.is_active %}
 
-<a href="{% url 'Management:program_toggle' p.pk %}"
-   class="btn btn-outline-warning btn-sm">
+<form method="post" action="{% url 'Management:program_toggle' p.pk %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-outline-warning btn-sm">
     <i class="bi bi-pause-circle"></i>
     إيقاف
-</a>
+</button></form>
 
 {% else %}
 
-<a href="{% url 'Management:program_toggle' p.pk %}"
-   class="btn btn-outline-success btn-sm">
+<form method="post" action="{% url 'Management:program_toggle' p.pk %}" class="d-inline">{% csrf_token %}<button type="submit" class="btn btn-outline-success btn-sm">
     <i class="bi bi-play-circle"></i>
     تفعيل
-</a>
+</button></form>
 
 {% endif %}
       </div>
