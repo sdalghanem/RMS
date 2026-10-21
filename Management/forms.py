@@ -19,6 +19,13 @@ from Accounting.models import FinancialSponsorshipInvoice
 User = get_user_model()
 
 
+def sponsorship_sponsor_name(profile):
+    return " ".join(str(part).strip() for part in (
+        profile.user.first_name, profile.father_name, profile.grandpa_name,
+        profile.user.last_name,
+    ) if part and str(part).strip()) or profile.user.username
+
+
 class SponsorshipInvoiceSelect(forms.Select):
 
     def create_option(
@@ -44,10 +51,8 @@ class SponsorshipInvoiceSelect(forms.Select):
         invoice = getattr(value, "instance", None)
 
         if invoice:
-            sponsor_name = (
-                invoice.sponsor.user.get_full_name()
-                or invoice.sponsor.user.username
-            )
+            sponsor_name = sponsorship_sponsor_name(invoice.sponsor)
+            option["attrs"]["data-number"] = invoice.invoice.number
 
             option["attrs"]["data-sponsor"] = sponsor_name
             option["attrs"]["data-amount"] = (
@@ -477,6 +482,7 @@ class BeneficiariesBulkAssignForm(forms.Form):
         label="سند الكفالة",
         required=True,
         empty_label="اختر سند الكفالة",
+        error_messages={"invalid_choice": "السند غير متاح: قد يكون ملحقًا أو خارج فترة السريان. حدّث الصفحة وتحقق من تواريخه."},
         widget=SponsorshipInvoiceSelect(
             attrs={
                 "class": "form-select sponsorship-select",
@@ -490,14 +496,13 @@ class BeneficiariesBulkAssignForm(forms.Form):
     )
 
     def __init__(self, *args, **kwargs):
+        allow_future = kwargs.pop("allow_future", False)
         super().__init__(*args, **kwargs)
-
         today = timezone.localdate()
 
         queryset = (
             FinancialSponsorshipInvoice.objects
             .filter(
-                start_date__lte=today,
                 end_date__gte=today,
                 allocation__isnull=True,
             )
@@ -512,6 +517,8 @@ class BeneficiariesBulkAssignForm(forms.Form):
             )
         )
 
+        if not allow_future:
+            queryset = queryset.filter(start_date__lte=today)
         self.fields["sponsorship_invoice"].queryset = queryset
 
         self.fields[
@@ -521,17 +528,10 @@ class BeneficiariesBulkAssignForm(forms.Form):
     @staticmethod
     def _sponsorship_label(obj):
 
-        sponsor_name = (
-            obj.sponsor.user.get_full_name()
-            or obj.sponsor.user.username
-        )
-
+        sponsor_name = sponsorship_sponsor_name(obj.sponsor)
         return (
-            f"سند #{obj.invoice.number} | "
-            f"{sponsor_name} | "
-            f"{obj.total_amount:,.2f} ر.س | "
-            f"{obj.start_date:%Y-%m-%d} → "
-            f"{obj.end_date:%Y-%m-%d}"
+            f"رقم السند: {obj.invoice.number} — المبلغ: {obj.total_amount:,.2f} ر.س — "
+            f"الكافل: {sponsor_name}"
         )
 
 
@@ -573,3 +573,14 @@ class PaymentPlanForm(forms.ModelForm):
             "duration_months": "المدة (بالأشهر)",
             "is_active": "نشطة",
         }
+
+
+class SponsorshipDatesForm(forms.Form):
+    start_date = forms.DateField(label="تاريخ البداية", widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+    end_date = forms.DateField(label="تاريخ النهاية", widget=forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"))
+
+    def clean(self):
+        data = super().clean()
+        if data.get("start_date") and data.get("end_date") and data["end_date"] <= data["start_date"]:
+            raise forms.ValidationError("تاريخ النهاية يجب أن يكون بعد البداية.")
+        return data

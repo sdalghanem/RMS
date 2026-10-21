@@ -1,3 +1,5 @@
+from .views import role_required
+from .models import Profile
 # Management/views_payment_plans.py  (ملف جديد أو ضمّه لملف الفيوز عندك)
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponseForbidden
@@ -12,13 +14,13 @@ from django.contrib import messages
 
 
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_list(request):
    
     plans = PaymentPlan.objects.order_by("-created_at")
     return render(request, "Management/payment_plans/list.html", {"plans": plans, "title": "إدارة الدفعات"})
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_create(request):
    
     if request.method == "POST":
@@ -35,7 +37,7 @@ def payment_plan_create(request):
 def _require_superuser(request):
     return request.user.is_authenticated and request.user.is_superuser
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_list(request):
    
     plans = PaymentPlan.objects.order_by("-created_at")
@@ -44,7 +46,7 @@ def payment_plan_list(request):
         "title": "إدارة الدفعات"
     })
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_create(request):
    
     if request.method == "POST":
@@ -61,7 +63,7 @@ def payment_plan_create(request):
         "title": "إضافة خطة دفع"
     })
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_update(request, pk):
    
     plan = get_object_or_404(PaymentPlan, pk=pk)
@@ -80,7 +82,7 @@ def payment_plan_update(request, pk):
         "plan": plan,
     })
 
-@login_required
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def payment_plan_delete(request, pk):
    
     plan = get_object_or_404(PaymentPlan, pk=pk)

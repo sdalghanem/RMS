@@ -160,6 +160,7 @@
     </div>
 
 
+{% if request.user.profile.role == 'system_admin' %}
     <div class="d-flex gap-2">
 
         <a
@@ -180,6 +181,7 @@
         </a>
 
     </div>
+{% endif %}
 
 </div>
 
@@ -657,7 +659,7 @@
                                     class="btn btn-sm btn-outline-primary btn-rms btn-sponsorship"
                                     title="إلحاق بسند كفالة"
                                     data-beneficiary-id="{{ b.id }}"
-                                    data-beneficiary-name="{{ b.first_name }}{% if b.father_name %} {{ b.father_name }}{% endif %}{% if b.grand_name %} {{ b.grand_name }}{% endif %} {{ b.last_name }}"
+                                    data-beneficiary-name="{{ b.first_name }}{% if b.father_name %} {{ b.father_name }}{% endif %}{% if b.grand_name %} {{ b.grand_name }}{% else %} {{ b.last_name }}{% endif %}"
                                     data-bs-toggle="modal"
                                     data-bs-target="#sponsorshipModal"
                                 >
@@ -1308,6 +1310,7 @@
                     if (sponsorshipSelect) {
 
                         sponsorshipSelect.value = "";
+                        $(sponsorshipSelect).trigger("change.select2");
 
                     }
 
@@ -1495,4 +1498,35 @@
 
 </script>
 
+{% endblock %}
+{% block extra_js %}
+<script>
+$(function () {
+    const select = $("#{{ bulk_form.sponsorship_invoice.id_for_label }}");
+    select.select2({
+        dropdownParent: $("#sponsorshipModal"),
+        width: "100%",
+        dir: "rtl",
+        placeholder: "ابحث برقم السند أو اسم الكافل...",
+        allowClear: true,
+        minimumResultsForSearch: 0,
+        templateResult: function (item) {
+            if (!item.id || !item.element) return item.text;
+            const data = item.element.dataset;
+            const row = $("<div>").attr("dir", "rtl").css("white-space", "normal");
+            $("<div>").css("font-weight", "600")
+                .text("رقم السند: " + data.number + " — المبلغ: " + data.amount).appendTo(row);
+            $("<div>").text("الكافل: " + data.sponsor).appendTo(row);
+            return row;
+        },
+        language: {
+            noResults: function () { return "لا توجد سندات متاحة مطابقة للبحث"; },
+            searching: function () { return "جاري البحث..."; }
+        }
+    });
+    select.on("select2:select select2:clear", function () {
+        this.dispatchEvent(new Event("change", {bubbles: true}));
+    });
+});
+</script>
 {% endblock %}

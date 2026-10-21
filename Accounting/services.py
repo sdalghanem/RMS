@@ -1,3 +1,4 @@
+from functools import wraps
 from decimal import Decimal
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
@@ -11,6 +12,21 @@ from .models import (
     MainProgram,
     SubProgram,
 )
+
+
+def financial_transaction(func):
+    @wraps(func)
+    def wrapped(*args, **kwargs):
+        with transaction.atomic():
+            # Serialize ledger mutations on existing program rows, in one order.
+            # No sentinel data or schema change is needed; allocation requires a program.
+            list(MainProgram.objects.select_for_update().order_by("pk").values_list("pk", flat=True))
+            for name in ("main_program", "sub_program", "from_main_program", "to_main_program", "disbursement"):
+                obj = kwargs.get(name)
+                if obj is not None:
+                    obj.refresh_from_db()
+            return func(*args, **kwargs)
+    return wrapped
 
 
 def get_fund_balance() -> Decimal:
@@ -180,6 +196,7 @@ def get_sub_program_balance(sub_program) -> Decimal:
     )
 
 # تخصيص من صندوق الجمعية لبرنامج رئيسي 
+@financial_transaction
 def allocate_to_main_program(
     *,
     main_program,
@@ -197,7 +214,7 @@ def allocate_to_main_program(
 
     amount = Decimal(amount)
 
-    if amount <= 0:
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
         raise ValueError("يجب أن يكون المبلغ أكبر من صفر.")
 
     available = get_available_for_allocation()
@@ -225,6 +242,7 @@ def allocate_to_main_program(
 
     return history
 
+@financial_transaction
 def allocate_to_sub_program(
     *,
     main_program,
@@ -242,7 +260,7 @@ def allocate_to_sub_program(
 
     amount = Decimal(amount)
 
-    if amount <= 0:
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
         raise ValueError("يجب أن يكون المبلغ أكبر من صفر.")
 
     if sub_program.main_program_id != main_program.id:
@@ -277,6 +295,7 @@ def allocate_to_sub_program(
 
     return history
 
+@financial_transaction
 def release_from_sub_program(
     *,
     sub_program,
@@ -293,7 +312,7 @@ def release_from_sub_program(
 
     amount = Decimal(amount)
 
-    if amount <= 0:
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
         raise ValueError("يجب أن يكون المبلغ أكبر من صفر.")
 
     available = get_sub_program_balance(sub_program)
@@ -326,6 +345,7 @@ def release_from_sub_program(
     return history
 
 
+@financial_transaction
 def release_from_main_program(
     *,
     main_program,
@@ -343,7 +363,7 @@ def release_from_main_program(
 
     amount = Decimal(amount)
 
-    if amount <= 0:
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
         raise ValueError("يجب أن يكون المبلغ أكبر من صفر.")
 
     available = get_main_program_balance(main_program)
@@ -376,6 +396,7 @@ def release_from_main_program(
 
 
 #إعادة تخصيص من برنامج رئيسي إلى برنامج رئيسي آخر
+@financial_transaction
 def reallocate_main_to_main(
     *,
     from_main_program,
@@ -393,7 +414,7 @@ def reallocate_main_to_main(
 
     amount = Decimal(amount)
 
-    if amount <= 0:
+    if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
         raise ValueError("يجب أن يكون المبلغ أكبر من صفر.")
 
     if from_main_program.id == to_main_program.id:
@@ -446,7 +467,11 @@ def validate_subprogram_disbursement(
     والصندوق ينقص فقط عند تنفيذ الصرف الفعلي.
     """
 
-    if not voucher_number:
+    if not sub_program.main_program.is_active:
+        raise ValueError("البرنامج موقوف.")
+    if len({item["beneficiary"].pk for item in beneficiaries}) != len(beneficiaries):
+        raise ValueError("لا يمكن تكرار المستفيد في أمر الصرف.")
+    if not voucher_number or len(voucher_number) > 30:
         raise ValueError("رقم سند الصرف مطلوب.")
 
     if SubProgramDisbursement.objects.filter(
@@ -465,7 +490,7 @@ def validate_subprogram_disbursement(
 
         amount = Decimal(item["amount"])
 
-        if amount <= 0:
+        if not amount.is_finite() or amount <= 0 or amount != amount.quantize(Decimal("0.01")):
             raise ValueError(
                 "جميع مبالغ الصرف يجب أن تكون أكبر من صفر."
             )
@@ -490,132 +515,12 @@ def validate_subprogram_disbursement(
     return total_amount
 
 
-def create_disbursement(
-    *,
-    sub_program,
-    voucher_number,
-    note,
-    user,
-):
-    return SubProgramDisbursement.objects.create(
-        sub_program=sub_program,
-        source_type=SubProgramDisbursement.SourceTypes.SUB_PROGRAM,
-        voucher_number=voucher_number,
-        notes=note,
-        created_by=user,
-    )
 
 
-def create_support_entries(
-    *,
-    disbursement,
-    sub_program,
-    beneficiaries,
-    voucher_number,
-    note,
-    user,
-):
-    entries = []
-
-    for item in beneficiaries:
-
-        beneficiary = item["beneficiary"]
-        amount = Decimal(item["amount"])
-
-        entry = BeneficiarySupportEntry.objects.create(
-            beneficiary=beneficiary,
-            main_program=sub_program.main_program,
-            sub_program=sub_program,
-            disbursement=disbursement,
-            voucher_number=voucher_number,
-            amount=amount,
-            note=note,
-            created_by=user,
-        )
-
-        entries.append(entry)
-
-    return entries
 
 
-def create_fund_entry(
-    *,
-    sub_program,
-    total_amount,
-    voucher_number,
-    user,
-):
-    """
-    هذه هي النقطة الوحيدة التي تنقص الصندوق.
-    """
-
-    return FundEntry.objects.create(
-        invoice=None,
-        beneficiary=None,
-        main_program=sub_program.main_program,
-        sub_program=sub_program,
-        type=FundEntry.Types.PROGRAM_EXPENSE,
-        amount=-Decimal(total_amount),
-        voucher_number=voucher_number,
-        description=(
-            f"صرف من البرنامج الفرعي "
-            f"{sub_program.name}"
-        ),
-        created_by=user,
-    )
 
 
-def spend_from_sub_program(
-    *,
-    sub_program,
-    beneficiaries,
-    voucher_number,
-    user,
-    note="",
-):
-    """
-    تنفيذ الصرف بالكامل داخل Transaction واحدة.
-    """
-
-    total_amount = validate_subprogram_disbursement(
-        sub_program=sub_program,
-        beneficiaries=beneficiaries,
-        voucher_number=voucher_number,
-    )
-
-    with transaction.atomic():
-
-        disbursement = create_disbursement(
-            sub_program=sub_program,
-            voucher_number=voucher_number,
-            note=note,
-            user=user,
-        )
-
-        create_support_entries(
-            disbursement=disbursement,
-            sub_program=sub_program,
-            beneficiaries=beneficiaries,
-            voucher_number=voucher_number,
-            note=note,
-            user=user,
-        )
-
-        # زيادة المصروف على البرنامج الفرعي
-        sub_program.spent_amount += total_amount
-        sub_program.save(
-            update_fields=["spent_amount"]
-        )
-
-        # نقص الصندوق الحقيقي
-        create_fund_entry(
-            sub_program=sub_program,
-            total_amount=total_amount,
-            voucher_number=voucher_number,
-            user=user,
-        )
-
-    return disbursement
 
 
 def create_disbursement(
@@ -693,6 +598,7 @@ def create_fund_entry(
         created_by=user,
     )
 
+@financial_transaction
 def spend_from_sub_program(
     *,
     sub_program,
@@ -733,9 +639,15 @@ def spend_from_sub_program(
             user=user,
         )
 
+    sub_program = disbursement.sub_program
+    sub_program.spent_amount = BeneficiarySupportEntry.objects.filter(
+        sub_program=sub_program, disbursement__is_reversed=False,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    sub_program.save(update_fields=["spent_amount"])
     return disbursement
 
 # عكس عملية الصرف 
+@financial_transaction
 def reverse_subprogram_disbursement(
     *,
     disbursement,
@@ -842,4 +754,9 @@ def reverse_subprogram_disbursement(
             ]
         )
 
+    sub_program = disbursement.sub_program
+    sub_program.spent_amount = BeneficiarySupportEntry.objects.filter(
+        sub_program=sub_program, disbursement__is_reversed=False,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0.00")
+    sub_program.save(update_fields=["spent_amount"])
     return disbursement

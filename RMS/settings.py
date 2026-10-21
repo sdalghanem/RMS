@@ -162,8 +162,11 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
 EMAIL_HOST_USER = "sd.alghanem.works@gmail.com"
-EMAIL_HOST_PASSWORD = "whjvrlcnnuuqaxrt"
+EMAIL_HOST_PASSWORD = __import__("os").environ.get("EMAIL_HOST_PASSWORD", "")
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 
+
+# Reject active and overlapping sponsorship allocations.
+ALLOW_MULTIPLE_SPONSORSHIP_INVOICES = False

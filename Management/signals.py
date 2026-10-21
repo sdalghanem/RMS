@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
 from django.db.models.signals import post_save, post_delete
 from django.contrib.contenttypes.models import ContentType
-
+import sys
 from .models import AuditLog, Profile
 User = get_user_model()
 
@@ -99,6 +99,11 @@ def on_user_login_failed(sender, credentials, request, **kwargs):
 def on_any_model_saved(sender, instance, created, **kwargs):
     if sender is AuditLog:
         return
+   
+    if "migrate" in sys.argv:
+        return
+
+    
     # اسم الكيان من ContentType
     ct = ContentType.objects.get_for_model(sender, for_concrete_model=False)
     entity = ct.model  # مثل "user", "profile", "donation"...

@@ -1,3 +1,7 @@
+from Accounting.forms import SponsorshipRenewalForm
+from django.core.exceptions import ValidationError
+from .sponsorship_ops import attach_sponsorship, update_sponsorship_dates, create_sponsorship, can_renew_sponsorship
+from .forms import SponsorshipDatesForm
 from functools import wraps
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -502,7 +506,7 @@ def beneficiaries_list(request):
     return render(request, "Management/beneficiaries_list.html", ctx)
 
 
-@role_required(_beneficiary_roles())
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def beneficiary_create(request):
     if request.method == "POST":
         form = BeneficiaryForm(request.POST)
@@ -581,7 +585,7 @@ def beneficiary_delete(request, pk):
     return redirect("Management:beneficiaries_list")
 
 # اضافه المستفيدين 
-@role_required(_beneficiary_roles())
+@role_required([Profile.Roles.SYSTEM_ADMIN])
 def beneficiaries_import(request):
     """
     يقبل رأس عربي نموذجي:
@@ -976,150 +980,22 @@ def beneficiaries_import(request):
 @role_required(_beneficiary_roles())
 @require_http_methods(["POST"])
 def beneficiaries_bulk_assign(request):
-
     form = BeneficiariesBulkAssignForm(request.POST)
-
     if not form.is_valid():
-        messages.error(
-            request,
-            "تعذر تنفيذ عملية الإلحاق. تحقق من البيانات."
-        )
+        messages.error(request, " ".join(str(e) for errors in form.errors.values() for e in errors))
         return redirect("Management:beneficiaries_list")
-
-    sponsorship_invoice = form.cleaned_data["sponsorship_invoice"]
-
-    ids_raw = (
-        request.POST.get("selected_ids")
-        or form.cleaned_data.get("ids")
-        or ""
-    )
-
+    raw = request.POST.get("selected_ids") or form.cleaned_data.get("ids") or ""
+    if not raw.isdecimal():
+        messages.error(request, "اختر مستفيدًا واحدًا صالحًا.")
+        return redirect("Management:beneficiaries_list")
     try:
-        ids = [
-            int(i.strip())
-            for i in ids_raw.split(",")
-            if i.strip().isdigit()
-        ]
-    except (TypeError, ValueError):
-        ids = []
-
-    # سند واحد = مستفيد واحد
-    if len(ids) != 1:
-        messages.error(
-            request,
-            "يجب اختيار مستفيد واحد فقط لإلحاقه بسند الكفالة."
-        )
-        return redirect("Management:beneficiaries_list")
-
-    beneficiary_id = ids[0]
-    today = timezone.localdate()
-
-    with transaction.atomic():
-
-        sponsorship_invoice = (
-            FinancialSponsorshipInvoice.objects
-            .select_for_update()
-            .select_related(
-                "invoice",
-                "sponsor",
-                "sponsor__user",
-            )
-            .get(pk=sponsorship_invoice.pk)
-        )
-
-        beneficiary = (
-            Beneficiary.objects
-            .select_for_update()
-            .get(pk=beneficiary_id)
-        )
-
-        # السند يجب أن يكون ساريًا
-        if (
-            sponsorship_invoice.start_date > today
-            or sponsorship_invoice.end_date < today
-        ):
-            messages.error(
-                request,
-                "سند الكفالة المحدد غير ساري حاليًا."
-            )
-            return redirect("Management:beneficiaries_list")
-
-        # السند لا يمكن استخدامه لأكثر من مستفيد
-        if FinancialSponsorshipAllocation.objects.filter(
-            sponsorship_invoice=sponsorship_invoice
-        ).exists():
-            messages.error(
-                request,
-                "سند الكفالة هذا مرتبط بالفعل بمستفيد."
-            )
-            return redirect("Management:beneficiaries_list")
-
-        # المستفيد لا يمكن أن يكون لديه كفالة سارية أخرى
-        active_history = (
-            BeneficiarySponsorHistory.objects
-            .filter(
-                beneficiary=beneficiary,
-                start_date__lte=today,
-                end_date__gte=today,
-            )
-            .select_related(
-                "donor",
-                "donor__user",
-            )
-            .first()
-        )
-
-        if active_history:
-
-            donor_name = (
-                active_history.donor.user.get_full_name()
-                or active_history.donor.user.username
-            )
-
-            messages.error(
-                request,
-                (
-                    "لا يمكن إلحاق المستفيد بسند جديد. "
-                    f"لديه كفالة سارية حاليًا مع "
-                    f"{donor_name} حتى "
-                    f"{active_history.end_date:%Y-%m-%d}."
-                ),
-            )
-
-            return redirect("Management:beneficiaries_list")
-
-        # إنشاء تخصيص السند للمستفيد
-        FinancialSponsorshipAllocation.objects.create(
-            sponsorship_invoice=sponsorship_invoice,
-            beneficiary=beneficiary,
-            amount=sponsorship_invoice.total_amount,
-        )
-
-        # إنشاء سجل تاريخ الكفالة
-        # BeneficiarySponsorHistory هو المصدر المعتمد للكفيل
-        BeneficiarySponsorHistory.objects.create(
-            beneficiary=beneficiary,
-            donor=sponsorship_invoice.sponsor,
-            start_date=sponsorship_invoice.start_date,
-            end_date=sponsorship_invoice.end_date,
-            assigned_by=request.user,
-        )
-
-    sponsor_name = (
-        sponsorship_invoice.sponsor.user.get_full_name()
-        or sponsorship_invoice.sponsor.user.username
-    )
-
-    messages.success(
-        request,
-        (
-            f"تم إلحاق المستفيد بنجاح بسند الكفالة "
-            f"رقم {sponsorship_invoice.invoice.number} "
-            f"مع الكافل {sponsor_name}."
-        ),
-    )
-
+        attach_sponsorship(form.cleaned_data["sponsorship_invoice"].pk, int(raw), request.user)
+    except (ValidationError, Beneficiary.DoesNotExist, FinancialSponsorshipInvoice.DoesNotExist) as exc:
+        messages.error(request, "; ".join(exc.messages) if isinstance(exc, ValidationError) else "السند أو المستفيد لم يعد موجودًا.")
+    else:
+        messages.success(request, "تم إلحاق السند مع حفظ جميع الارتباطات السابقة.")
     return redirect("Management:beneficiaries_list")
+
 
 
 @role_required(_beneficiary_roles())
@@ -1579,10 +1455,7 @@ def sponsorships_list(request):
         # 2- غير مرتبطة بمستفيد
         # -----------------------------------------------------
 
-        can_edit_dates = (
-            status == "expired"
-            and allocation is None
-        )
+        can_edit_dates = True
 
         # -----------------------------------------------------
         # مدة الكفالة
@@ -1627,6 +1500,7 @@ def sponsorships_list(request):
                 "remaining_amount": sponsorship.remaining_amount,
 
                 "can_edit_dates": can_edit_dates,
+                "can_renew": can_renew_sponsorship(sponsorship),
             }
         )
 
@@ -1680,151 +1554,42 @@ def sponsorships_list(request):
 
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER, Profile.Roles.ACCOUNTANT])
 def sponsorship_edit_dates(request, pk):
-
-    sponsorship = get_object_or_404(
-        FinancialSponsorshipInvoice,
-        pk=pk,
-    )
-
-    today = timezone.localdate()
-
-    # ---------------------------------------------------------
-    # لا يسمح بالتعديل إلا للكفالة المنتهية
-    # ---------------------------------------------------------
-
-    if not sponsorship.end_date or sponsorship.end_date >= today:
-
-        messages.error(
-            request,
-            "لا يمكن تعديل تاريخ هذه الكفالة إلا إذا كانت منتهية."
-        )
-
-        return redirect(
-            "Management:sponsorships_list"
-        )
-
-    # ---------------------------------------------------------
-    # التأكد من عدم وجود مستفيد مرتبط
-    # ---------------------------------------------------------
-
-    allocation = getattr(
-        sponsorship,
-        "allocation",
-        None,
-    )
-
-    if allocation is not None:
-
-        messages.error(
-            request,
-            "لا يمكن تعديل تاريخ كفالة مرتبطة بمستفيد."
-        )
-
-        return redirect(
-            "Management:sponsorships_list"
-        )
-
-    # ---------------------------------------------------------
-    # الحفظ
-    # ---------------------------------------------------------
-
-    if request.method == "POST":
-
-        start_date = request.POST.get("start_date")
-        end_date = request.POST.get("end_date")
-
-        if not start_date or not end_date:
-
-            messages.error(
-                request,
-                "يرجى إدخال تاريخ البداية والنهاية."
-            )
-
-            return render(
-                request,
-                "Management/sponsorship_edit_dates.html",
-                {
-                    "sponsorship": sponsorship,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                },
-            )
-
+    sponsorship = get_object_or_404(FinancialSponsorshipInvoice, pk=pk)
+    form = SponsorshipDatesForm(request.POST if request.method == "POST" else None, initial={"start_date": sponsorship.start_date, "end_date": sponsorship.end_date})
+    if request.method == "POST" and form.is_valid():
         try:
+            update_sponsorship_dates(pk, form.cleaned_data["start_date"], form.cleaned_data["end_date"])
+        except ValidationError as exc:
+            form.add_error(None, exc)
+        else:
+            messages.success(request, "تم تحديث تواريخ السند دون تغيير المبالغ أو سجل الإسناد التاريخي.")
+            return redirect("Management:sponsorships_list")
+    return render(request, "Management/sponsorship_edit_dates.html", {"sponsorship": sponsorship, "form": form})
 
-            new_start_date = datetime.strptime(
-                start_date,
-                "%Y-%m-%d",
-            ).date()
 
-            new_end_date = datetime.strptime(
-                end_date,
-                "%Y-%m-%d",
-            ).date()
 
-        except ValueError:
-
-            messages.error(
-                request,
-                "صيغة التاريخ غير صحيحة."
-            )
-
-            return render(
-                request,
-                "Management/sponsorship_edit_dates.html",
-                {
-                    "sponsorship": sponsorship,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                },
-            )
-
-        if new_end_date < new_start_date:
-
-            messages.error(
-                request,
-                "تاريخ النهاية يجب أن يكون بعد تاريخ البداية."
-            )
-
-            return render(
-                request,
-                "Management/sponsorship_edit_dates.html",
-                {
-                    "sponsorship": sponsorship,
-                    "start_date": start_date,
-                    "end_date": end_date,
-                },
-            )
-
-        sponsorship.start_date = new_start_date
-        sponsorship.end_date = new_end_date
-
-        sponsorship.save(
-            update_fields=[
-                "start_date",
-                "end_date",
-            ]
-        )
-
-        messages.success(
-            request,
-            "تم تعديل تاريخ الكفالة بنجاح."
-        )
-
-        return redirect(
-            "Management:sponsorships_list"
-        )
-
-    # ---------------------------------------------------------
-    # GET
-    # ---------------------------------------------------------
-
-    return render(
-        request,
-        "Management/sponsorship_edit_dates.html",
-        {
-            "sponsorship": sponsorship,
-            "start_date": sponsorship.start_date,
-            "end_date": sponsorship.end_date,
-        },
-    )
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER, Profile.Roles.ACCOUNTANT])
+def sponsorship_renew(request, pk):
+    previous = get_object_or_404(FinancialSponsorshipInvoice.objects.select_related("sponsor__user", "allocation__beneficiary"), pk=pk)
+    if not can_renew_sponsorship(previous):
+        return HttpResponseForbidden("التجديد متاح للسندات المنتهية أو القريبة من الانتهاء فقط.")
+    form = SponsorshipRenewalForm(request.POST if request.method == "POST" else None, previous=previous)
+    if request.method == "POST" and form.is_valid():
+        try:
+            with transaction.atomic():
+                previous = FinancialSponsorshipInvoice.objects.select_for_update().get(pk=pk)
+                if not can_renew_sponsorship(previous):
+                    raise ValidationError("السند لم يعد مؤهلًا للتجديد.")
+                create_sponsorship(form, request.user, sponsor=previous.sponsor,
+                    beneficiary=previous.beneficiary, record_income=False, allow_past=True, renewal_from=previous)
+        except IntegrityError:
+            form.add_error("number", "رقم السند مستخدم مسبقًا")
+        except ValidationError as exc:
+            form.add_error(None, " ".join(exc.messages))
+        else:
+            messages.success(request, "تم إنشاء سند التجديد المستقل دون تغيير السند السابق أو تسجيل دفعة مالية.")
+            return redirect("Management:sponsorships_list")
+    plans = [{"id": plan.pk, "amount": str(plan.amount), "months": plan.duration_months}
+             for plan in form.fields["payment_plan"].queryset]
+    return render(request, "Management/sponsorship_renew.html", {
+        "form": form, "previous": previous, "beneficiary": previous.beneficiary, "plans": plans})

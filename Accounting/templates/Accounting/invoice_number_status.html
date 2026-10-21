@@ -1,0 +1,3 @@
+{% load static %}
+<div id="invoice-number-status" role="status" aria-live="polite" data-input-id="{{ form.number.id_for_label }}" data-invoice-number-url="{% url 'Accounting:invoice_number_available' %}"></div>
+<script src="{% static 'accounting/js/invoice_number_check.js' %}" defer></script>

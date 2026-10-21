@@ -1,0 +1,67 @@
+{% extends "Management/base.html" %}
+{% block content %}
+<div class="container-fluid py-4" dir="rtl">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">إضافة كفلاء من CSV</h2>
+            <p class="text-muted mb-0">تسجيل عدة كفلاء باستخدام ملف واحد</p>
+        </div>
+        <a href="{% url 'Accounting:sponsor_create_page' %}" class="btn btn-outline-secondary">إضافة كافل جديد</a>
+    </div>
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+            <div class="card border-0 shadow-sm sponsor-form-card">
+                <div class="card-body p-4 p-lg-5">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+                        <div>
+                            <h5 class="fw-bold mb-1"><i class="bi bi-people ms-2" aria-hidden="true"></i>بيانات الكفلاء</h5>
+                            <div class="text-muted small">حمّل النموذج، ثم عبّئ البيانات وارفع الملف</div>
+                        </div>
+                        <a href="{% url 'Accounting:sponsors_import' %}?template=1" class="btn btn-outline-primary"><i class="bi bi-download ms-1" aria-hidden="true"></i>تحميل نموذج CSV</a>
+                    </div>
+                    <hr class="mb-4">
+                    <h6 class="fw-bold">أعمدة النموذج</h6>
+                    <ul class="row list-unstyled g-2 mb-4">
+                        {% for column in columns %}
+                        <li class="col-sm-6">{{ column.label }} <span class="small {% if column.required %}text-danger{% else %}text-muted{% endif %}">({% if column.required %}مطلوب{% else %}اختياري{% endif %})</span></li>
+                        {% endfor %}
+                    </ul>
+                    <div class="alert alert-info" id="csv-instructions">
+                        <p class="mb-2">اكتب الاسم كاملًا في خانة واحدة، مفصولًا بمسافات. يقبل النظام اسمين أو أكثر، ويقوم بتوزيع الاسم تلقائيًا على حقول الاسم الأول والأب والجد والعائلة عند الاستيراد.</p>
+                        <p class="mb-2">مثال: «محمد أحمد عبدالله العتيبي». عند زيادة الاسم على أربع كلمات، تُحفظ الكلمة الرابعة وما بعدها في اسم العائلة. يبقى الأب أو الجد فارغًا عند عدم توفره.</p>
+                        <p class="mb-2">النموذج بترميز UTF-8 BOM لعرض العربية في Excel. ضع كافلًا واحدًا في كل صف، واحفظ الملف بصيغة CSV UTF-8. الأعمدة الإنجليزية القديمة مدعومة أيضًا.</p>
+                        <p class="mb-2"><strong>في Excel:</strong> استورد الملف من «بيانات ← من نص/CSV»، وحدد نوع عمودي الجوال والهوية «نص» قبل التحميل أو إدخال البيانات للحفاظ على الأصفار الأولى. تغيير التنسيق بعد فقدان الأصفار لا يعيدها.</p>
+                        <p class="mb-0">الحد الأقصى 2 ميجابايت. تُتجاوز السجلات المكررة دون تغيير بيانات الكفلاء الحاليين. لا يتطلب الملف كلمات مرور.</p>
+                    </div>
+                    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+                    {% if summary %}
+                    <div class="alert alert-info" role="status"><strong>اكتمل الاستيراد:</strong> تمت إضافة {{ summary.added }} كافلًا، وتجاوز {{ summary.duplicates }} كافلًا بسبب التكرار، وفشل {{ summary.rejected }} صفًا بسبب أخطاء البيانات.</div>
+                    {% endif %}
+                    {% if row_errors %}
+                    <div class="alert alert-warning" role="alert">
+                        <h6 class="fw-bold">تفاصيل الصفوف المتجاوزة والفاشلة (تُعرض أول 50 ملاحظة)</h6>
+                        <p class="small">ترقيم السجلات يبدأ من 2 بعد صف أسماء الأعمدة. صحّح البيانات ثم أعد رفع الملف؛ ستُتجاوز السجلات التي أُضيفت.</p>
+                        <ul class="mb-0">{% for message in row_errors %}<li>{{ message }}</li>{% endfor %}</ul>
+                    </div>
+                    {% endif %}
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <label for="sponsors-file" class="form-label fw-semibold">اختر ملف CSV <span class="text-danger">*</span></label>
+                        <input id="sponsors-file" class="form-control form-control-lg" type="file" name="file" accept=".csv,text/csv" aria-describedby="csv-instructions selected-file" required>
+                        <div id="selected-file" class="form-text mt-2" aria-live="polite">لم يتم اختيار ملف بعد.</div>
+                        <div class="d-flex flex-wrap gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-upload ms-1" aria-hidden="true"></i>استيراد الكفلاء</button>
+                            <a href="{% url 'Accounting:sponsors_list' %}" class="btn btn-outline-secondary btn-lg">العودة للكفلاء</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+document.getElementById("sponsors-file").addEventListener("change", function () {
+    document.getElementById("selected-file").textContent = this.files.length ? "الملف المختار: " + this.files[0].name : "لم يتم اختيار ملف بعد.";
+});
+</script>
+{% endblock %}

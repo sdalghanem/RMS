@@ -368,3 +368,5 @@ urlpatterns = [
     name="sponsorship_edit_dates",
 ),
 ]
+from .views import sponsorship_renew
+urlpatterns += [path("sponsorships/<int:pk>/renew/", sponsorship_renew, name="sponsorship_renew")]

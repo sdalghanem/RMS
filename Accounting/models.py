@@ -395,6 +395,19 @@ class FinancialSponsorshipInvoice(models.Model):
         blank=True,
     )
 
+    def save(self, *args, **kwargs):
+        with transaction.atomic():
+            old = type(self).objects.select_for_update().filter(pk=self.pk).first() if self.pk else None
+            if old is None or (old.start_date, old.end_date) != (self.start_date, self.end_date):
+                if not self.start_date or not self.end_date or self.end_date <= self.start_date:
+                    raise ValidationError("تاريخ النهاية يجب أن يكون بعد تاريخ البداية.")
+                allocation = FinancialSponsorshipAllocation.objects.filter(sponsorship_invoice_id=self.pk).first() if self.pk else None
+                if allocation:
+                    Beneficiary.objects.select_for_update().get(pk=allocation.beneficiary_id)
+                    FinancialSponsorshipAllocation.validate_period(
+                        allocation.beneficiary_id, self.start_date, self.end_date, exclude_receipt=self.pk)
+            return super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = "تفاصيل كفالة مالية"
         verbose_name_plural = "تفاصيل الكفالات المالية"
@@ -598,11 +611,36 @@ class FinancialSponsorshipAllocation(models.Model):
             f"للمستفيد {self.beneficiary}"
         )
 
+    ACTIVE_MESSAGE = "لا يمكن ربط المستفيد بسند جديد لوجود كفالة سارية، ويمكن إضافته بعد انتهاء الكفالة الحالية"
+    OVERLAP_MESSAGE = "لا يمكن ربط المستفيد بسند جديد لتداخل فترته مع كفالة أخرى للمستفيد."
+
+    @classmethod
+    def validate_period(cls, beneficiary_id, start, end, *, renewal_from=None, exclude_receipt=None):
+        if not start or not end:
+            return
+        if end <= start:
+            raise ValidationError("تاريخ النهاية يجب أن يكون بعد تاريخ البداية.")
+        existing = cls.objects.filter(beneficiary_id=beneficiary_id)
+        if exclude_receipt is not None:
+            existing = existing.exclude(sponsorship_invoice_id=exclude_receipt)
+        if existing.filter(sponsorship_invoice__start_date__lte=end,
+                           sponsorship_invoice__end_date__gte=start).exists():
+            raise ValidationError(cls.OVERLAP_MESSAGE)
+
     def clean(self):
         super().clean()
 
         if not self.sponsorship_invoice_id:
             return
+
+        # Keep existing assignments, including legacy overlapping records, intact.
+        unchanged = self.pk and type(self).objects.filter(
+            pk=self.pk, beneficiary_id=self.beneficiary_id,
+            sponsorship_invoice_id=self.sponsorship_invoice_id).exists()
+        if self.beneficiary_id and not unchanged:
+            receipt = self.sponsorship_invoice
+            self.validate_period(self.beneficiary_id, receipt.start_date, receipt.end_date,
+                                 renewal_from=getattr(self, "_renewal_from", None))
 
         # ---------------------------------------------------------
         # 1) التحقق من المبلغ
@@ -653,9 +691,13 @@ class FinancialSponsorshipAllocation(models.Model):
         المرتبط بتخصيص الكفالة.
         """
 
-        self.full_clean()
-
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            # Lock the receipt before its beneficiary, as date edits do.
+            self.sponsorship_invoice = FinancialSponsorshipInvoice.objects.select_for_update().get(pk=self.sponsorship_invoice_id)
+            # Serialize allocation creation for the same beneficiary.
+            Beneficiary.objects.select_for_update().get(pk=self.beneficiary_id)
+            self.full_clean()
+            super().save(*args, **kwargs)
 
 
 

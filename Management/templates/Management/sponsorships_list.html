@@ -436,7 +436,8 @@
                             </td>
                             <td>
 
-                                {% if item.can_edit_dates %}
+                                {% if item.can_renew %}<a class="btn btn-outline-primary btn-sm" href="{% url 'Management:sponsorship_renew' item.object.pk %}">تجديد الكفالة</a>{% endif %}
+{% if item.can_edit_dates %}
 
                                     <a
                                         href="{% url 'Management:sponsorship_edit_dates' pk=item.object.pk %}"

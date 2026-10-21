@@ -1,6 +1,8 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
+import secrets
+from django.db import transaction
+from django.db.models import Q
 
 from .models import (
     GeneralDonationInvoice,
@@ -66,7 +68,17 @@ class FinancialSponsorshipAllocationForm(forms.ModelForm):
 # سند التبرع العام
 # =====================================================
 
-class GeneralDonationInvoiceForm(forms.ModelForm):
+class InvoiceNumberMixin:
+    def clean_number(self):
+        number = self.cleaned_data["number"].strip()
+        if len(number) > Invoice._meta.get_field("number").max_length:
+            raise forms.ValidationError("رقم السند يتجاوز الحد المسموح (20 حرفًا).")
+        if Invoice.objects.filter(number=number).exists():
+            raise forms.ValidationError("رقم السند مستخدم مسبقًا")
+        return number
+
+
+class GeneralDonationInvoiceForm(InvoiceNumberMixin, forms.ModelForm):
 
     number = forms.CharField(
         label="رقم السند",
@@ -214,7 +226,13 @@ class GeneralDonationInvoiceForm(forms.ModelForm):
 # =====================================================
 # سند الكفالة المالية
 # 
-class FinancialSponsorshipInvoiceForm(forms.ModelForm):
+class FinancialSponsorshipInvoiceForm(InvoiceNumberMixin, forms.ModelForm):
+    beneficiary = forms.ModelChoiceField(
+        queryset=Beneficiary.objects.none(), required=False, label="المستفيد",
+        widget=forms.Select(attrs={"class": "form-select"}),
+        error_messages={"invalid_choice": "اختر مستفيدًا مسجلًا وصالحًا من نتائج البحث."},
+    )
+
 
     number = forms.CharField(
         label="رقم السند",
@@ -385,6 +403,11 @@ class FinancialSponsorshipInvoiceForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
 
         super().__init__(*args, **kwargs)
+        beneficiary_id = self.data.get(self.add_prefix("beneficiary"), "") if self.is_bound else ""
+        if str(beneficiary_id).isascii() and str(beneficiary_id).isdecimal() and len(str(beneficiary_id)) < 19:
+            self.fields["beneficiary"].queryset = Beneficiary.objects.filter(pk=beneficiary_id)
+        self.fields["beneficiary"].label_from_instance = lambda b: " ".join(filter(None, (b.first_name, b.father_name, b.grand_name or b.last_name)))
+
 
         # الاسم الكامل للكافل
         self.fields["sponsor"].label_from_instance = (
@@ -416,6 +439,25 @@ class FinancialSponsorshipInvoiceForm(forms.ModelForm):
     # الاسم الكامل للكافل
     # =====================================================
 
+    def clean(self):
+        data = super().clean()
+        plan = data.get("payment_plan")
+        if data.get("is_custom_plan"):
+            for field in ("custom_amount", "custom_duration_months"):
+                if data.get(field) is None or data[field] <= 0:
+                    self.add_error(field, "أدخل قيمة أكبر من صفر.")
+            data["payment_plan"] = None
+        elif not plan:
+            self.add_error("payment_plan", "اختر نوع الكفالة.")
+        elif not plan.is_active or plan.amount <= 0 or plan.duration_months <= 0:
+            self.add_error("payment_plan", "الخطة غير متاحة أو قيمها غير صالحة.")
+        else:
+            data["custom_amount"] = plan.amount
+            data["custom_duration_months"] = plan.duration_months
+        if data.get("start_date") and data.get("end_date") and data["end_date"] <= data["start_date"]:
+            self.add_error("end_date", "تاريخ النهاية يجب أن يكون بعد البداية.")
+        return data
+
     @staticmethod
     def get_sponsor_name(obj):
 
@@ -437,7 +479,7 @@ class FinancialSponsorshipInvoiceForm(forms.ModelForm):
 # إنشاء حساب كافل
 # =====================================================
 
-class DonorUserCreateForm(UserCreationForm):
+class DonorUserCreateForm(forms.ModelForm):
 
     """
     فورم خاص لإنشاء حساب كافل DONOR.
@@ -480,7 +522,7 @@ class DonorUserCreateForm(UserCreationForm):
     # -------------------------------------------------
 
     father_name = forms.CharField(
-        label="اسم الأب (اختياري)",
+        label="اسم الأب (اختياري)", max_length=50,
         required=False,
         widget=forms.TextInput(
             attrs={
@@ -494,7 +536,7 @@ class DonorUserCreateForm(UserCreationForm):
     # -------------------------------------------------
 
     grandpa_name = forms.CharField(
-        label="اسم الجد (اختياري)",
+        label="اسم الجد (اختياري)", max_length=50,
         required=False,
         widget=forms.TextInput(
             attrs={
@@ -546,7 +588,7 @@ class DonorUserCreateForm(UserCreationForm):
         ),
     )
 
-    class Meta(UserCreationForm.Meta):
+    class Meta:
 
         model = User
 
@@ -556,8 +598,6 @@ class DonorUserCreateForm(UserCreationForm):
             "father_name",
             "grandpa_name",
             "last_name",
-            "password1",
-            "password2",
             "phone",
             "national_number",
         )
@@ -566,29 +606,13 @@ class DonorUserCreateForm(UserCreationForm):
     # تهيئة الفورم
     # =================================================
 
-    def __init__(self, *args, **kwargs):
-
-        super().__init__(*args, **kwargs)
-
-        self.fields[
-            "password1"
-        ].widget.attrs.update(
-            {
-                "class": "form-control",
-            }
-        )
-
-        self.fields[
-            "password2"
-        ].widget.attrs.update(
-            {
-                "class": "form-control",
-            }
-        )
-
-    # =================================================
-    # التحقق من الجوال
-    # =================================================
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if len(email) > User._meta.get_field("username").max_length:
+            raise forms.ValidationError("البريد الإلكتروني أطول من الحد المسموح.")
+        if User.objects.filter(Q(email__iexact=email) | Q(username__iexact=email)).exists():
+            raise forms.ValidationError("البريد الإلكتروني مسجل مسبقًا.")
+        return email
 
     def clean_phone(self):
 
@@ -604,6 +628,7 @@ class DonorUserCreateForm(UserCreationForm):
                 "رقم الجوال مسجّل مسبقًا في النظام."
             )
 
+        Profile._meta.get_field("phone").clean(phone, None)
         return phone
 
     # =================================================
@@ -624,105 +649,38 @@ class DonorUserCreateForm(UserCreationForm):
                 "رقم الهوية مسجّل مسبقًا في النظام."
             )
 
+        Profile._meta.get_field("national_number").clean(national, None)
         return national
 
     # =================================================
     # الحفظ
     # =================================================
 
+    @transaction.atomic
     def save(self, commit=True):
-
-        user = super().save(
-            commit=False
-        )
-
-        email = self.cleaned_data.get(
-            "email"
-        )
-
-        user.email = email
-
-        if not user.username:
-
-            user.username = email
-
-        user.first_name = (
-            self.cleaned_data.get(
-                "first_name",
-                ""
-            )
-        )
-
-        user.last_name = (
-            self.cleaned_data.get(
-                "last_name",
-                ""
-            )
-        )
-
+        if self.instance.pk:
+            raise ValueError("This form only creates new sponsors.")
+        user = super().save(commit=False)
+        user.username = self.cleaned_data["email"]
+        user.set_password(secrets.token_urlsafe(32))
         if commit:
-
+            user.full_clean()
             user.save()
-
-            phone = (
-                self.cleaned_data.get(
-                    "phone"
-                )
-            )
-
-            national = (
-                self.cleaned_data.get(
-                    "national_number"
-                )
-            )
-
-            father_name = (
-                self.cleaned_data.get(
-                    "father_name",
-                    ""
-                )
-            )
-
-            grandpa_name = (
-                self.cleaned_data.get(
-                    "grandpa_name",
-                    ""
-                )
-            )
-
-            profile, created = (
-                Profile.objects.get_or_create(
-                    user=user,
-                    defaults={
-                        "phone": phone,
-                        "national_number": national,
-                        "father_name": father_name,
-                        "grandpa_name": grandpa_name,
-                        "role": Profile.Roles.DONOR,
-                    },
-                )
-            )
-
-            if not created:
-
-                profile.phone = phone
-
-                profile.national_number = (
-                    national
-                )
-
-                profile.father_name = (
-                    father_name
-                )
-
-                profile.grandpa_name = (
-                    grandpa_name
-                )
-
-                profile.role = (
-                    Profile.Roles.DONOR
-                )
-
-                profile.save()
-
+            profile = Profile(user=user, role=Profile.Roles.DONOR,
+                **{key: self.cleaned_data.get(key, "") for key in
+                   ("phone", "national_number", "father_name", "grandpa_name")})
+            profile.full_clean()
+            profile.save()
         return user
+
+
+class SponsorshipRenewalForm(FinancialSponsorshipInvoiceForm):
+    def __init__(self, *args, previous, **kwargs):
+        super().__init__(*args, **kwargs)
+        for name in ("sponsor", "beneficiary", "date", "payment_method", "bank_from", "from_account_number", "to_account_number"):
+            self.fields.pop(name, None)
+        self.fields["payment_plan"].queryset = PaymentPlan.objects.filter(is_active=True)
+        from datetime import timedelta
+        self.initial.update({"start_date": previous.end_date + timedelta(days=1),
+            "payment_plan": previous.payment_plan_id, "is_custom_plan": previous.is_custom_plan,
+            "custom_amount": previous.custom_amount, "custom_duration_months": previous.custom_duration_months})
