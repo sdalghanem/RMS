@@ -164,12 +164,21 @@ def cashier_invoices_list(request):
         .order_by("-created_at", "-id")
     )
 
+    query = (request.GET.get('q') or '').strip()[:150]
+    if query:
+        invoices_qs = invoices_qs.filter(
+            Q(number__icontains=query)
+            | Q(general_donation__supporter_name__icontains=query)
+            | Q(financial_sponsorship__sponsor__user__first_name__icontains=query)
+            | Q(financial_sponsorship__sponsor__user__last_name__icontains=query)
+        )
     paginator = Paginator(invoices_qs, 25)
     page_number = request.GET.get("page")
     page_obj = paginator.get_page(page_number)
 
     context = {
         "title": "الفواتير",
+        "search_query": query,
         "page_obj": page_obj,
     }
     return render(request, "Accounting/cashier_invoices_list.html", context)
@@ -1542,6 +1551,7 @@ def accountant_home(request):
         "to_date": to_date,
 
         # الصندوق
+        "available_for_allocation": get_available_for_allocation(),
         "fund_balance": fund_balance,
 
         # الفترة المالية

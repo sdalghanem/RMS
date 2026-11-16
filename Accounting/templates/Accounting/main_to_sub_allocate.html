@@ -189,7 +189,7 @@
                     <div class="d-flex justify-content-end gap-2 mt-3">
 
                         <a
-                            href="#"
+                            href="/accounting/accountant/"
                             class="btn btn-light"
                         >
                             رجوع
@@ -1428,106 +1428,7 @@ amountInput.addEventListener(
    تأكيد التحويل
 ===================================================== */
 
-submitButton.addEventListener(
-    "click",
-    function() {
-
-        if (!validateForm()) {
-            return;
-        }
-
-
-        const main =
-            getMainData(
-                mainSelect.value
-            );
-
-        const sub =
-            getSubData(
-                subSelect.value
-            );
-
-
-        const amount =
-            parseNum(
-                amountInput.value
-            );
-
-
-        const available =
-            parseNum(
-                main.dataset.available
-            );
-
-
-        const after =
-            Math.max(
-                available - amount,
-                0
-            );
-
-
-        document.getElementById(
-            "confirm-main"
-        ).innerText =
-            main.dataset.name;
-
-
-        document.getElementById(
-            "confirm-sub"
-        ).innerText =
-            sub.dataset.name;
-
-
-        document.getElementById(
-            "confirm-amount"
-        ).innerText =
-            amount.toFixed(2) +
-            " ر.س";
-
-
-        document.getElementById(
-            "confirm-after"
-        ).innerText =
-            after.toFixed(2) +
-            " ر.س";
-
-
-        document.getElementById(
-            "confirm-notes"
-        ).innerText =
-            document.querySelector(
-                'textarea[name="notes"]'
-            ).value || "—";
-
-
-        new bootstrap.Modal(
-            document.getElementById(
-                "confirmTransferModal"
-            )
-        ).show();
-
-    }
-);
-
-
-document.getElementById(
-    "confirm-transfer"
-).addEventListener(
-    "click",
-    function() {
-
-        document.getElementById(
-            "transfer-form"
-        ).submit();
-
-    }
-);
-
-
-/* =====================================================
-   فلترة سجل التخصيصات
-===================================================== */
+submitButton.addEventListener('click',()=>{if(validateForm())document.getElementById('transfer-form').requestSubmit();});
 
 const mainFilter =
     document.getElementById(

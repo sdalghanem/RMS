@@ -1,12 +1,12 @@
 {% extends "Management/base.html" %}
-{% block title %}{{ title }} - RMS{% endblock %}
+{% load static v2_display %}{% block extra_head %}<link rel="stylesheet" href="{% static 'v2/dashboard.css' %}"><link rel="stylesheet" href="{% static 'v2/collections.css' %}">{% endblock %}{% block title %}خطط الكفالة - RMS{% endblock %}
 
-{% block content %}
+{% block content %}<div class="finance-dashboard collection-workspace plans-workspace">
 
 <div class="rms-pagebar mb-3 d-flex justify-content-between align-items-center">
   <div>
-    <h5 class="m-0 fw-bold">{{ title }}</h5>
-    <small class="text-muted">هذه الصفحة مخصّصة لإدارة خطط الدفع والاشتراكات،</small>
+    <h5 class="m-0 fw-bold">خطط الكفالة</h5>
+    <small class="text-muted">حدّد مبالغ خطط الكفالة ومددها، وتابع الخطط النشطة والموقوفة.</small>
   </div>
   <div class="d-flex gap-2">
     <a class="btn btn-primary" href="{% url 'Management:payment_plan_create' %}">+ إضافة خطة</a>
@@ -31,7 +31,7 @@
           {% for p in plans %}
           <tr>
             <td>{{ forloop.counter }}</td>
-            <td>{{ p.amount }}</td>
+            <td><bdi class="fd-money">{{ p.amount|money_display }}</bdi></td>
             <td>{{ p.duration_months }}</td>
             <td>
               {% if p.is_active %}
@@ -48,7 +48,7 @@
                 <!-- تعديل -->
                 <a class="btn btn-sm btn-outline-secondary btn-rms"
                    href="{% url 'Management:payment_plan_update' p.pk %}" title="تعديل">
-                  <i class="bi bi-pencil"></i>
+                  <i class="bi bi-pencil" aria-hidden="true"></i> تعديل
                 </a>
 
                 <!-- حذف عبر POST + confirm() -->
@@ -58,7 +58,7 @@
                       onsubmit="return confirm('هل ترغب بحذف هذه الخطة؟');">
                   {% csrf_token %}
                   <button class="btn btn-sm btn-outline-danger btn-rms" title="حذف">
-                    <i class="bi bi-trash"></i>
+                    <i class="bi bi-trash" aria-hidden="true"></i> حذف
                   </button>
                 </form>
               </div>
@@ -74,4 +74,4 @@
     </div>
   </div>
 </div>
-{% endblock %}
+</div>{% endblock %}

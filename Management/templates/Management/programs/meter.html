@@ -1,0 +1,3 @@
+{% load l10n %}
+<div class="pg-meter-label"><span>نسبة الصرف</span><bdi>{% if total > 0 %}{{ pct|floatformat:"2u" }}%{% else %}—{% endif %}</bdi></div>
+<div class="pg-meter" role="meter" aria-label="نسبة الصرف" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{% if pct > 100 %}100{% elif pct < 0 %}0{% else %}{{ pct|floatformat:'2u' }}{% endif %}" aria-valuetext="{% if total > 0 %}{{ pct|floatformat:'2u' }} بالمئة{% else %}لا يوجد سقف مالي لاحتساب النسبة{% endif %}"><span style="width:clamp(0%, {{ pct|floatformat:'2u' }}%, 100%)" class="{% if pct >= 95 %}pg-critical{% elif pct >= 80 %}pg-warning{% endif %}"></span></div>

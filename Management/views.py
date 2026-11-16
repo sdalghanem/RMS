@@ -145,9 +145,11 @@ def login_view(request):
 
             # احترام next إن كان مسموحًا
             next_url = request.GET.get("next") or request.POST.get("next")
-            if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts={request.get_host()}):
-                if _user_allowed_for_url(user, next_url):
-                    return redirect(next_url)
+            if next_url and url_has_allowed_host_and_scheme(
+                next_url, allowed_hosts={request.get_host()}, require_https=request.is_secure()
+            ):
+                # Redirect only; do not execute or bypass destination permission checks.
+                return redirect(next_url)
             # توجيه حسب الدور
             return _redirect_by_role(user)
         else:

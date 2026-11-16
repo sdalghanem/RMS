@@ -43,7 +43,7 @@
         </h5>
 
         <small class="text-muted">
-            إضافة مبلغ من الصندوق العام إلى برنامج رئيسي.
+            تخصيص داخلي لميزانية البرنامج؛ لا يمثل صرفًا من الصندوق.
         </small>
     </div>
 
@@ -144,7 +144,7 @@
                     <div class="col-md-6">
 
                         <label class="form-label">
-                            رصيد الصندوق بعد التخصيص
+                            المتاح للتخصيص بعد العملية
                         </label>
 
                         <input
@@ -181,7 +181,7 @@
                     <div class="col-12 d-flex justify-content-end gap-2">
 
                         <a
-                            href="#"
+                            href="/accounting/accountant/"
                             class="btn btn-light"
                         >
                             رجوع
@@ -824,7 +824,7 @@
                     </div>
 
                     <div class="col-4 text-muted">
-                        رصيد الصندوق بعد التخصيص
+                        المتاح للتخصيص بعد العملية
                     </div>
 
                     <div
@@ -1090,96 +1090,7 @@ function checkValidation() {
 }
 
 
-submitBtn.addEventListener(
-    "click",
-    function () {
-
-        if (
-            !checkValidation()
-        ) {
-            return;
-        }
-
-        const id =
-            select.value;
-
-        const el =
-            getProgEl(id);
-
-        const programName =
-            el
-                ? el.dataset.name
-                : "—";
-
-        const amountValue =
-            parseNum(
-                amountInput.value
-            );
-
-        const amount =
-            amountValue.toFixed(2) +
-            " ر.س";
-
-        const after =
-            Math.max(
-                availableForAllocation -
-                amountValue,
-                0
-            ).toFixed(2) +
-            " ر.س";
-
-        const notes =
-            document.querySelector(
-                'textarea[name="notes"]'
-            ).value ||
-            "—";
-
-        document.getElementById(
-            "c-program"
-        ).innerText =
-            programName;
-
-        document.getElementById(
-            "c-amount"
-        ).innerText =
-            amount;
-
-        document.getElementById(
-            "c-after"
-        ).innerText =
-            after;
-
-        document.getElementById(
-            "c-notes"
-        ).innerText =
-            notes;
-
-        const modal =
-            new bootstrap.Modal(
-                document.getElementById(
-                    "confirmAllocModal"
-                )
-            );
-
-        modal.show();
-
-    }
-);
-
-
-document.getElementById(
-    "c-confirm"
-).addEventListener(
-    "click",
-    function () {
-
-        document.getElementById(
-            "alloc-form"
-        ).submit();
-
-    }
-);
-
+submitBtn.addEventListener('click',()=>document.getElementById('alloc-form').requestSubmit());
 
 select.addEventListener(
     "change",

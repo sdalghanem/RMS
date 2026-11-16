@@ -22,7 +22,9 @@ class AssignmentFixture:
     def setUp(self):
         fixtures.ReportsRegressionTests.setUpTestData.__func__(self)
         self.receipt=self.invoice()
-        self.alloc=self.receipt.allocation
+        # Some clocks have coarser resolution than an assignment transaction.
+        Allocation.objects.filter(sponsorship_invoice=self.receipt).update(created_at=timezone.now()-timedelta(seconds=2))
+        self.alloc=Allocation.objects.get(sponsorship_invoice=self.receipt)
         self.history=History.objects.create(beneficiary=self.b,donor=self.donor,
             start_date=self.start,end_date=self.end)
         self.new=Beneficiary.objects.create(first_name='بديل',last_name='تجريبي',gender='male',
