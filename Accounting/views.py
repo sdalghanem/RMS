@@ -1588,6 +1588,16 @@ def reverse_subprogram_disbursement_view(request, pk):
 
 @role_required([Profile.Roles.ACCOUNTANT])
 def fund_to_main_allocate(request):
+    from .bulk_allocation import allocate_percentages, allocation_token
+    if request.method == "POST" and request.POST.get("mode") == "percent":
+        try:
+            created = allocate_percentages(request.POST, request.user)
+        except ValueError as error:
+            messages.error(request, str(error))
+        else:
+            messages.success(request, "تم تخصيص المبلغ." if created else "سبق تنفيذ هذا التخصيص.")
+        return redirect("Accounting:fund_to_main_allocate")
+
 
     # =========================================================
     # سجل التخصيصات الكامل - AJAX داخل Modal
@@ -1738,6 +1748,7 @@ def fund_to_main_allocate(request):
         "Accounting/fund_to_main_allocate.html",
         {
             "title": "تخصيص الصندوق للبرنامج الرئيسي",
+            "bulk_token": allocation_token(request.user),
 
             "programs": programs,
 

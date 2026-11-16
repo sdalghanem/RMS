@@ -3,6 +3,37 @@
 {% block title %}تخصيص الصندوق للبرنامج الرئيسي{% endblock %}
 
 {% block content %}
+<section class="card border-0 shadow-sm mb-4" dir="rtl">
+  <div class="card-body p-4">
+    <h2 class="h5">توزيع الصندوق على البرامج بالنسب</h2>
+    <p class="text-muted">المتاح للتخصيص <strong>{{ available_for_allocation|floatformat:2 }} ر.س</strong></p>
+    <form method="post" id="percentage-allocation">
+      {% csrf_token %}<input type="hidden" name="mode" value="percent"><input type="hidden" name="token" value="{{ bulk_token }}">
+      <label class="form-label" for="bulk-amount">المبلغ المراد توزيعه (ر.س)</label>
+      <input class="form-control mb-3" type="number" id="bulk-amount" name="bulk_amount" min="0.01" step="0.01" required>
+      <div class="row g-3">{% for program in programs %}<div class="col-12 col-md-4">
+        <label class="form-label" for="share-{{ program.pk }}">{{ program.name }} (%)</label>
+        <input class="form-control" id="share-{{ program.pk }}" type="number" name="share_{{ program.pk }}" min="0" max="100" step="0.01" placeholder="0">
+      </div>{% endfor %}</div>
+      <div class="mt-3 d-flex align-items-center gap-3"><button class="btn btn-primary" type="submit">تنفيذ التوزيع</button>
+      <output aria-live="polite" id="share-total">إجمالي النسب 0٪ من 100٪</output></div>
+    </form>
+  </div>
+</section>
+<script>
+(() => {
+  const form = document.getElementById('percentage-allocation');
+  const fields = [...form.querySelectorAll('[name^="share_"]')];
+  function refresh() {
+    const total = fields.reduce((sum, input) => sum + Math.round((input.valueAsNumber || 0) * 100), 0);
+    form.querySelector('output').textContent = 'إجمالي النسب ' + (total / 100) + '٪ من 100٪';
+    form.querySelector('button').disabled = total !== 10000 || !form.bulk_amount.validity.valid;
+  }
+  form.addEventListener('input', refresh);
+  window.addEventListener('pageshow', refresh);
+  refresh();
+})();
+</script>
 
 <div class="rms-pagebar mb-3">
 
