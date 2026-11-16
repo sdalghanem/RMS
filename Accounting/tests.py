@@ -441,3 +441,54 @@ class RepairTests(TestCase):
                 call_command("update_sponsorship_dates",str(path),apply=True,stdout=StringIO())
             self.sponsorship.refresh_from_db()
             self.assertEqual(self.sponsorship.end_date,self.history.end_date)
+
+
+class DisplayDurationTests(TestCase):
+    setUpTestData = classmethod(RepairTests.setUpTestData.__func__)
+
+    def test_calendar_duration_and_invalid_dates_without_queries(self):
+        from datetime import date
+        cases = [
+            (date(2026,8,25), date(2027,1,7), "4 أشهر و13 يومًا"),
+            (date(2026,5,10), date(2026,8,10), "3 أشهر"),
+            (date(2026,1,1), date(2026,2,1), "شهر واحد"),
+            (date(2026,1,1), date(2026,1,16), "15 يومًا"),
+            (date(2026,1,1), date(2027,1,1), "12 شهرًا"),
+            (date(2026,1,31), date(2026,2,28), "شهر واحد"),
+            (date(2026,1,1), date(2026,1,1), "—"),
+            (date(2026,2,1), date(2026,1,1), "—"),
+            (None, date(2026,1,1), "—"), (date(2026,1,1), None, "—"),
+            ("invalid", date(2026,1,1), "—"),
+        ]
+        for start, end, expected in cases:
+            with self.subTest(start=start, end=end), self.assertNumQueries(0):
+                obj = FinancialSponsorshipInvoice(start_date=start,end_date=end,custom_duration_months=99)
+                self.assertEqual(obj.display_duration, expected)
+                self.assertEqual(obj.custom_duration_months,99)
+
+    def test_receipt_584_and_sponsor_pages_preserve_stored_values(self):
+        from datetime import date
+        self.invoice.number="584"
+        self.invoice.save(update_fields=["number"])
+        self.sponsorship.start_date=date(2026,8,25)
+        self.sponsorship.end_date=date(2027,1,7)
+        self.sponsorship.custom_duration_months=None
+        self.sponsorship.save()
+        self.history.start_date=self.sponsorship.start_date
+        self.history.end_date=self.sponsorship.end_date
+        self.history.save()
+        FinancialSponsorshipAllocation.objects.create(sponsorship_invoice=self.sponsorship,beneficiary=self.beneficiary,amount=1000)
+        before=FinancialSponsorshipInvoice.objects.values().get(pk=self.sponsorship.pk)
+        funds=list(FundEntry.objects.values())
+        self.client.force_login(self.users["cashier"])
+        for name, pk in (("Accounting:invoice_detail",self.invoice.pk),("Accounting:sponsor_detail",self.users["donor"].profile.pk)):
+            response=self.client.get(reverse(name,args=[pk]))
+            self.assertContains(response,"4 أشهر و13 يومًا")
+        self.assertEqual(FinancialSponsorshipInvoice.objects.values().get(pk=self.sponsorship.pk),before)
+        self.assertEqual(list(FundEntry.objects.values()),funds)
+
+    def test_history_without_financial_receipt_has_placeholder(self):
+        self.client.force_login(self.users["cashier"])
+        response=self.client.get(reverse("Accounting:sponsor_detail",args=[self.users["donor"].profile.pk]))
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.context["results"][0]["display_duration"],"—")

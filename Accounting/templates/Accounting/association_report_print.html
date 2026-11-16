@@ -1,0 +1,9 @@
+{% extends 'Accounting/report_print_base.html' %}
+{% block back_url %}{% url 'Accounting:association_reports' %}{% endblock %}
+{% block report %}
+<div class="report-stats"><div>إجمالي المصروفات<strong>{{ spent|floatformat:'2u' }} <small>ر.س</small></strong></div><div>المستفيدون المختلفون<strong>{{ beneficiary_count }}</strong></div><div>مشاركات البرامج<strong>{{ participation_count }}</strong></div></div>
+{% if filters.donor %}<p class="note">الكافل: {{ filters.donor }}. النطاق: جميع المستفيدين ذوي تخصيص سند مسجل لهذا الكافل في أي تاريخ، دون تقييد المصروف بفترة الكفالة أو اعتبار الكافل مصدر تمويل.</p>{% endif %}
+{% if filters.main_program %}<p>البرنامج الرئيسي: {{ filters.main_program.name }}</p>{% endif %}{% if filters.sub_program %}<p>البرنامج الفرعي: {{ filters.sub_program.name }}</p>{% endif %}
+<h2>إجمالي الاستفادة لكل مستفيد</h2><div class="table-wrap"><table><thead><tr><th>المستفيد</th><th>المشاركات</th><th>الإجمالي (ر.س)</th></tr></thead><tbody>{% for row in rows %}<tr><td>{{ row.name }}</td><td>{{ row.participations|length }}</td><td class="num">{{ row.spent|floatformat:'2u' }}</td></tr>{% empty %}<tr><td colspan="3">لا توجد مصروفات مطابقة للفلاتر.</td></tr>{% endfor %}</tbody></table></div>
+<h2>تفاصيل مشاركات البرامج</h2><div class="table-wrap"><table><thead><tr><th>المستفيد</th><th>تاريخ التسجيل</th><th>البرنامج الرئيسي</th><th>البرنامج الفرعي</th><th>المبلغ (ر.س)</th></tr></thead><tbody>{% for row in rows %}{% for item in row.participations %}<tr><td>{{ row.name }}</td><td class="num">{{ item.date|date:'Y-m-d' }}</td><td>{{ item.main.name }}</td><td>{{ item.sub.name }}</td><td class="num">{{ item.amount|floatformat:'2u' }}</td></tr>{% endfor %}{% empty %}<tr><td colspan="5">لا توجد مشاركات ضمن الفترة.</td></tr>{% endfor %}</tbody></table></div>
+{% endblock %}

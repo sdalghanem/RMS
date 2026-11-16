@@ -521,16 +521,7 @@
 
                             <td>
 
-                                {% if row.duration_months %}
-
-                                    {{ row.duration_months }}
-                                    شهر
-
-                                {% else %}
-
-                                    —
-
-                                {% endif %}
+                                {{ row.display_duration }}
 
                             </td>
 

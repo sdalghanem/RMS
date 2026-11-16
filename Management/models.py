@@ -150,6 +150,7 @@ class Beneficiary(models.Model):
         H1 = "h1", "أول ثانوي"
         H2 = "h2", "ثاني ثانوي"
         H3 = "h3", "ثالث ثانوي"
+        GRADUATE = "graduate", "خريج"
        
 
     class HealthStatus(models.TextChoices):

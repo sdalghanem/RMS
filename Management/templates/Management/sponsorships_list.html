@@ -386,11 +386,7 @@
 
                             <td>
 
-                                {% if item.duration_months %}
-                                    {{ item.duration_months }} شهر
-                                {% else %}
-                                    —
-                                {% endif %}
+                                {{ item.object.display_duration }}
 
                             </td>
 

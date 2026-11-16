@@ -195,13 +195,9 @@
               </td>
             </tr>
             <tr>
-              <th>مدة الكفالة (أشهر)</th>
+              <th>مدة الكفالة</th>
               <td>
-                {% if invoice.financial_sponsorship.custom_duration_months %}
-                  {{ invoice.financial_sponsorship.custom_duration_months }} شهر
-                {% else %}
-                  <span class="text-muted small">من خطة الكفالة</span>
-                {% endif %}
+                {{ invoice.financial_sponsorship.display_duration }}
               </td>
             </tr>
             <tr>

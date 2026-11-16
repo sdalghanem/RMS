@@ -1,3 +1,5 @@
+from datetime import date
+from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from decimal import Decimal
 from django.db.models import Sum
@@ -415,6 +417,28 @@ class FinancialSponsorshipInvoice(models.Model):
     # ---------------------------------------------------------
     # المبلغ الفعلي للسند
     # ---------------------------------------------------------
+
+    @property
+    def display_duration(self):
+        start, end = self.start_date, self.end_date
+        if not isinstance(start, date) or not isinstance(end, date):
+            return "—"
+        try:
+            if end <= start:
+                return "—"
+            delta = relativedelta(end, start)
+        except (TypeError, ValueError, OverflowError):
+            return "—"
+        months = delta.years * 12 + delta.months
+        parts = []
+        if months:
+            parts.append("شهر واحد" if months == 1 else "شهران" if months == 2
+                         else f"{months} أشهر" if months <= 10 else f"{months} شهرًا")
+        if delta.days:
+            days = delta.days
+            parts.append("يوم واحد" if days == 1 else "يومان" if days == 2
+                         else f"{days} أيام" if days <= 10 else f"{days} يومًا")
+        return " و".join(parts) or "—"
 
     @property
     def total_amount(self) -> Decimal:

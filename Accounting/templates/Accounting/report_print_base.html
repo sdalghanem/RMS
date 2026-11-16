@@ -1,0 +1,4 @@
+{% load static %}<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>{{ title }}</title><link rel="stylesheet" href="{% static 'accounting/css/reports.css' %}"></head>
+<body class="report-body"><div class="report-tools"><a href="{% block back_url %}{% url 'Accounting:sponsorship_reports' %}{% endblock %}">تعديل خيارات التقرير</a><button type="button" onclick="window.print()">طباعة / حفظ PDF</button></div>
+<main class="k-report report-paper"><header><p class="eyebrow">جمعية الرياحين لرعاية الأيتام</p><h1>{{ title }}</h1><div class="report-meta">الفترة: <bdi>{{ start|date:'Y-m-d' }} — {{ end|date:'Y-m-d' }}</bdi> <span>الإصدار: <bdi>{{ issued|date:'Y-m-d H:i' }}</bdi></span></div></header>
+{% block report %}{% endblock %}<footer>{{ date_notice }}</footer></main></body></html>
