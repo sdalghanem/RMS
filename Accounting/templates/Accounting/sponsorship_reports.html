@@ -3,20 +3,20 @@
 {% block extra_head %}{{ block.super }}<link rel="stylesheet" href="{% static 'v2/dashboard.css' %}"><link rel="stylesheet" href="{% static 'v2/collections.css' %}">{% endblock %}
 {% block content %}
 <link rel="stylesheet" href="{% static 'admin/css/vendor/select2/select2.min.css' %}">
-<link rel="stylesheet" href="{% static 'accounting/css/reports.css' %}?v=filters2">
+<link rel="stylesheet" href="{% static 'accounting/css/reports.css' %}?v=indigo1">
 <section class="k-report k-setup finance-dashboard collection-workspace" dir="rtl">
-<header class="fd-heading"><p class="eyebrow">جمعية الرياحين · التقارير</p><h1>تقارير الكفالات والمستفيدين</h1><p>اختر التقرير ثم حدد الفترة ونطاق البيانات.</p></header>
+<header class="fd-heading"><div><p class="fd-eyebrow">الإدارة المالية / التقارير</p><h1>تقارير الكفالات والمستفيدين</h1></div></header>
 <nav class="report-tabs" aria-label="نوع التقرير">
-<a {% if not association %}aria-current="page"{% endif %} href="{% url 'Accounting:sponsorship_reports' %}">تقرير مصروفات فترة الكفالة <small>مخصص للكافل</small></a>
-{% if can_association %}<a {% if association %}aria-current="page"{% endif %} href="{% url 'Accounting:association_reports' %}">تقرير إجمالي استفادة المستفيدين <small>مخصص للجمعية</small></a>{% endif %}</nav>
-<h2>{% if association %}إجمالي استفادة المستفيدين من البرامج{% else %}مصروفات فترة الكفالة{% endif %}</h2>
+<a {% if not association %}aria-current="page"{% endif %} href="{% url 'Accounting:sponsorship_reports' %}"><i class="bi bi-person" aria-hidden="true"></i><span>تقرير الكافل<small>مصروفات المستفيدين المكفولين حاليًا</small></span></a>
+{% if can_association %}<a {% if association %}aria-current="page"{% endif %} href="{% url 'Accounting:association_reports' %}"><i class="bi bi-building" aria-hidden="true"></i><span>تقرير الجمعية<small>استفادة المستفيدين من البرامج</small></span></a>{% endif %}</nav>
+<div class="fd-card report-panel"><h2>{% if association %}إجمالي استفادة المستفيدين من البرامج{% else %}مصروفات فترة الكفالة{% endif %}</h2>
 {% if association %}<p class="note">فلتر الكافل يشمل المستفيدين الذين لديهم تخصيص سند كفالة مسجل له في أي تاريخ، بصرف النظر عن سريان الكفالة. لا يعني أنه موّل المصروفات.</p>{% else %}<p class="note">يعرض التقرير مصروفات المستفيدين المكفولين حاليًا منذ أول كفالة لهم مع هذا الكافل، ضمن الفترة المختارة، بما فيها فترات الانقطاع.</p>{% endif %}
 <form method="get" action="{% if association %}{% url 'Accounting:association_report_print' %}{% else %}{% url 'Accounting:sponsorship_report_print' %}{% endif %}">
-{{ form.non_field_errors }}<div class="report-fields">{% for field in form %}<div data-field="{{ field.name }}"><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}</div>
-<button type="submit">عرض التقرير وطباعته</button></form><p class="note">{{ date_notice }}</p>
+{{ form.non_field_errors }}<div class="report-fields">{% for field in form %}<div data-field="{{ field.name }}"{% if field.field.period_modes %} data-period-modes="{{ field.field.period_modes }}"{% if field.field.period_hidden %} hidden{% endif %}{% endif %}><label for="{{ field.id_for_label }}">{{ field.label }}</label>{{ field }}{{ field.errors }}</div>{% endfor %}</div>
+<button class="btn btn-primary" type="submit">عرض التقرير وطباعته</button></form></div><p class="report-caption">{{ date_notice }}</p>
 </section>
 <script defer src="{% static 'admin/js/vendor/jquery/jquery.min.js' %}"></script>
 <script defer src="{% static 'admin/js/vendor/select2/select2.full.min.js' %}"></script>
 <script defer src="{% static 'admin/js/jquery.init.js' %}"></script>
-<script src="{% static 'accounting/js/report-filters.js' %}?v=filters2" defer></script>
+<script src="{% static 'accounting/js/report-filters.js' %}?v=period3" defer></script>
 {% endblock %}

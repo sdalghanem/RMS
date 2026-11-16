@@ -1,6 +1,6 @@
 {% extends 'Accounting/report_print_base.html' %}
 {% block report %}<h2>الكافل: {{ donor }}</h2>
-<div class="report-stats"><div>مصروفات البرامج المؤهلة<strong>{{ spent|floatformat:'2u' }} ر.س</strong></div><div>المستفيدون الحاليون<strong>{{ beneficiary_count }}</strong></div><div>المشاركات<strong>{{ participation_count }}</strong></div></div>
+<div class="report-stats"><div>مصروفات البرامج المؤهلة<strong>{{ spent|floatformat:'2u' }} ر.س</strong></div><div>المستفيدون الحاليون<strong>{{ beneficiary_count }}</strong></div><div>الدعم<strong>{{ participation_count }}</strong></div></div>
 <p>مخصص السندات المتقاطعة مع الفترة {{ amount|floatformat:'2u' }} ر.س · الفرق المقارن {{ difference|floatformat:'2u' }} ر.س</p><p class="note">تظهر المصروفات منذ أول كفالة للمستفيد مع هذا الكافل، بما فيها فترات الانقطاع، ضمن الفترة المختارة. ظهور المصروف لا يحدد مصدر تمويله.</p>
 {% for row in rows %}<section class="beneficiary-section"><h2>{{ row.name }}</h2><p>بداية أول كفالة {{ row.first|date:'Y-m-d' }} · إجمالي المصروف {{ row.spent|floatformat:'2u' }} ر.س</p>
 <table><thead><tr><th>تاريخ التسجيل</th><th>البرنامج الرئيسي</th><th>البرنامج الفرعي</th><th>المبلغ (ر.س)</th></tr></thead><tbody>{% for item in row.participations %}<tr><td>{{ item.date|date:'Y-m-d' }}</td><td>{{ item.main.name }}</td><td>{{ item.sub.name }}</td><td>{{ item.amount|floatformat:'2u' }}</td></tr>{% empty %}<tr><td colspan="4">لا توجد مصروفات خلال الفترة المختارة.</td></tr>{% endfor %}</tbody></table></section>{% empty %}<p>لا يوجد مستفيدون بكفالة سارية.</p>{% endfor %}{% endblock %}

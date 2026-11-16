@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.utils import timezone
-from .report_forms import SponsorReportForm, AssociationReportForm
+from .report_forms import SponsorReportForm, PeriodForm
 from django.core.exceptions import PermissionDenied
 from .reporting import current_sponsor_scope, current_sponsor_expenses, association_benefits
 
@@ -20,7 +20,7 @@ def requesting_donor(request):
 def setup(request, association=False, form=None, status=200):
     role = getattr(getattr(request.user, 'profile', None), 'role', None)
     if form is None:
-        form=(AssociationReportForm if association else SponsorReportForm)(initial={
+        form=(PeriodForm if association else SponsorReportForm)(initial={
             'report_type':'annual','year':timezone.localdate().year,'quarter':1,'half':1})
     donor=None if association else requesting_donor(request)
     if donor:
@@ -49,17 +49,16 @@ def sponsor_print(request):
         return setup(request, form=form, status=400)
     data = form.cleaned_data
     result = current_sponsor_expenses(data['donor'], data['start'], data['end'])
-    result.update(start=data['start'], end=data['end'], issued=timezone.localtime(), date_notice=NOTICE,
+    result.update(period_label=data['period_label'], start=data['start'], end=data['end'], issued=timezone.localtime(), date_notice=NOTICE,
                   title='تقرير مصروفات فترة الكفالة')
     return render(request, 'Accounting/sponsorship_report_print.html', result)
 
 def association_print(request):
-    form = validated_form(request, AssociationReportForm)
+    form = validated_form(request, PeriodForm)
     if not form.is_valid():
         return setup(request, association=True, form=form, status=400)
     data = form.cleaned_data
-    filters = {key: data.get(key) for key in ('beneficiary', 'main_program', 'sub_program', 'donor')}
-    result = association_benefits(data['start'], data['end'], **filters)
-    result.update(start=data['start'], end=data['end'], issued=timezone.localtime(), date_notice=NOTICE,
-                  title='تقرير إجمالي استفادة المستفيدين من البرامج', filters=filters)
+    result = association_benefits(data['start'], data['end'])
+    result.update(period_label=data['period_label'], start=data['start'], end=data['end'], issued=timezone.localtime(), date_notice=NOTICE,
+                  title='تقرير إجمالي استفادة المستفيدين من البرامج')
     return render(request, 'Accounting/association_report_print.html', result)

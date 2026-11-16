@@ -1,17 +1,20 @@
 (() => {
   const kind = document.getElementById('id_report_type');
   if (!kind) return;
-  const refresh = () => {
-    const active = {year: kind.value !== 'custom', quarter: kind.value === 'quarterly',
-      half: kind.value === 'half', from_date: kind.value === 'custom', to_date: kind.value === 'custom'};
-    Object.entries(active).forEach(([name, visible]) => {
-      const wrap = document.querySelector(`[data-field="${name}"]`);
-      if (!wrap) return;
-      wrap.hidden = !visible;
-      wrap.querySelectorAll('input, select').forEach(input => { input.disabled = !visible; });
-    });
-  };
+  const form = kind.form;
+  const groups = form.querySelectorAll('[data-period-modes]');
+  function refresh() {
+    for (const group of groups) {
+      const visible = group.dataset.periodModes.split(' ').includes(kind.value);
+      group.hidden = !visible;
+      for (const control of group.querySelectorAll('input, select')) {
+        control.disabled = !visible;
+      }
+    }
+  }
   kind.addEventListener('change', refresh);
+  window.addEventListener('pageshow', refresh);
+  form.addEventListener('submit', refresh);
   refresh();
 
   const donor = document.getElementById('id_donor');

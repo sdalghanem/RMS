@@ -1,12 +1,36 @@
 {% extends "Management/base.html" %}{% load static v2_display %}
 {% block title %}إدارة الكفلاء{% endblock %}{% block extra_head %}<link rel="stylesheet" href="{% static 'v2/dashboard.css' %}"><link rel="stylesheet" href="{% static 'v2/collections.css' %}">{% endblock %}
-{% block content %}<div class="finance-dashboard collection-workspace"><header class="fd-heading"><div><div class="fd-eyebrow">الكفالات / الكفلاء</div><h1>إدارة الكفلاء</h1><p>ابحث عن كافل للوصول إلى ملفه وسنداته وبيانات التواصل.</p></div><a class="btn btn-primary" href="{% url 'Accounting:sponsor_create_page' %}"><i class="bi bi-plus-lg" aria-hidden="true"></i> إضافة كافل</a></header><section class="fd-card"><form class="directory-toolbar" method="get" role="search"><div><label for="sponsor-query">البحث عن كافل</label><input id="sponsor-query" class="form-control" name="q" type="search" value="{{ query|default:'' }}" placeholder="الاسم أو الجوال أو البريد أو رقم الهوية"></div><button class="btn btn-primary">بحث</button>{% if query %}<a class="btn btn-outline-secondary" href="{% url 'Accounting:sponsors_list' %}">مسح</a>{% endif %}</form><div class="directory-count">{{ page_obj.paginator.count|count_display }} نتيجة</div><div class="table-responsive"><table class="table fd-table"><thead><tr><th scope="col">الكافل</th><th scope="col">التواصل</th><th scope="col">رقم الهوية</th><th scope="col">الملف</th></tr></thead><tbody>{% for sponsor in page_obj %}<tr><td><span class="directory-name">{{ sponsor.user.first_name }} {{ sponsor.father_name }} {{ sponsor.grandpa_name }} {{ sponsor.user.last_name }}</span><span class="directory-secondary">كافل مسجل</span></td><td><bdi class="directory-contact">{{ sponsor.phone|default:'—' }}</bdi><bdi class="directory-secondary directory-contact">{{ sponsor.user.email|default:'—' }}</bdi></td><td><bdi>{{ sponsor.national_number|default:'—' }}</bdi></td><td><a class="btn btn-outline-secondary btn-sm" href="{% url 'Accounting:sponsor_detail' sponsor.id %}">عرض الملف</a>{% if request.user.is_superuser or request.user.profile.role == 'system_admin' %}
+{% block content %}<div class="finance-dashboard collection-workspace"><header class="fd-heading"><div><div class="fd-eyebrow">الكفالات / الكفلاء</div><h1>إدارة الكفلاء</h1><p>ابحث عن كافل للوصول إلى ملفه وسنداته وبيانات التواصل.</p></div><a class="btn btn-primary" href="{% url 'Accounting:sponsor_create_page' %}"><i class="bi bi-plus-lg" aria-hidden="true"></i> إضافة كافل</a></header><section class="fd-card"><form class="directory-toolbar" method="get" role="search"><div><label for="sponsor-query">البحث عن كافل</label><input id="sponsor-query" class="form-control" name="q" type="search" value="{{ query|default:'' }}" placeholder="الاسم أو الجوال أو البريد أو رقم الهوية"></div><button class="btn btn-primary">بحث</button>{% if query %}<a class="btn btn-outline-secondary" href="{% url 'Accounting:sponsors_list' %}">مسح</a>{% endif %}</form><div class="directory-count">{{ page_obj.paginator.count|count_display }} نتيجة</div>
+{% if page_obj.object_list %}
+<div class="sponsor-directory-grid">
+  {% for sponsor in page_obj %}
+  <article class="fd-card sponsor-directory-card">
+    <header>
+      <span class="sponsor-initial" aria-hidden="true">{{ sponsor.user.first_name|default:sponsor.user.username|slice:":1" }}</span>
+      <h2>{% if sponsor.user.get_full_name %}{{ sponsor.user.first_name }} {{ sponsor.father_name }} {{ sponsor.grandpa_name }} {{ sponsor.user.last_name }}{% else %}{{ sponsor.user.username }}{% endif %}</h2>
+    </header>
+    <dl>
+      <div><dt>رقم الجوال</dt><dd><bdi>{{ sponsor.phone|default:'—' }}</bdi></dd></div>
+      <div><dt>البريد الإلكتروني</dt><dd><bdi class="sponsor-email" title="{{ sponsor.user.email }}">{{ sponsor.user.email|default:'—' }}</bdi></dd></div>
+      <div><dt>رقم الهوية</dt><dd><bdi>{{ sponsor.national_number|default:'—' }}</bdi></dd></div>
+    </dl>
+    <footer>
+      <a class="btn btn-primary w-100" href="{% url 'Accounting:sponsor_detail' sponsor.id %}">عرض ملف الكافل</a>
+      {% if request.user.is_superuser or request.user.profile.role == 'system_admin' %}
                         <form method="post" action="{% url 'Accounting:delete_sponsor' sponsor.pk %}"
-                              class="mb-2 text-end" data-name="{{ sponsor.user.get_full_name|default:sponsor.user.username }}"
+                              class="mt-2 mb-0 text-end" data-name="{{ sponsor.user.get_full_name|default:sponsor.user.username }}"
                               onsubmit="return window.confirm('تأكيد حذف الكافل «' + this.dataset.name + '»؟');">
                             {% csrf_token %}
                             <button type="submit" class="btn btn-sm btn-outline-danger">
                                 <i class="bi bi-trash" aria-hidden="true"></i> حذف الكافل
                             </button>
                         </form>
-                        {% endif %}</td></tr>{% empty %}<tr><td colspan="4" class="fd-empty">{% if query %}لا توجد نتائج مطابقة. جرّب اسمًا أو رقمًا آخر.{% else %}لا يوجد كفلاء مسجلون بعد.{% endif %}</td></tr>{% endfor %}</tbody></table></div>{% if page_obj.has_other_pages %}<nav class="directory-toolbar" aria-label="صفحات الكفلاء">{% if page_obj.has_previous %}<a href="?q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">السابق</a>{% endif %}<span>صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">التالي</a>{% endif %}</nav>{% endif %}</section></div>{% endblock %}
+                        {% endif %}
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<p class="fd-empty">{% if query %}لا توجد نتائج مطابقة. جرّب اسمًا أو رقمًا آخر.{% else %}لا يوجد كفلاء مسجلون بعد.{% endif %}</p>
+{% endif %}
+{% if page_obj.has_other_pages %}<nav class="directory-toolbar" aria-label="صفحات الكفلاء">{% if page_obj.has_previous %}<a href="?q={{ query|urlencode }}&amp;page={{ page_obj.previous_page_number }}">السابق</a>{% endif %}<span>صفحة {{ page_obj.number }} من {{ page_obj.paginator.num_pages }}</span>{% if page_obj.has_next %}<a href="?q={{ query|urlencode }}&amp;page={{ page_obj.next_page_number }}">التالي</a>{% endif %}</nav>{% endif %}</section></div>{% endblock %}

@@ -182,11 +182,17 @@ class ReportsRegressionTests(TestCase):
         self.client.force_login(self.users['donor'])
         self.assertEqual(self.client.get(sponsor_url,{'donor':9999}).status_code,403)
 
-    def test_invalid_object_filter_returns_form_error(self):
+    def test_association_period_ignores_stale_object_filters(self):
+        self.support(125)
         self.client.force_login(self.users['accountant'])
-        for key in ('beneficiary','donor','main_program','sub_program'):
-            response = self.client.get(reverse('Accounting:association_report_print'),{key:'999999'})
-            self.assertEqual(response.status_code,400)
+        stale = dict.fromkeys(('beneficiary', 'donor', 'main_program', 'sub_program'), '999999')
+        setup = self.client.get(reverse('Accounting:association_reports'), stale)
+        for field in stale:
+            self.assertNotIn(field, setup.context['form'].fields)
+        response = self.client.get(reverse('Accounting:association_report_print'), dict(stale, year=2026))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['spent'], 125)
+        self.assertEqual(response.context['participation_count'], 1)
 
     def test_legacy_period_links(self):
         self.client.force_login(self.users['accountant'])

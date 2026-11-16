@@ -18,6 +18,28 @@ class PeriodForm(forms.Form):
     from_date = forms.DateField(label='من تاريخ', required=False, widget=forms.DateInput(attrs={'type':'date'}))
     to_date = forms.DateField(label='إلى تاريخ', required=False, widget=forms.DateInput(attrs={'type':'date'}))
 
+    period_modes = {
+        'year': ('annual', 'half', 'quarterly'),
+        'half': ('half',),
+        'quarter': ('quarterly',),
+        'from_date': ('custom',),
+        'to_date': ('custom',),
+    }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        kind = self['report_type'].value() or 'annual'
+        if self.is_bound:
+            self.data = self.data.copy()
+        for name, modes in self.period_modes.items():
+            field = self.fields[name]
+            field.period_modes = ' '.join(modes)
+            field.period_hidden = kind not in modes
+            if field.period_hidden:
+                field.widget.attrs['disabled'] = True
+                if self.is_bound:
+                    self.data.pop(self.add_prefix(name), None)
+
     def clean(self):
         data = super().clean()
         if self.errors:
@@ -40,7 +62,11 @@ class PeriodForm(forms.Form):
                 month, count = (data['half'] - 1) * 6 + 1, 6
             last = month + count - 1
             start, end = date(year, month, 1), date(year, last, monthrange(year, last)[1])
-        data.update(start=start, end=end)
+        label = dict(self.fields['report_type'].choices)[kind]
+        if kind in ('half', 'quarterly'):
+            field = 'half' if kind == 'half' else 'quarter'
+            label += ' · ' + dict(self.fields[field].choices)[data[field]]
+        data.update(start=start, end=end, period_label=label)
         return data
 
 class SponsorReportForm(PeriodForm):
