@@ -1,0 +1,22 @@
+{% extends "Management/base.html" %}
+{% block content %}
+<section class="card card-body mx-auto" dir="rtl" style="max-width:40rem">
+  <h1 class="h4">تغيير المستفيد من سند الكفالة</h1>
+  <dl><dt>رقم السند</dt><dd>{{ receipt.invoice.number }}</dd><dt>مبلغ السند</dt><dd>{{ receipt.total_amount }} ر.س</dd>
+  <dt>المستفيد الحالي</dt><dd>{{ allocation.beneficiary.first_name }} {{ allocation.beneficiary.father_name }} {{ allocation.beneficiary.grand_name }} {{ allocation.beneficiary.last_name }}</dd></dl>
+  <form method="post">{% csrf_token %}<input type="hidden" name="version" value="{{ version }}">
+  <label for="replacement">المستفيد البديل</label>
+  <select id="replacement" name="replacement" class="form-select" required><option value=""></option></select>
+  <label class="d-block my-3"><input type="checkbox" name="confirmed" value="yes" required> أؤكد نقل السند إلى المستفيد المختار.</label>
+  <button class="btn btn-primary">تأكيد التغيير</button> <a href="{% url 'Management:sponsorships_list' %}">إلغاء</a></form>
+</section>{% endblock %}
+{% block extra_js %}{{ block.super }}
+<script>
+jQuery(function ($) {
+  $('#replacement').select2({dir:'rtl',width:'100%',minimumInputLength:2,placeholder:'ابحث بالاسم أو الهوية',
+    ajax:{url:"{% url 'Accounting:ajax_beneficiary_search' %}",dataType:'json',delay:250,
+      data:params=>({q:params.term}),processResults:data=>({results:data.results
+        .filter(row=>String(row.id)!=="{{ allocation.beneficiary_id }}")
+        .map(row=>({id:row.id,text:row.name}))})}});
+});
+</script>{% endblock %}

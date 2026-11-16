@@ -1568,6 +1568,43 @@ def sponsorship_edit_dates(request, pk):
 
 
 
+@role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.ACCOUNTANT])
+@require_http_methods(["GET","POST"])
+def sponsorship_reassign(request, pk):
+    from django.core import signing
+    from django.db import OperationalError
+    from .sponsorship_ops import reassign_sponsorship
+    receipt = get_object_or_404(FinancialSponsorshipInvoice.objects.select_related(
+        "invoice","allocation__beneficiary"),pk=pk)
+    allocation = getattr(receipt,"allocation",None)
+    if not allocation or not allocation.created_at:
+        messages.error(request,"لا يوجد إسناد موثق لهذا السند.")
+        return redirect("Management:sponsorships_list")
+    salt = "reassign.sponsorship"
+    if request.method=="POST":
+        try:
+            ref, actor, *version = signing.loads(request.POST.get("version",""),salt=salt)
+            if ref!=pk or actor!=request.user.pk or request.POST.get("confirmed")!="yes":
+                raise ValidationError("يلزم تأكيد تغيير المستفيد لهذا السند.")
+            value=request.POST.get("replacement","")
+            if not value.isascii() or not value.isdecimal() or len(value)>18:
+                raise ValidationError("اختر مستفيدًا مسجلًا من نتائج البحث.")
+            reassign_sponsorship(pk,int(value),tuple(version),request.user)
+        except ValidationError as error:
+            messages.error(request," ".join(error.messages))
+        except signing.BadSignature:
+            messages.error(request,"النموذج غير صالح. أعد فتح السند.")
+        except (IntegrityError,OperationalError,FinancialSponsorshipInvoice.DoesNotExist):
+            messages.error(request,"تعذر تثبيت التغيير. حدّث قائمة الكفالات وتحقق من الإسناد.")
+        else:
+            messages.success(request,"تم تغيير المستفيد وتوثيق الإسناد.")
+        return redirect("Management:sponsorships_list")
+    version=signing.dumps([pk,request.user.pk,allocation.pk,allocation.beneficiary_id,
+                          allocation.created_at.isoformat()],salt=salt)
+    return render(request,"Management/sponsorship_reassign.html",{
+        "receipt":receipt,"allocation":allocation,"version":version})
+
+
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER, Profile.Roles.ACCOUNTANT])
 def sponsorship_renew(request, pk):
     previous = get_object_or_404(FinancialSponsorshipInvoice.objects.select_related("sponsor__user", "allocation__beneficiary"), pk=pk)

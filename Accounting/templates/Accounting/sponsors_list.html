@@ -388,6 +388,16 @@
                     ================================ -->
                     <div class="mt-4">
 
+                        {% if request.user.is_superuser or request.user.profile.role == 'system_admin' %}
+                        <form method="post" action="{% url 'Accounting:delete_sponsor' sponsor.pk %}"
+                              class="mb-2 text-end" data-name="{{ sponsor.user.get_full_name|default:sponsor.user.username }}"
+                              onsubmit="return window.confirm('تأكيد حذف الكافل «' + this.dataset.name + '»؟');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash" aria-hidden="true"></i> حذف الكافل
+                            </button>
+                        </form>
+                        {% endif %}
                         <a href="{% url 'Accounting:sponsor_detail' sponsor.id %}"
                            class="btn btn-primary w-100">
 

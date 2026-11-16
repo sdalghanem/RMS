@@ -45,6 +45,7 @@ path(
         name="sponsor_quick_create",
     ),
 
+    path("sponsors/<int:pk>/delete/", views.delete_sponsor, name="delete_sponsor"),
     path("sponsors/", views.sponsors_list, name="sponsors_list"),
     path("api/sponsors/<int:pk>/update/", views.sponsor_quick_update, name="sponsor_quick_update"),
 

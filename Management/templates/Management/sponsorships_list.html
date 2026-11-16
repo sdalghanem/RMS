@@ -432,6 +432,9 @@
                             </td>
                             <td>
 
+                                {% if item.beneficiary %}{% if request.user.is_superuser or request.user.profile.role == 'system_admin' or request.user.profile.role == 'accountant' %}
+                                <a class="btn btn-outline-secondary btn-sm" href="{% url 'Management:sponsorship_reassign' item.object.pk %}">تغيير المستفيد</a>
+                                {% endif %}{% endif %}
                                 {% if item.can_renew %}<a class="btn btn-outline-primary btn-sm" href="{% url 'Management:sponsorship_renew' item.object.pk %}">تجديد الكفالة</a>{% endif %}
 {% if item.can_edit_dates %}
 

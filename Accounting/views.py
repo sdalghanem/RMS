@@ -1034,6 +1034,58 @@ def sponsor_quick_create(request):
     )
 
 ###
+def _sponsor_deletion_blocker(sponsor, account):
+    if account.is_staff or account.is_superuser or account.groups.exclude(name="donor").exists() or account.user_permissions.exists():
+        return "لا يمكن حذف حساب مرتبط بصلاحيات أخرى."
+    # Check even nullable relations: deletion must never clear a historical FK.
+    reasons = {
+        "management.beneficiary": "لا يمكن حذف الكافل لوجود مستفيد مرتبط به.",
+        "management.beneficiarysponsorhistory": "لا يمكن حذف الكافل لوجود كفالة حالية أو تاريخية.",
+        "accounting.financialsponsorshipinvoice": "لا يمكن حذف الكافل لارتباطه بسند كفالة مالي.",
+    }
+    for obj in (sponsor, account):
+        for relation in obj._meta.get_fields(include_hidden=True):
+            if not relation.auto_created or not (relation.one_to_many or relation.one_to_one):
+                continue
+            model = relation.related_model
+            if obj is account and model in (Profile, User.groups.through):
+                continue
+            if model._base_manager.filter(**{relation.field.attname: obj.pk}).exists():
+                return reasons.get(model._meta.label_lower, "لا يمكن حذف الكافل لارتباط حسابه بسجلات محفوظة.")
+    # General donations store the supporter's identity separately from Profile.
+    identity = Q()
+    if sponsor.national_number:
+        identity |= Q(supporter_national_number=sponsor.national_number)
+    if sponsor.phone:
+        identity |= Q(supporter_phone=sponsor.phone)
+    if identity and GeneralDonationInvoice.objects.filter(identity).exists():
+        return "تعذر حذف الكافل لوجود سند تبرع يطابق بيانات هويته أو جواله."
+    return None
+
+
+@role_required([Profile.Roles.SYSTEM_ADMIN])
+@require_POST
+def delete_sponsor(request, pk):
+    try:
+        with transaction.atomic():
+            sponsor = Profile.objects.select_for_update().filter(pk=pk, role=Profile.Roles.DONOR).first()
+            if sponsor is None:
+                reason = "الكافل غير موجود أو حُذف مسبقًا."
+            else:
+                account = User.objects.select_for_update().get(pk=sponsor.user_id)
+                reason = _sponsor_deletion_blocker(sponsor, account)
+                if not reason:
+                    sponsor.delete()
+                    account.delete()
+    except IntegrityError:  # Includes ProtectedError and RestrictedError.
+        reason = "تعذر حذف الكافل لأن سجلات أخرى مرتبطة به."
+    if reason:
+        messages.error(request, reason)
+    else:
+        messages.success(request, "تم حذف الكافل بنجاح.")
+    return redirect("Accounting:sponsors_list")
+
+
 @role_required([Profile.Roles.SYSTEM_ADMIN, Profile.Roles.CASHIER])
 def sponsors_list(request):
     query = request.GET.get("q", "").strip()
